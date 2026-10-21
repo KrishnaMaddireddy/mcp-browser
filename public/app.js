@@ -140,34 +140,86 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'audit': {
+        entry.title = 'My installed servers';
+        const el = $('#tpl-audit').content.firstElementChild.cloneNode(true);
+        window.MCPAudit?.mount(el, { showServer: (id) => navigate(active, { kind: 'catalog', view: 'all', show: id }) });
+        return el;
+      }
       case 'catalog': {
         entry.title = 'Server catalog';
         const el = $('#tpl-catalog').content.firstElementChild.cloneNode(true);
         window.MCPCatalog?.mount(el, entry, {
           // Run a sample prompt in a new tab, sent to that server.
+          open: (url) => open(url),
           ask: (query, ids, adhoc) => newTab({ kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query }),
-          // Run a prompt right inside the catalog: the same answer view as a tab, embedded.
-          runInline: (box, query, ids, adhoc) => {
-            box.__entry?.abort?.abort();
-            const inlineEntry = { kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query, inline: true };
-            const fakeTab = { btn: Object.assign(document.createElement('div'), { innerHTML: '<span class="tab-title"></span>' }), history: [inlineEntry], idx: 0 };
-            const page = buildSearch(fakeTab, inlineEntry);
-            page.classList.add('inline-run');
-            page.hidden = false;
-            box.replaceChildren(page);
-            box.__entry = inlineEntry;
-            return inlineEntry;
-          },
+          runInline,
         });
         return el;
       }
       case 'web':
         entry.title = hostOf(entry.url);
         return buildWeb(entry);
+      case 'link':
+        entry.title = `Open with: ${hostOf(entry.url)}`;
+        return buildLink(entry);
       default:
         entry.title = 'New tab';
         return buildHome(tab);
     }
+  }
+
+  // Run a question inside another page (catalog, link actions): the same answer
+  // view as a search tab, embedded, with follow-ups. ids/adhoc pin the servers.
+  function runInline(box, query, ids, adhoc) {
+    box.__entry?.abort?.abort();
+    const inlineEntry = { kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query, inline: true };
+    const fakeTab = { btn: Object.assign(document.createElement('div'), { innerHTML: '<span class="tab-title"></span>' }), history: [inlineEntry], idx: 0 };
+    const page = buildSearch(fakeTab, inlineEntry);
+    page.classList.add('inline-run');
+    page.hidden = false;
+    box.replaceChildren(page);
+    box.__entry = inlineEntry;
+    return inlineEntry;
+  }
+
+  // "Open with": what MCP servers can do with a link.
+  function linkActionsHtml(info) {
+    return info.groups
+      .map((g, gi) => `<div class="la-group"><span class="la-name">${esc(g.name)}</span><div class="la-actions">${g.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="${gi}:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('')}</div></div>`)
+      .join('');
+  }
+  async function runLinkAction(info, key, box, note) {
+    const [gi, ai] = key.split(':').map(Number);
+    const a = info.groups[gi]?.actions[ai];
+    if (!a) return;
+    note.textContent = 'Finding servers for this…';
+    const s = await window.MCPLinkActions.serversFor(a);
+    note.textContent = s.ids.length ? `Asking ${s.titles.join(', ')}` : 'Asking the servers MCP Browser picks for this';
+    runInline(box, a.prompt, s.ids, s.adhoc);
+  }
+  function buildLink(entry) {
+    const info = window.MCPLinkActions?.actionsFor(entry.url);
+    const el = document.createElement('section');
+    el.className = 'page panel link';
+    if (!info) {
+      el.innerHTML = '<p class="hint">That doesn’t look like a web address.</p>';
+      return el;
+    }
+    if (entry.autorun) setTimeout(() => el.querySelector(`[data-la="${entry.autorun}"]`)?.click(), 0);
+    el.innerHTML = `<header class="panel-head"><h1>Open with…</h1><p class="la-url"><code>${esc(info.url)}</code></p>
+      <p class="la-open"><button type="button" class="la-open-btn" data-la-open>Open the page</button> <span class="hint">or let MCP servers work on it:</span></p></header>
+      <div class="la-list">${linkActionsHtml(info)}</div><p class="hint" data-la-note></p><div class="la-run" data-la-run></div>`;
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-la-open]')) return desktop ? navigate(active, { kind: 'web', url: info.url }) : window.open(info.url, '_blank', 'noopener,noreferrer');
+      const b = e.target.closest('[data-la]');
+      if (b) {
+        for (const x of el.querySelectorAll('.la-btn[aria-pressed="true"]')) x.setAttribute('aria-pressed', 'false');
+        b.setAttribute('aria-pressed', 'true');
+        runLinkAction(info, b.dataset.la, $('[data-la-run]', el), $('[data-la-note]', el));
+      }
+    });
+    return el;
   }
 
   // ---------- omnibox ----------
@@ -185,6 +237,7 @@
     if (/^mcp:\/\/rank/i.test(s)) return navigate(tab, { kind: 'rank' });
     if (/^mcp:\/\/watches/i.test(s)) return navigate(tab, { kind: 'watches' });
     if (/^mcp:\/\/catalog/i.test(s)) return navigate(tab, { kind: 'catalog' });
+    if (/^mcp:\/\/audit/i.test(s)) return navigate(tab, { kind: 'audit' });
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -200,8 +253,9 @@
       return;
     }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    // Desktop app: the page, with "Open with" actions on top. In a browser: the actions page.
     if (desktop) navigate(tab, { kind: 'web', url: u.href });
-    else window.open(u.href, '_blank', 'noopener,noreferrer');
+    else navigate(tab, { kind: 'link', url: u.href });
   }
 
   $('#omnibox').addEventListener('submit', (e) => {
@@ -405,7 +459,7 @@
       try {
         // A follow-up re-runs on its own (without the earlier turns), so it gets its own label.
         const firstTurn = entry.turns.length === 0 || entry.query === query;
-        await api.post('/api/watches', { query, every, discovery: Boolean(entry.discovery), label: firstTurn ? entry.label || '' : '' });
+        await api.post('/api/watches', { query, every, discovery: Boolean(entry.discovery), label: firstTurn ? entry.label || '' : '', ...(firstTurn && entry.servers ? { servers: entry.servers, adhoc: entry.adhoc } : {}) });
         pick.hidden = true;
         toggle.hidden = true;
         done.hidden = false;
@@ -716,6 +770,25 @@
       entry.url = e.url;
       if (current() === entry) omni.value = e.url;
     });
+    // "Open with" bar: what MCP servers can do with this page.
+    const bar = document.createElement('div');
+    bar.className = 'la-bar';
+    const renderBar = () => {
+      const info = window.MCPLinkActions?.actionsFor(entry.url);
+      if (!info) return (bar.hidden = true);
+      bar.hidden = false;
+      const first = info.groups[0];
+      bar.innerHTML = `<span class="la-name">Ask about this page:</span>${first.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="0:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('')}<button type="button" class="link-btn" data-la-more>More…</button>`;
+      bar.__info = info;
+    };
+    bar.addEventListener('click', (e) => {
+      if (e.target.closest('[data-la-more]')) return navigate(tabs.find((t) => t.history.includes(entry)) || active, { kind: 'link', url: entry.url });
+      const b = e.target.closest('[data-la]');
+      if (b) newTab({ kind: 'link', url: entry.url, autorun: b.dataset.la });
+    });
+    wv.addEventListener('did-navigate', renderBar);
+    renderBar();
+    el.appendChild(bar);
     el.appendChild(wv);
     entry.webview = wv;
     return el;

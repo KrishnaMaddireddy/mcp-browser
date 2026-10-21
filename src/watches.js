@@ -21,6 +21,14 @@ export function similarity(a, b) {
   return inter / (A.size + B.size - inter);
 }
 
+/** Catalog servers a watch may ask without syncing: hosted HTTPS, no key, one of its servers. */
+export function cleanAdhoc(adhoc, servers = []) {
+  return (Array.isArray(adhoc) ? adhoc : [])
+    .slice(0, 5)
+    .filter((a) => a && typeof a === 'object' && servers.includes(String(a.id)) && /^https:\/\/[^\s{}]+$/i.test(String(a.url || '')) && String(a.url).length < 500)
+    .map((a) => ({ id: String(a.id).slice(0, 200), title: String(a.title || a.id).slice(0, 120), description: String(a.description || '').slice(0, 400), url: String(a.url), transport: a.transport === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] }));
+}
+
 export class WatchStore {
   constructor({ file = path.join(dataDir(), 'watches.json'), now = () => Date.now() } = {}) {
     this.file = file;
@@ -54,7 +62,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '' }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '' }) {
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('query required');
     if (!EVERY[every]) throw new Error('every must be hourly, daily or weekly');
@@ -65,6 +73,11 @@ export class WatchStore {
       label: String(label || '').trim().slice(0, 200),
       every,
       discovery: Boolean(discovery),
+      // Ask these servers (ids) instead of routing; adhoc = catalog servers not synced yet.
+      ...(Array.isArray(servers) && servers.length ? { servers: servers.slice(0, 10).map(String) } : {}),
+      ...(Array.isArray(adhoc) && adhoc.length ? { adhoc: cleanAdhoc(adhoc, servers) } : {}),
+      // Watches made from one workflow share a group (its title).
+      ...(group ? { group: String(group).trim().slice(0, 120) } : {}),
       createdAt: this.now(),
       nextRunAt: this.now(), // first run as soon as the scheduler ticks
       lastRun: null,
@@ -208,7 +221,7 @@ export class WatchScheduler {
           reject(new Error('the search took longer than 5 minutes'));
         }, this.runTimeoutMs);
       });
-      const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal }), timeout]);
+      const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal, servers: w.servers, adhoc: w.adhoc }), timeout]);
       return this.store.record(id, { mode: r.mode, answer: r.answer || '', results, sources: r.sources || [] });
     } catch (e) {
       log.warn('watch failed', errMsg(e));

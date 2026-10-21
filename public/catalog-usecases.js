@@ -79,8 +79,63 @@
         <ol class="u-steps">${steps
           .map(({ s, r }) => `<li><div class="u-step-head"><b>${esc(s.label)}</b>${r ? chip(r) : '<span class="u-none">No match yet</span>'}</div><ul>${promptBtn(s.prompt, r && ctx.runnable?.(r) ? r[F.name] : '')}</ul></li>`)
           .join('')}</ol>
+        <div class="u-auto" data-flow="${esc(w.id)}">
+          <button type="button" class="u-runall" data-flow-run>Run all steps now</button>
+          <span class="u-auto-sched"><label>Autopilot <select data-flow-every aria-label="How often"><option value="daily">daily</option><option value="weekly" selected>weekly</option><option value="hourly">hourly</option></select></label><button type="button" class="link-btn" data-flow-watch>Put on autopilot</button></span>
+          <p class="g-note" data-flow-msg>Autopilot re-runs every step on schedule while MCP Browser is open and flags only what changed (in Watches).</p>
+        </div>
         ${servers.length ? `<details class="u-setup"><summary>Set up all ${servers.length} servers at once</summary>${window.MCPGuide.setupHtml(servers, F, { title: 'Setup' })}<p class="g-note">With all of them connected, ask for the whole outcome in one message and Claude chains the steps.</p></details>` : ''}
       </article>`;
+    }
+
+    // Steps of a workflow with the server each one asks (when MCP Browser can call it).
+    function flowSteps(id) {
+      const w = U.workflows.find((x) => x.id === id);
+      if (!w) return null;
+      return {
+        w,
+        steps: w.steps.map((s) => {
+          const r = pick(s.need, 1)[0];
+          const live = r && ctx.runnable?.(r);
+          return { label: s.label, prompt: s.prompt, ids: live ? [r[F.name]] : [], adhoc: live && r[F.remoteUrl] ? [{ id: r[F.name], url: r[F.remoteUrl], transport: r[F.remoteType] === 'sse' ? 'sse' : 'streamable-http', title: r[F.title] || r[F.name].split('/').pop(), description: r[F.desc] || '' }] : [] };
+        }),
+      };
+    }
+    async function runAll(card, id) {
+      const f = flowSteps(id);
+      const host = card;
+      let box = host.querySelector(':scope > .u-flow-run');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'u-flow-run';
+        host.appendChild(box);
+      }
+      box.innerHTML = f.steps.map((s, i) => `<section class="u-flow-step"><h4>${i + 1}. ${esc(s.label)}</h4><div class="u-flow-body"></div></section>`).join('');
+      // One step at a time, so later steps don't compete with earlier ones for servers.
+      const bodies = [...box.querySelectorAll('.u-flow-body')];
+      for (let i = 0; i < f.steps.length; i++) {
+        const s = f.steps[i];
+        const entry = ctx.hooks.runInline(bodies[i], s.prompt, s.ids, s.adhoc);
+        await new Promise((resolve) => {
+          const t0 = Date.now();
+          const tick = setInterval(() => {
+            if ((entry.turns?.length && !entry.busy) || Date.now() - t0 > 120000) (clearInterval(tick), resolve());
+          }, 500);
+        });
+      }
+    }
+    async function autopilot(card, id) {
+      const f = flowSteps(id);
+      const every = card.querySelector('[data-flow-every]').value;
+      const msg = card.querySelector('[data-flow-msg]');
+      msg.textContent = 'Setting up…';
+      let ok = 0;
+      for (const s of f.steps) {
+        const r = await fetch('/api/watches', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ query: s.prompt, every, label: `${f.w.title}: ${s.label}`, group: f.w.title, servers: s.ids.length ? s.ids : undefined, adhoc: s.adhoc.length ? s.adhoc : undefined }) });
+        if (r.ok) ok++;
+        else msg.textContent = `Couldn’t add “${s.label}”: ${(await r.json().catch(() => ({}))).error || r.status}`;
+      }
+      if (ok) msg.innerHTML = `On autopilot: ${ok} step${ok > 1 ? 's' : ''} run ${every}, starting now. See them in <button type="button" class="link-btn" data-open="mcp://watches">Watches</button>; you’ll get a badge when something changes.`;
     }
 
     function renderLibrary() {
@@ -167,6 +222,13 @@
       if (p) return (persona = p.dataset.persona), renderLibrary();
       const g = e.target.closest('[data-goal]');
       if (g) return showGoal(g.dataset.goal);
+    });
+    el.addEventListener('click', (e) => {
+      const card = e.target.closest('.u-flow');
+      if (!card) return;
+      const id = card.querySelector('[data-flow]')?.dataset.flow;
+      if (e.target.closest('[data-flow-run]')) runAll(card, id);
+      else if (e.target.closest('[data-flow-watch]')) autopilot(card, id);
     });
     el.addEventListener('change', (e) => {
       if (e.target.matches('[data-plan-pick]')) updatePlanSetup();

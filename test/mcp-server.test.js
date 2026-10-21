@@ -48,7 +48,7 @@ const call = async (name, args) => {
 
 test('advertises read-only tools and instructions', async () => {
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['call_tool', 'find_servers', 'quick_search', 'route']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['call_tool', 'find_server_for_task', 'find_servers', 'get_server_setup', 'quick_search', 'route', 'try_server']);
   assert.ok(tools.every((t) => t.annotations?.readOnlyHint === true));
   assert.match(client.getInstructions(), /untrusted/);
 });

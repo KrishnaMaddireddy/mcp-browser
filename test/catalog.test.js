@@ -116,3 +116,34 @@ test('a question can name a catalog server the browser has not synced (HTTPS onl
     assert.ok(!r || !r.servers.some((s) => s.id === 'com.acme/x'));
   }
 });
+
+test('a watch can be pinned to catalog servers and grouped by workflow', async () => {
+  const post = (body) => fetch(`${base}/api/watches`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify(body) });
+  const r = await post({ query: 'weekly check', every: 'weekly', label: 'Brief: step 1', group: 'Brief', servers: ['com.acme/x'], adhoc: [{ id: 'com.acme/x', url: 'https://acme.example/mcp' }, { id: 'evil/y', url: 'https://evil.example/mcp' }, { id: 'com.acme/x', url: 'http://plain.example/mcp' }] });
+  assert.equal(r.status, 201);
+  const w = await r.json();
+  assert.deepEqual(w.servers, ['com.acme/x']);
+  assert.equal(w.group, 'Brief');
+  assert.deepEqual(w.adhoc.map((a) => a.url), ['https://acme.example/mcp']);
+  await fetch(`${base}/api/watches/delete`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ id: w.id }) });
+});
+
+test('"Open with" finds actions for common links', async () => {
+  globalThis.window = {};
+  await import('../public/link-actions.js?' + Date.now());
+  const L = globalThis.window.MCPLinkActions;
+  const yt = L.actionsFor('https://www.youtube.com/watch?v=aircAruvnKk');
+  assert.equal(yt.groups[0].name, 'YouTube video');
+  assert.match(yt.groups[0].actions[0].prompt, /transcript of https:\/\/www\.youtube\.com/);
+  const gh = L.actionsFor('https://github.com/facebook/react');
+  assert.match(gh.groups[0].actions[0].prompt, /facebook\/react/);
+  const npm = L.actionsFor('https://www.npmjs.com/package/@scope/pkg');
+  assert.match(npm.groups[0].actions[0].prompt, /@scope\/pkg/);
+  const site = L.actionsFor('https://example.com/');
+  assert.equal(site.groups.length, 1);
+  assert.match(site.groups[0].actions.map((a) => a.prompt).join(' '), /SSL certificate and DNS records for example\.com/);
+  assert.equal(L.actionsFor('javascript:alert(1)'), null);
+  const f = await fetch(`${base}/api/catalog/find?q=youtube%20transcript&runnable=1&limit=3`).then((x) => x.json());
+  assert.ok(Array.isArray(f.servers));
+  for (const s of f.servers) assert.match(s.adhoc.url, /^https:/);
+});

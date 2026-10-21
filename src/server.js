@@ -15,6 +15,8 @@ import { exportLabels } from './rank.js';
 import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
 import { catalogFile, catalogTools } from './catalog-data.js';
+import { auditInstalled } from './audit.js';
+import { searchCatalog, describe as describeCatalogRow, adhocFor } from './catalog-index.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 // How Claude Desktop / Claude Code can start MCP server mode. From the project
@@ -327,7 +329,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/watches': async (req, res) => {
       const b = await readJson(req);
       try {
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label });
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {
@@ -373,6 +375,26 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.writeHead(200, { ...headers, 'content-encoding': 'gzip' }), res.end(data);
         zlib.gunzip(data, (e, raw) => (e ? json(res, 500, { error: 'catalog is damaged' }) : (res.writeHead(200, headers), res.end(raw))));
       });
+    },
+    // Read-only check of the MCP servers installed in this computer's clients.
+    'GET /api/audit': async (req, res) => {
+      try {
+        json(res, 200, auditInstalled());
+      } catch (e) {
+        json(res, 500, { error: `Could not check the installed servers: ${errMsg(e)}` });
+      }
+    },
+    // Catalog servers for a task (used by "Open with" for links).
+    'GET /api/catalog/find': async (req, res, url) => {
+      const q = String(url.searchParams.get('q') || '').slice(0, 300);
+      const runnableOnly = url.searchParams.get('runnable') === '1';
+      const limit = Math.min(10, Math.max(1, Number(url.searchParams.get('limit')) || 3));
+      try {
+        const rows = searchCatalog(q, { limit, runnableOnly });
+        json(res, 200, { servers: rows.map((r) => ({ ...describeCatalogRow(r), adhoc: adhocFor(r) })) });
+      } catch (e) {
+        json(res, 200, { servers: [], error: errMsg(e) });
+      }
     },
     'GET /api/catalog/tools': async (req, res, url) => {
       const id = String(url.searchParams.get('id') || '').slice(0, 300);

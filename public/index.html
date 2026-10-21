@@ -29,6 +29,7 @@
         <button type="button" data-go="mcp://rank">MCP Rank</button>
         <button type="button" data-go="mcp://servers">MCP servers</button>
         <button type="button" data-go="mcp://catalog">Server catalog</button>
+        <button type="button" data-go="mcp://audit">My installed servers</button>
         <button type="button" data-go="mcp://settings">Settings</button>
       </nav>
       <button class="icon-btn has-badge" id="openWatches" title="Watches" aria-label="Watches">
@@ -258,6 +259,7 @@
         <form class="u-ask" data-u-form>
           <label for="u-q">What do you want to do?</label>
           <div class="u-ask-row"><input id="u-q" type="search" data-u-q placeholder="e.g. track competitor pricing, summarize my unread email, find papers on sleep" autocomplete="off"><button type="submit">Find servers</button></div>
+          <p class="u-mine"><button type="button" class="link-btn" data-open="mcp://audit">Check the servers you already have installed</button> (Claude, Cursor, VS Code)</p>
           <p class="u-examples">Try: <button type="button" data-u-example>triage production errors</button> <button type="button" data-u-example>research a stock before earnings</button> <button type="button" data-u-example>plan a trip to Lisbon</button> <button type="button" data-u-example>query our postgres database</button></p>
         </form>
         <div data-u-plan></div>
@@ -329,6 +331,19 @@
     </section>
   </template>
 
+  <template id="tpl-audit">
+    <section class="page panel audit">
+      <header class="panel-head">
+        <h1>My installed servers</h1>
+        <p class="panel-lede">The MCP servers set up in Claude Desktop, Claude Code, Cursor, VS Code and Windsurf on this computer, matched to the official registry and checked for risks: keys in plain text, unknown publishers, unpinned versions, archived or abandoned code, tools that change things. Read-only: nothing is changed or sent anywhere.</p>
+      </header>
+      <p class="a-sum" data-audit-sum></p>
+      <ul class="a-list" data-audit-list></ul>
+      <details class="a-files"><summary>Files checked</summary><ul data-audit-files></ul></details>
+      <p><button type="button" class="link-btn" data-audit-again>Check again</button></p>
+    </section>
+  </template>
+
   <template id="tpl-settings">
     <section class="page panel settings">
       <header class="panel-head">
@@ -389,6 +404,8 @@
   <script src="catalog-guide.js"></script>
   <script src="catalog-usecases.js"></script>
   <script src="catalog.js"></script>
+  <script src="audit.js"></script>
+  <script src="link-actions.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

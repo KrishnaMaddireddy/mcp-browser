@@ -307,6 +307,16 @@ servers MCP Rank has tested, stars barely predict the score (see docs/RESEARCH.m
 
 Every server also has **How to use it**: setup for Claude Code, Claude Desktop, Cursor and VS Code (required settings filled in as placeholders), *Add to MCP Browser* for hosted servers that work without a key, its tools with their inputs (listed by connecting to it), the use cases it's good for, and checks before relying on it — publisher vs repo owner, verified domain, sign-in or payment, tools that change things, archived or stale repo, low adoption.
 
+**Run prompts where you find them.** Every prompt in the catalog has **Run**: the answer appears right below it (same view as a search tab, with follow-ups, *Open in a tab* and *Watch*). Prompts on a server go to that server even if MCP Browser hasn't synced it (hosted HTTPS servers with no key only; the network guard still applies); use-case prompts use normal routing.
+
+**Workflows on autopilot.** Each workflow has *Run all steps now* (runs the steps one after another, each on its own server) and *Put on autopilot* (hourly, daily or weekly): every step becomes a Watch pinned to its server and grouped under the workflow, re-run on schedule while the app is open; the Watches badge lights up only when something changed.
+
+**Claude finds its own tools.** MCP Browser's MCP server adds `find_server_for_task` (search all ~48,000 registry servers by task), `try_server` (ask one live, without installing it) and `get_server_setup` (config for Claude Code, Claude Desktop, Cursor or VS Code, plus its checks). Connected to Claude, it can discover, test and recommend servers mid-conversation.
+
+**My installed servers** (`mcp://audit`, or *Check the servers you already have installed* in the catalog): reads the MCP configs of Claude Desktop, Claude Code (user and per-project), Cursor, VS Code and Windsurf on this computer, matches each server to the registry, and flags keys stored in plain text, keys in launch arguments, unpinned versions, plain-HTTP endpoints, servers not in the registry, publisher mismatches, archived or stale code and tools that change things — with better-maintained alternatives. Read-only; secret values are never returned, only their names.
+
+**Open with… for links.** Paste a link in the address bar (or use the bar above any page in the desktop app) and MCP Browser offers what servers can do with it: a YouTube transcript or summary, explain a GitHub repo or summarize an issue, summarize an arXiv or PubMed paper, check an npm or PyPI package for vulnerabilities, summarize a Reddit or Hacker News thread, price history for a product page; and for any site, what the company does, SSL and DNS, uptime and SEO (`public/link-actions.js`).
+
 **Sample prompts.** Up to three per server: written ones for the most-used servers and for servers MCP Browser can call (`src/data/catalog-prompts.json`), otherwise built from the server's tools (labelled with the tool) or its description. On servers MCP Browser can call, clicking a prompt asks it in a new tab, sent to that server.
 
 A snapshot ships with the app (`src/data/catalog.json.gz`, with tool lists in `src/data/catalog-tools.json.gz`). To rebuild it from live sources:
@@ -487,6 +497,8 @@ npm run test:live        # also hits the real curated servers
 | GET | `/api/servers?sort=stars` | most-starred first; every server row has `github: {repo, stars, pushedAt, archived, sharedWith, otherOwner}` |
 | GET | `/api/servers?sort=updated\|pushed\|oldest&since=N` | by registry update or last GitHub push; `since` keeps servers updated in the last N days. Rows carry `website`, `repo`, `updatedAt` |
 | GET | `/api/catalog` | the full registry catalog (categories, stars, downloads, dates, prompts, setting names), gzipped when accepted |
+| GET | `/api/catalog/find?q=&runnable=1&limit=` | catalog servers for a task (`runnable=1`: ones MCP Browser can call now, with what's needed to ask them) |
+| GET | `/api/audit` | MCP servers installed in this computer's clients, matched to the registry, with checks (never secret values) |
 | GET | `/api/catalog/tools?id=` | one catalog server's tools (name, description, required inputs, whether it changes things) |
 
 POST requests need `content-type: application/json` and `x-mcpb: 1`.

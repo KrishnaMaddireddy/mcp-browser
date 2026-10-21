@@ -314,6 +314,8 @@
 
     el.addEventListener('click', (e) => {
       if (window.MCPGuide?.handleClick(e, ctx)) return;
+      const op = e.target.closest('[data-open]');
+      if (op) return hooks.open?.(op.dataset.open);
       const rt = e.target.closest('[data-run-tab]');
       if (rt) {
         const box = rt.closest('.cat-run');
@@ -409,6 +411,7 @@
       }
       setView(entry.view || (window.MCPUseCases ? 'uses' : 'all'));
       render();
+      if (entry.show) showServer(entry.show);
     }).catch((e) => {
       $('[data-cat-lede]').textContent = '';
       $('[data-cat-count]').textContent = '';
