@@ -1,0 +1,4278 @@
+{
+ "schema": "mcp-rank-labels/1",
+ "methodology": "2026-10-20.5",
+ "generatedAt": "2026-10-21T04:07:10.865Z",
+ "weights": {
+  "accuracy": 55,
+  "free": 12,
+  "clean": 12,
+  "speed": 8,
+  "safety": 6,
+  "metadata": 7
+ },
+ "servers": [
+  {
+   "id": "keenable",
+   "title": "Keenable Web Search",
+   "url": "https://api.keenable.ai/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 100,
+     "lastRunScore": 100,
+     "runs": 3,
+     "accuracy": 1,
+     "questions": 5,
+     "correct": 5,
+     "method": "direct",
+     "medianMs": 170,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": []
+    }
+   },
+   "bestScore": 100
+  },
+  {
+   "id": "ai.keenable/web-search",
+   "title": "Web Search",
+   "url": "https://api.keenable.ai/mcp?keenable_title=mcp-registry",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 100,
+     "lastRunScore": 100,
+     "runs": 3,
+     "accuracy": 1,
+     "questions": 5,
+     "correct": 5,
+     "method": "direct",
+     "medianMs": 183,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": []
+    }
+   },
+   "bestScore": 100
+  },
+  {
+   "id": "ai.marketcrew/market-data",
+   "title": "Market Data",
+   "url": "https://marketcrew.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 15,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "money": {
+     "score": 100,
+     "lastRunScore": 100,
+     "runs": 3,
+     "accuracy": 1,
+     "questions": 4,
+     "correct": 4,
+     "method": "direct",
+     "medianMs": 862,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": []
+    }
+   },
+   "bestScore": 100
+  },
+  {
+   "id": "io.github.cyanheads/wikipedia-mcp-server",
+   "title": "Wikipedia Mcp Server",
+   "url": "https://wikipedia.caseyjhand.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 6,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 86,
+     "lastRunScore": 86,
+     "runs": 3,
+     "accuracy": 0.75,
+     "questions": 4,
+     "correct": 3,
+     "method": "direct",
+     "medianMs": 640,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "answers look canned: one response matched several unrelated questions, so they were not counted"
+     ]
+    }
+   },
+   "bestScore": 86
+  },
+  {
+   "id": "com.meridiandispatch/travel-guides",
+   "title": "Meridian Dispatch",
+   "url": "https://www.meridiandispatch.com/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 12,
+   "writeToolsHidden": 4,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 84,
+     "lastRunScore": 84,
+     "runs": 1,
+     "accuracy": 0.75,
+     "questions": 4,
+     "correct": 3,
+     "method": "direct",
+     "medianMs": 117,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "4 write/action tool(s) hidden from agents for safety"
+     ]
+    }
+   },
+   "bestScore": 84
+  },
+  {
+   "id": "mslearn",
+   "title": "Microsoft Learn",
+   "url": "https://learn.microsoft.com/api/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 82,
+     "lastRunScore": 82,
+     "runs": 3,
+     "accuracy": 0.6666666666666666,
+     "questions": 3,
+     "correct": 2,
+     "method": "direct",
+     "medianMs": 599,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": []
+    }
+   },
+   "bestScore": 82
+  },
+  {
+   "id": "exa",
+   "title": "Exa Web Search",
+   "url": "https://mcp.exa.ai/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 79,
+     "lastRunScore": 99,
+     "runs": 3,
+     "accuracy": 1,
+     "questions": 5,
+     "correct": 5,
+     "method": "direct",
+     "medianMs": 1818,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": []
+    }
+   },
+   "bestScore": 79
+  },
+  {
+   "id": "wikexa",
+   "title": "Wikipedia Knowledge (community)",
+   "url": "https://wikexa.com/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 6,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "encyclopedia": {
+     "score": 79,
+     "lastRunScore": 84,
+     "runs": 3,
+     "accuracy": 0.75,
+     "questions": 4,
+     "correct": 3,
+     "method": "direct",
+     "medianMs": 305,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe"
+     ]
+    }
+   },
+   "bestScore": 79
+  },
+  {
+   "id": "ai.edgechat/edgepedia",
+   "title": "Edgepedia",
+   "url": "https://www.edgechat.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 77,
+     "lastRunScore": 73,
+     "runs": 3,
+     "accuracy": 0.5,
+     "questions": 4,
+     "correct": 2,
+     "method": "direct",
+     "medianMs": 818,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": []
+    }
+   },
+   "bestScore": 77
+  },
+  {
+   "id": "research-papers",
+   "title": "Research Papers (community)",
+   "url": "https://fourzerotwo.si/mcp/v/research",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 38,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.94,
+   "categories": {
+    "papers": {
+     "score": 75,
+     "lastRunScore": 63,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 323,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 75
+  },
+  {
+   "id": "io.github.cyanheads/arxiv-mcp-server",
+   "title": "Arxiv Mcp Server",
+   "url": "https://arxiv.caseyjhand.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 4,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "papers": {
+     "score": 69,
+     "lastRunScore": 63,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 298,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 69
+  },
+  {
+   "id": "io.github.cyanheads/wikidata-mcp-server",
+   "title": "Wikidata Mcp Server",
+   "url": "https://wikidata.caseyjhand.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 64,
+     "lastRunScore": 73,
+     "runs": 3,
+     "accuracy": 0.5,
+     "questions": 4,
+     "correct": 2,
+     "method": "direct",
+     "medianMs": 319,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": []
+    }
+   },
+   "bestScore": 64
+  },
+  {
+   "id": "app.openkrill/papers",
+   "title": "Paper Finder",
+   "url": "https://papers.openkrill.app/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 1,
+   "metadataQuality": 1,
+   "categories": {
+    "papers": {
+     "score": 62,
+     "lastRunScore": 62,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 615,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 62
+  },
+  {
+   "id": "io.github.Srikarmk/keystone",
+   "title": "Keystone",
+   "url": "https://keystone-research.vercel.app/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "papers": {
+     "score": 61,
+     "lastRunScore": 61,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 126,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 61
+  },
+  {
+   "id": "dev.farmjs/docs",
+   "title": "Farm.js Docs",
+   "url": "https://mcp.farmjs.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 16,
+   "writeToolsHidden": 1,
+   "metadataQuality": 0.74,
+   "categories": {
+    "dev-docs": {
+     "score": 61,
+     "lastRunScore": 61,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 555,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "88% of parameters are undocumented",
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 61
+  },
+  {
+   "id": "context7",
+   "title": "Context7 Library Docs",
+   "url": "https://mcp.context7.com/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "com.invokera/postal-codes",
+   "title": "Postal Codes",
+   "url": "https://invokera.com/r/postal-codes",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "com.invokera/currency-rates",
+   "title": "Currency Rates (ECB)",
+   "url": "https://invokera.com/r/currency-rates",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "money": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "dev.workers.bhazarstudio.datoqa/historical-exchange-rates",
+   "title": "DatoQA — Historical Exchange Rates",
+   "url": "https://datoqa.bhazarstudio.workers.dev/mcp/fx",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.94,
+   "categories": {
+    "money": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "app.octotrip/flights",
+   "title": "OctoTrip Flights",
+   "url": "https://mcp.octotrip.app/flights/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "com.worldairfares/flights-mcp",
+   "title": "World Airfares Flight Search",
+   "url": "https://mcp.worldairfares.com",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "no.restplass/travel-search",
+   "title": "Restplass travel search",
+   "url": "https://www.restplass.no/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "se.sistaminuten/travel-search",
+   "title": "Sistaminuten travel search",
+   "url": "https://www.sistaminuten.se/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 60,
+     "lastRunScore": 60,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 60
+  },
+  {
+   "id": "io.usefulapi/knowledgeowl",
+   "title": "KnowledgeOwl MCP by usefulapi",
+   "url": "https://knowledgeowl.usefulapi.io/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 24,
+   "writeToolsHidden": 6,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 59,
+     "lastRunScore": 59,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)",
+      "6 write/action tool(s) hidden from agents for safety"
+     ]
+    }
+   },
+   "bestScore": 59
+  },
+  {
+   "id": "app.openkrill/countrystats",
+   "title": "Country Stats Facts",
+   "url": "https://countrystats.openkrill.app/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 1,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 59,
+     "lastRunScore": 59,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)",
+      "1 write/action tool(s) hidden from agents for safety"
+     ]
+    }
+   },
+   "bestScore": 59
+  },
+  {
+   "id": "io.flightcat/flightcat",
+   "title": "Flightcat",
+   "url": "https://mcp.flightcat.io/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.83,
+   "categories": {
+    "travel": {
+     "score": 59,
+     "lastRunScore": 59,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "56% of parameters are undocumented",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 59
+  },
+  {
+   "id": "no.cantara/wiki",
+   "title": "Cantara wiki — community knowledge web",
+   "url": "https://mcp.cantara.no/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "encyclopedia": {
+     "score": 58,
+     "lastRunScore": 58,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 58
+  },
+  {
+   "id": "deepwiki",
+   "title": "DeepWiki",
+   "url": "https://mcp.deepwiki.com/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "encyclopedia": {
+     "score": 58,
+     "lastRunScore": 58,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 58
+  },
+  {
+   "id": "io.usefulapi/drupal",
+   "title": "Drupal MCP by usefulapi",
+   "url": "https://drupal.usefulapi.io/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 3,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 58,
+     "lastRunScore": 58,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)",
+      "3 write/action tool(s) hidden from agents for safety"
+     ]
+    }
+   },
+   "bestScore": 58
+  },
+  {
+   "id": "io.github.Jenpo/fxpeek",
+   "title": "Fxpeek",
+   "url": "https://fxpeek.com/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "money": {
+     "score": 58,
+     "lastRunScore": 58,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 58
+  },
+  {
+   "id": "io.tooloracle/flightoracle",
+   "title": "Flightoracle",
+   "url": "https://tooloracle.io/flight/mcp/",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "travel": {
+     "score": 58,
+     "lastRunScore": 58,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 58
+  },
+  {
+   "id": "science.pith/pith",
+   "title": "Pith",
+   "url": "https://pith.science/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 24,
+   "writeToolsHidden": 1,
+   "metadataQuality": 0.95,
+   "categories": {
+    "papers": {
+     "score": 57,
+     "lastRunScore": 63,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 574,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 57
+  },
+  {
+   "id": "kiwi",
+   "title": "Kiwi.com Flights",
+   "url": "https://mcp.kiwi.com",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 1,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 57,
+     "lastRunScore": 57,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)",
+      "1 write/action tool(s) hidden from agents for safety"
+     ]
+    }
+   },
+   "bestScore": 57
+  },
+  {
+   "id": "io.github.TravelType/travel-poi",
+   "title": "TravelType",
+   "url": "https://mcp.traveltype.app",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 54,
+     "lastRunScore": 59,
+     "runs": 3,
+     "accuracy": 0.25,
+     "questions": 4,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 949,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "answered 1 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 54
+  },
+  {
+   "id": "io.github.DataLeadsPRO/news-article-extractor",
+   "title": "News Article Extractor",
+   "url": "https://data.dataleads.pro/mcp/news-article-extractor",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0,
+   "categories": {
+    "web-search": {
+     "score": 53,
+     "lastRunScore": 53,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "100% of tools have short or missing descriptions",
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "no tool takes a plain question; it needs an AI model to fill structured arguments, so accuracy was not measured (add a model in Settings to test it)"
+     ]
+    }
+   },
+   "bestScore": 53
+  },
+  {
+   "id": "io.github.MCPServings/paper-mcp",
+   "title": "Paper Mcp",
+   "url": "https://latex-tools.online/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 41,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.39,
+   "categories": {
+    "papers": {
+     "score": 52,
+     "lastRunScore": 39,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 3020,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 52
+  },
+  {
+   "id": "io.github.kirupa/kirupa",
+   "title": "KIRUPA Tutorials & Code Library",
+   "url": "https://www.kirupa.com/mcp/",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 4,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 51,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 209,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 51
+  },
+  {
+   "id": "io.github.pipeworx-io/bing-news",
+   "title": "Bing News",
+   "url": "https://gateway.pipeworx.io/bing-news/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 42,
+   "writeToolsHidden": 9,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 48,
+     "lastRunScore": 44,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 5,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 376,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "9 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 5 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 48
+  },
+  {
+   "id": "com.a2awire/data-npm-release-node-package-javascript-dependency",
+   "title": "npm Release Tracker — new Node.js packages & JavaScript dependency updates (npmwatch)",
+   "url": "https://a2awire.com/mcp/data/npmwatch-new-npm-package-releases-javascript-dependency-updates-9aad2b/http",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": true,
+   "tools": 16,
+   "writeToolsHidden": 7,
+   "metadataQuality": 0.95,
+   "categories": {
+    "dev-docs": {
+     "score": 48,
+     "lastRunScore": 48,
+     "runs": 3,
+     "accuracy": 0.3333333333333333,
+     "questions": 3,
+     "correct": 1,
+     "method": "direct",
+     "medianMs": 172,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "results contain text aimed at the AI (ads or instructions)",
+      "7 write/action tool(s) hidden from agents for safety",
+      "answered 1 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 48
+  },
+  {
+   "id": "io.github.99darwin/nexus",
+   "title": "Nexus AI News",
+   "url": "https://nexus.carapace.bot/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 5,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 151,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "answered 0 of 5 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.github.Nuvraxis/nuvui",
+   "title": "NuvUI",
+   "url": "https://nuvui.nuvraxis.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 11,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.96,
+   "categories": {
+    "dev-docs": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 166,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.github.Noord-Ventures/vlak",
+   "title": "Vlak",
+   "url": "https://vlak.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 72,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.jsonpad/docs",
+   "title": "JSONPad documentation",
+   "url": "https://mcp.jsonpad.io/docs",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 14,
+   "writeToolsHidden": 1,
+   "metadataQuality": 1,
+   "categories": {
+    "dev-docs": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 58,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "tech.skybridge.capitals/Capitals",
+   "title": "Skybridge Capitals Example",
+   "url": "https://capitals.skybridge.tech",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 223,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "every call failed (Capital \" \" not found)",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.ultimaps/mcp",
+   "title": "Ultimaps",
+   "url": "https://api.ultimaps.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.94,
+   "categories": {
+    "geography": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 180,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.github.cyanheads/geonames-mcp-server",
+   "title": "geonames-mcp-server",
+   "url": "https://geonames.caseyjhand.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 288,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.criora/criora",
+   "title": "Criora climate risk",
+   "url": "https://criora.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 12,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "geography": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 296,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.geo-parity/geo-parity",
+   "title": "Geo-Parity",
+   "url": "https://geo-parity.com/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 62,
+   "writeToolsHidden": 3,
+   "metadataQuality": 0.97,
+   "categories": {
+    "geography": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 2,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 350,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "3 write/action tool(s) hidden from agents for safety",
+      "every call failed ({ \"ok\": false, \"code\": \"TOO_FEW\", \"message\": \"Give at least two team members.\" })",
+      "answered 0 of 2 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.datakoot/fx-currency-exchange-rates",
+   "title": "Market Intel MCP",
+   "url": "https://market.datakoot.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "money": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 2,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 254,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "every call failed ({ \"error\": \"Provide 'date' as YYYY-MM-DD.\" })",
+      "answered 0 of 2 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.github.cyanheads/exchange-rates-mcp-server",
+   "title": "Exchange Rates Mcp Server",
+   "url": "https://exchange-rates.caseyjhand.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "money": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 2,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 136,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "every call failed (Error: base_currency \" \" is not supported by the ECB. Accepted: AUD, BRL, CAD, CHF, CNY, C)",
+      "answered 0 of 2 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.flywhereto/mcp",
+   "title": "Fly Where To?",
+   "url": "https://flywhereto.com/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 666,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "every call failed (No airport matches \" \".)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "com.aviasurf/mcp",
+   "title": "Aviasurf",
+   "url": "https://mcp.aviasurf.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 9,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 45,
+     "lastRunScore": 45,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 175,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 45
+  },
+  {
+   "id": "io.github.pipeworx-io/wikidata",
+   "title": "Wikidata",
+   "url": "https://gateway.pipeworx.io/wikidata/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 46,
+   "writeToolsHidden": 9,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 44,
+     "lastRunScore": 44,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 530,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "9 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 44
+  },
+  {
+   "id": "io.github.h2-papers/mcp-server",
+   "title": "水素分子医学文献データベース — Molecular hydrogen medical literature (H2 Papers)",
+   "url": "https://h2-papers.org/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 6,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.81,
+   "categories": {
+    "papers": {
+     "score": 44,
+     "lastRunScore": 44,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 274,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "65% of parameters are undocumented",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 44
+  },
+  {
+   "id": "com.dondego/wikidata-google-knowledge-mcp",
+   "title": "Wikidata + Google Knowledge Graph MCP",
+   "url": "https://wikidata-knowledge-mcp.revanalex.workers.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "encyclopedia": {
+     "score": 43,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 557,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "every call failed ({\"status\":\"error\",\"detail\":\"Bounded provider request failed\"})",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 43
+  },
+  {
+   "id": "org.memoryapi/research",
+   "title": "Academic Research Search",
+   "url": "https://research.memoryapi.org/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "papers": {
+     "score": 43,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 593,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 43
+  },
+  {
+   "id": "dev.semanticreader/semantic-reader",
+   "title": "Priority — TypeScript Compiler Intelligence",
+   "url": "https://semanticreader.dev/mcp/registry",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 12,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "dev-docs": {
+     "score": 43,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 74,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "every call failed (MCP error -32602: Input validation error: Invalid arguments for tool query_code: Required )",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 43
+  },
+  {
+   "id": "io.github.jonathanpchapman/inferventis",
+   "title": "Inferventis — Financial Data, News & Web MCP",
+   "url": "https://mcp-server-295985738387.europe-west1.run.app/mcp-pay?src=registry",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 20,
+   "writeToolsHidden": 1,
+   "metadataQuality": 0.7,
+   "categories": {
+    "money": {
+     "score": 43,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 457,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 43
+  },
+  {
+   "id": "flights.mubboo/flight-search",
+   "title": "Mubboo Flights Search",
+   "url": "https://mubboo.flights/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "travel": {
+     "score": 43,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 93,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 43
+  },
+  {
+   "id": "news.hottub/hottub-news",
+   "title": "Hottub News",
+   "url": "https://hottub.news/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 10,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.88,
+   "categories": {
+    "web-search": {
+     "score": 42,
+     "lastRunScore": 42,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 5,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 3332,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "39% of parameters are undocumented",
+      "answered 0 of 5 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 42
+  },
+  {
+   "id": "io.github.sadri-dridi/wikidata-ok",
+   "title": "Wikidata Q-id shape, value discarded",
+   "url": "https://agent-observatory-sensor.nolimit-observatory.workers.dev/s/wikidata-ok/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 31,
+   "writeToolsHidden": 1,
+   "metadataQuality": 0.64,
+   "categories": {
+    "encyclopedia": {
+     "score": 42,
+     "lastRunScore": 42,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 85,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "1 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 42
+  },
+  {
+   "id": "com.a2awire/data-pubmed-biomedical-paper-research-article",
+   "title": "PubMed Biomedical Papers — new research articles ($0.01/query)",
+   "url": "https://a2awire.com/mcp/data/pubmedwatch-new-pubmed-biomedical-papers-e0bf9c/http",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 16,
+   "writeToolsHidden": 7,
+   "metadataQuality": 0.95,
+   "categories": {
+    "papers": {
+     "score": 42,
+     "lastRunScore": 42,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 104,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "7 write/action tool(s) hidden from agents for safety",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 42
+  },
+  {
+   "id": "uk.dumaguete/places",
+   "title": "dumaguete.uk places",
+   "url": "https://dumaguete.uk/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.6,
+   "categories": {
+    "geography": {
+     "score": 42,
+     "lastRunScore": 42,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 160,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "33% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 42
+  },
+  {
+   "id": "com.thecastlemap/castles",
+   "title": "Castles",
+   "url": "https://thecastlemap.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 7,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.61,
+   "categories": {
+    "geography": {
+     "score": 42,
+     "lastRunScore": 42,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 172,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 42
+  },
+  {
+   "id": "com.compamir/news",
+   "title": "COMPAMIR News",
+   "url": "https://api.compamir.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.5,
+   "categories": {
+    "web-search": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 5,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 1036,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "67% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 5 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "pubmed-community",
+   "title": "PubMed (community)",
+   "url": "https://mcp.olyport.com/pubmed/mcp",
+   "source": "curated",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 5,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.4,
+   "categories": {
+    "papers": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 718,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "io.github.robertoyanguas-ops/arxiv-digest-mcp",
+   "title": "Arxiv Digest Mcp",
+   "url": "https://arxiv-digest-72343955726.us-central1.run.app/mcp/arxiv-digest",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "papers": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "returns results that don't match its own declared output schema (strict clients reject them)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "dev.agentdiet/arxiv-digest",
+   "title": "AgentDiet ArXiv AI/CS Paper Search & Structured Token-Diet Digest",
+   "url": "https://arxiv-digest.agentdiet.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 2,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "papers": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "returns results that don't match its own declared output schema (strict clients reject them)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "com.relocation123/mcp",
+   "title": "Mcp",
+   "url": "https://mcp.relocation123.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 11,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.4,
+   "categories": {
+    "geography": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 141,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "com.daedalmap/world_factbook",
+   "title": "DaedalMap CIA World Factbook",
+   "url": "https://app.daedalmap.com/mcp/world_factbook",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 4,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.98,
+   "categories": {
+    "geography": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 4,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "every call failed (MCP error -32602: topic must be overview, data, disasters, custom_data, or geometry)",
+      "answered 0 of 4 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "im.gino/stocks-us",
+   "title": "US Stocks & Market Data",
+   "url": "https://mcp-stocks-us.gino.im/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 6,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "money": {
+     "score": 41,
+     "lastRunScore": 43,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 2,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 274,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "answered 0 of 2 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "io.github.gusgordon/ignav-flights",
+   "title": "Ignav Flights",
+   "url": "https://ignav.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "travel": {
+     "score": 41,
+     "lastRunScore": 41,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "every call failed (Streamable HTTP error: Error POSTing to endpoint: {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 41
+  },
+  {
+   "id": "org.memoryapi/ai",
+   "title": "AI/ML Research Papers",
+   "url": "https://ai.memoryapi.org/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.7,
+   "categories": {
+    "papers": {
+     "score": 39,
+     "lastRunScore": 39,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "every call failed (MCP error -32000: Request failed with status code 402)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 39
+  },
+  {
+   "id": "com.byjg/docs",
+   "title": "ByJG Open Source Docs",
+   "url": "https://mcpdocs.byjg.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": true,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.4,
+   "categories": {
+    "dev-docs": {
+     "score": 39,
+     "lastRunScore": 29,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 140,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "results contain text aimed at the AI (ads or instructions)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 39
+  },
+  {
+   "id": "io.github.DataLeadsPRO/google-serp",
+   "title": "Google Serp",
+   "url": "https://data.dataleads.pro/mcp/google-serp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0,
+   "categories": {
+    "web-search": {
+     "score": 38,
+     "lastRunScore": 38,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 5,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 322,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "100% of tools have short or missing descriptions",
+      "100% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "answered 0 of 5 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 38
+  },
+  {
+   "id": "com.formgong/mcp",
+   "title": "Formgong",
+   "url": "https://formgong.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 8,
+   "writeToolsHidden": 3,
+   "metadataQuality": 0.87,
+   "categories": {
+    "dev-docs": {
+     "score": 38,
+     "lastRunScore": 38,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 3,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "43% of parameters are undocumented",
+      "3 write/action tool(s) hidden from agents for safety",
+      "every call failed (Streamable HTTP error: Error POSTing to endpoint: {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":)",
+      "answered 0 of 3 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 38
+  },
+  {
+   "id": "dev.pages.scrapemole/wiki",
+   "title": "ScrapeMole Wiki",
+   "url": "https://wiki.scrapemole.workers.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": false,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 0,
+   "metadataQuality": 1,
+   "categories": {
+    "encyclopedia": {
+     "score": 33,
+     "lastRunScore": 33,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 1,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 120,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "asks for payment or an API key when a tool is called",
+      "every call failed ({\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://wiki.scrapemole.wor)",
+      "answered 0 of 1 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 33
+  },
+  {
+   "id": "dev.pages.scrapemole/search",
+   "title": "ScrapeMole Search",
+   "url": "https://search.scrapemole.workers.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": false,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 3,
+   "writeToolsHidden": 1,
+   "metadataQuality": 1,
+   "categories": {
+    "web-search": {
+     "score": 31,
+     "lastRunScore": 31,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 1,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 307,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "asks for payment or an API key when a tool is called",
+      "1 write/action tool(s) hidden from agents for safety",
+      "every call failed ({\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://search.scrapemole.w)",
+      "answered 0 of 1 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 31
+  },
+  {
+   "id": "com.jojapi/google-web-search",
+   "title": "Google Web Search",
+   "url": "https://mcp.jojapi.com/google-web-search",
+   "source": "registry",
+   "reachableWithoutKey": true,
+   "free": false,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": 1,
+   "writeToolsHidden": 0,
+   "metadataQuality": 0.45,
+   "categories": {
+    "web-search": {
+     "score": 29,
+     "lastRunScore": 29,
+     "runs": 3,
+     "accuracy": 0,
+     "questions": 1,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": 89,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "83% of parameters are undocumented",
+      "tools lack readOnlyHint/destructiveHint annotations, so agents must guess what is safe",
+      "asks for payment or an API key when a tool is called",
+      "every call failed (This call requires a JoJ API key. Add one to the MCP server configuration as an HTTP heade)",
+      "answered 0 of 1 known-answer questions correctly"
+     ]
+    }
+   },
+   "bestScore": 29
+  },
+  {
+   "id": "io.github.superagents-lab/search1api",
+   "title": "Search1API",
+   "url": "https://mcp.search1api.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.plainradar/news",
+   "title": "Plainradar news search",
+   "url": "https://plainradar.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ai.b77/google-news",
+   "title": "Google News",
+   "url": "https://google-news.b77.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.fernandoguiraud16-coder/google-news-scraper",
+   "title": "Google News Scraper + Full Article Text",
+   "url": "https://mcp.apify.com/?tools=fguiraud/google-news-scraper",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.johnisanerd/google-news",
+   "title": "Google News",
+   "url": "https://mcp.apify.com/?tools=johnvc/GoogleNewsAPI",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ai.agentic-news/mcp",
+   "title": "Agentic News",
+   "url": "https://api.agentic-news.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ai.groundroute/web-search",
+   "title": "Web Search",
+   "url": "https://api.groundroute.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.ayoubsalem-spec/penny-search",
+   "title": "Penny Search",
+   "url": "https://pennyapi-production.up.railway.app/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "unreachable (SSE error: Non-200 status code (404))"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.ux-xd/rss-feed",
+   "title": "RSS and news feeds for agents",
+   "url": "https://rssfeedmcp.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "web-search": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:06.385Z",
+     "issues": [
+      "unreachable (fetch failed)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.guptaprakhariitr/wikipedia-recent-changes-mcp",
+   "title": "Wikipedia Recent Changes",
+   "url": "https://wikipedia-recent-changes-mcp.atlasword.workers.dev/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: {\"type\":\"https://developers.cloudflare.com/support)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.pipeworx-io/wikidata-sparql",
+   "title": "Wikidata Sparql",
+   "url": "https://gateway.pipeworx.io/wikidata-sparql/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable ([ { \"code\": \"invalid_value\", \"values\": [ \"object\" ], \"path\": [ \"tools\", 41, \"outputSchema\", \"type\" ])"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "net.nexlab/wikipedia-retrieval",
+   "title": "Wikipedia Retrieval MCP",
+   "url": "https://mcp.nexlab.net/mcp/wikipedia-retrieval",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.pipeworx-io/dbpedia",
+   "title": "Dbpedia",
+   "url": "https://gateway.pipeworx.io/dbpedia/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable ([ { \"code\": \"invalid_value\", \"values\": [ \"object\" ], \"path\": [ \"tools\", 42, \"outputSchema\", \"type\" ])"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.talarion/talarion",
+   "title": "Talarion",
+   "url": "https://mcp.talarion.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable (connect com.talarion/talarion timed out after 10000ms)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.kyntrax/public-knowledge",
+   "title": "Kyntrax Public Knowledge",
+   "url": "https://kyntrax.com/mcp/",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: {\"jsonrpc\":\"2.0\",\"id\":0,\"error\":{\"code\":-32602,\"me)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.olane/cosync-remote",
+   "title": "Cosync Remote",
+   "url": "https://mcp.copass.id/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable (DNS lookup failed for mcp.copass.id: ENOTFOUND)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.jessiemongeon1/sui-kapa",
+   "title": "Sui Knowledge Base (kapa.ai)",
+   "url": "https://sui.mcp.kapa.ai",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.seespectral/oracle",
+   "title": "Spectral — verified-knowledge oracle",
+   "url": "https://mcp.seespectral.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "encyclopedia": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:05:29.695Z",
+     "issues": [
+      "unreachable (fetch failed)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.FoundryNet/academic-intel-mcp",
+   "title": "Academic Research Intelligence MCP",
+   "url": "https://academic-intel-mcp-production.up.railway.app/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "unreachable (connect io.github.FoundryNet/academic-intel-mcp timed out after 10000ms)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.themineworks/academic-research-mcp",
+   "title": "Academic Research Mcp",
+   "url": "https://themineworks--academic-research-mcp.apify.actor/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.Taru0208/pubmed-mcp-server",
+   "title": "PubMed Clinical Research",
+   "url": "https://aligned-kettledrum--pubmed-mcp-server.apify.actor/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.brunopetrellinz-tech/research-papers-mcp",
+   "title": "Research Papers MCP",
+   "url": "https://mcp.apify.com?tools=digital_influx/research-papers-mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "net.nexlab/peer-research-papers",
+   "title": "Peer Research Papers MCP",
+   "url": "https://mcp.nexlab.net/mcp/peer-research-papers",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.Evozim/science-oracle",
+   "title": "Scientific-Research-Oracle",
+   "url": "https://science-oracle-mcp.vercel.app/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "unreachable (SSE error: Non-200 status code (402))"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ai.smithery/shoumikdc-arxiv-mcp",
+   "title": "Shoumikdc Arxiv Mcp",
+   "url": "https://server.smithery.ai/@shoumikdc/arxiv-mcp/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "papers": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:00.043Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: Server not found)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.unlayer/mcp",
+   "title": "Unlayer: Email, Page & Document Templates for Developers",
+   "url": "https://api.unlayer.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.bendtherules/ask262",
+   "title": "Ask262",
+   "url": "https://ask262.mcp.bendtherules.io/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "unreachable (connect io.github.bendtherules/ask262 timed out after 10000ms)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.Br0ski777/code-sandbox",
+   "title": "Code Sandbox API",
+   "url": "https://code-sandbox.api.klymax402.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "unreachable (SSE error: TypeError: fetch failed: C0DCB0E7357F0000:error:0A000438:SSL routines:ssl3_read_bytes:tls)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.carbondesignsystem.mcp/carbon-mcp",
+   "title": "Carbon MCP",
+   "url": "https://mcp.carbondesignsystem.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ai.securenow/securenow",
+   "title": "SecureNow",
+   "url": "https://api.securenow.ai/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.mahmoudilyan/marmo-ui",
+   "title": "Marmo Ui",
+   "url": "https://mcp.marmoui.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: <html><head> <meta http-equiv=\"content-type\" conte)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.avalara/docs",
+   "title": "Avalara Developer Documentation",
+   "url": "https://mcp.avalara.com/docs",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "ch.getsharepa/sharepa",
+   "title": "sharepa",
+   "url": "https://app.getsharepa.ch/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "dev-docs": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:17.798Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: )"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "live.alpic.staging.skybridge-712c1350/skybridge",
+   "title": "Capitals!",
+   "url": "https://skybridge-712c1350.staging.alpic.live",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32002,\"message\":)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.rijwind/mcp",
+   "title": "Rijwind",
+   "url": "https://mcp.rijwind.com",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.saulius876-lgtm/google-maps",
+   "title": "Google Maps Scraper",
+   "url": "https://mcp.apify.com/?tools=sauliusautomatesit/google-maps-scraper-api",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.johnisanerd/google-maps-photos",
+   "title": "Google Maps Photos",
+   "url": "https://mcp.apify.com/?tools=johnvc/google-maps-photos-api",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.paulovitorti/gmaps-brasil-leads",
+   "title": "Google Maps Brasil - Leads Locais",
+   "url": "https://mcp.apify.com?tools=paulovitor18/gmaps-brasil-leads",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.detourmap/places",
+   "title": "Places",
+   "url": "https://detourmap.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: <html> <head><title>410 Gone</title></head> <body>)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.huangjunsong404-crypto/china-policy-licensing-country-information",
+   "title": "China Policy, Licensing & Country Information",
+   "url": "https://mcp.agentdatacore.com/mcp/products/policy",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "geography": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 1,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:42.881Z",
+     "issues": [
+      "unreachable (fetch failed)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.tickerlayer/market-data",
+   "title": "TickerLayer Market Data",
+   "url": "https://mcp.tickerlayer.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.twelvedata/mcp",
+   "title": "Mcp",
+   "url": "https://mcp.twelvedata.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.cryptohopper/mcp-data",
+   "title": "Cryptohopper Market Data",
+   "url": "https://mcp-data.cryptohopper.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.SongT-50/korean-stock-mcp",
+   "title": "Korean Stock Market Data",
+   "url": "https://korean-stock-mcp.onrender.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: <!DOCTYPE html> <html lang=\"en\"> <head> <meta char)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.alphavantage/alpha_vantage_mcp",
+   "title": "Alpha Vantage Mcp",
+   "url": "https://mcp.alphavantage.co/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.FoundryNet/currency-intel-mcp",
+   "title": "Currency & Exchange Rate MCP",
+   "url": "https://currency-intel-mcp-production.up.railway.app/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "unreachable (connect io.github.FoundryNet/currency-intel-mcp timed out after 10000ms)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "cn.pianam.mcp/exchange-rate-mcp",
+   "title": "Exchange Rate MCP",
+   "url": "https://mcp.pianam.cn/exchange-mcp/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "unreachable (DNS lookup failed for mcp.pianam.cn: ENOTFOUND)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "one.aisa/crypto-market-data",
+   "title": "AIsa Crypto Market Data",
+   "url": "https://mcp.aisa.one/crypto-market-data/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "pro.publifye/currency",
+   "title": "Currency Exchange",
+   "url": "https://currency.publifye.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.findticker/ticker",
+   "title": "Ticker: Live Event Ticket Market",
+   "url": "https://api.findticker.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.projectworks007/finance-data",
+   "title": "Finance & Filings Data",
+   "url": "https://mcp.apify.com/?tools=highbrow_fame/yahoo-finance-quotes,highbrow_fame/sec-edgar-filings",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "uk.wintergreen/financial-data",
+   "title": "Financial Data",
+   "url": "https://mcp.wintergreen.uk/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "money": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 2,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:06:58.405Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: {\"type\":\"https://developers.cloudflare.com/support)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.travel-code/travel-code",
+   "title": "Travel Code",
+   "url": "https://mcp.travel-code.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "il.co.alice/flights",
+   "title": "Flights",
+   "url": "https://mcp.alice.co.il/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.flightclaw/flightclaw",
+   "title": "flightclaw",
+   "url": "https://mcp.flightclaw.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "unreachable (Streamable HTTP error: Error POSTing to endpoint: )"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.awardtravelfinder/mcp",
+   "title": "Award Travel Finder",
+   "url": "https://mcp.awardtravelfinder.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.LetsFG/letsfg",
+   "title": "LetsFG — Flights & Hotels",
+   "url": "https://letsfg.co/developers/api/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.johnisanerd/google-flights",
+   "title": "Google Flights",
+   "url": "https://mcp.apify.com/?tools=johnvc/Google-Flights-Data-Scraper-Flight-and-Price-Search",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.flightseatmap/flightseatmap",
+   "title": "FlightSeatMap",
+   "url": "https://mcp.flightseatmap.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "com.travelriskapi/travel-risk-api",
+   "title": "Travel Risk API",
+   "url": "https://api.travelriskapi.com/mcp",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  },
+  {
+   "id": "io.github.saulius876-lgtm/google-flights",
+   "title": "Google Flights API",
+   "url": "https://mcp.apify.com/?tools=sauliusautomatesit/google-flights-api",
+   "source": "registry",
+   "reachableWithoutKey": false,
+   "free": true,
+   "rateLimited": false,
+   "injectsTextAimedAtAI": false,
+   "tools": null,
+   "writeToolsHidden": null,
+   "metadataQuality": null,
+   "categories": {
+    "travel": {
+     "score": 0,
+     "lastRunScore": 0,
+     "runs": 3,
+     "accuracy": null,
+     "questions": 0,
+     "correct": 0,
+     "method": "direct",
+     "medianMs": null,
+     "testedAt": "2026-10-21T04:07:08.718Z",
+     "issues": [
+      "needs sign-in or a key (not declared in the registry)"
+     ]
+    }
+   },
+   "bestScore": 0
+  }
+ ]
+}

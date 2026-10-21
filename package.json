@@ -1,0 +1,108 @@
+{
+  "name": "mcp-browser",
+  "version": "0.2.0",
+  "description": "An AI search browser that discovers free MCP servers from the official registry and answers queries by routing them to the right servers.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "bin": {
+    "mcpb": "bin/cli.js",
+    "mcpb-mcp": "bin/mcp-server.js"
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "desktop": "electron .",
+    "dev": "MCPB_DEV=1 node --watch-path=src --watch-path=bin --watch-preserve-output src/server.js",
+    "desktop:dev": "MCPB_DEV=1 electron .",
+    "cli": "node bin/cli.js",
+    "sync": "node bin/cli.js --sync",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "test:live": "MCPB_LIVE=1 node --test --test-concurrency=1 test/live.test.js",
+    "mcp": "node bin/mcp-server.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "undici": "^7.30.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "electron": "^44.9.2",
+    "electron-builder": "^26.15.3"
+  },
+  "license": "MIT",
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.3.1"
+  },
+  "productName": "MCP Browser",
+  "author": {
+    "name": "Krish"
+  },
+  "build": {
+    "appId": "dev.mcpbrowser.app",
+    "productName": "MCP Browser",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "src/**",
+      "public/**",
+      "bin/**",
+      "package.json",
+      "!node_modules/onnxruntime-web/**"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/@huggingface/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v*/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v*/win32/**"
+      ]
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v*/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v*/linux/**"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v*/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v*/win32/**"
+      ]
+    }
+  }
+}

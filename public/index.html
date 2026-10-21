@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP Browser</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="chrome">
+    <div class="tabstrip" role="tablist" id="tabstrip">
+      <button class="tab-new" id="newTab" title="New tab (Ctrl+T)" aria-label="New tab">+</button>
+    </div>
+    <div class="toolbar">
+      <button class="icon-btn" id="back" title="Back" aria-label="Back">&#8592;</button>
+      <button class="icon-btn" id="fwd" title="Forward" aria-label="Forward">&#8594;</button>
+      <button class="icon-btn" id="reload" title="Search again" aria-label="Search again">&#8635;</button>
+      <button class="icon-btn" id="home" title="Home (⌘/Ctrl+Shift+H)" aria-label="Home"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></button>
+      <form class="omnibox" id="omnibox" autocomplete="off">
+        <input id="omni" type="text" spellcheck="false" placeholder="Ask anything, or type a web address" aria-label="Search or address">
+      </form>
+      <button class="mode-chip" id="modeChip" title="Answer engine"></button>
+      <button class="icon-btn menu-btn" id="menuBtn" title="Menu" aria-label="Menu" aria-expanded="false" aria-controls="menuPanel">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>
+      </button>
+      <nav class="menu-panel" id="menuPanel" hidden>
+        <button type="button" data-go="mcp://watches">Watches</button>
+        <button type="button" data-go="mcp://rank">MCP Rank</button>
+        <button type="button" data-go="mcp://servers">MCP servers</button>
+        <button type="button" data-go="mcp://settings">Settings</button>
+      </nav>
+      <button class="icon-btn has-badge" id="openWatches" title="Watches" aria-label="Watches">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 4.5C5.8 4.5 3 10 3 10s2.8 5.5 7 5.5 7-5.5 7-5.5-2.8-5.5-7-5.5Z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.3"/></svg>
+        <span class="badge-dot" id="watchBadge" hidden></span>
+      </button>
+      <button class="icon-btn" id="openRank" title="MCP Rank" aria-label="MCP Rank">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2" y="11" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="8" width="4" height="10" rx="1"/></svg>
+      </button>
+      <button class="icon-btn" id="openServers" title="MCP servers" aria-label="MCP servers">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="4" cy="10" r="2.2"/><circle cx="16" cy="4" r="2.2"/><circle cx="16" cy="16" r="2.2"/><path d="M6 10h4m0 0 4-5m-4 5 4 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="icon-btn" id="openSettings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.6 1.6M14.4 14.4 16 16M4 16l1.6-1.6M14.4 5.6 16 4" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+    </div>
+  </div>
+  <main id="pages"></main>
+
+  <template id="tpl-home">
+    <section class="page home">
+      <div class="home-inner">
+        <h1 class="wordmark"><span class="wm-mark" aria-hidden="true"></span>MCP Browser</h1>
+        <p class="home-sub" data-stats>Answers from the open network of MCP servers.</p>
+        <form class="home-search" data-home-form>
+          <input type="text" data-home-input placeholder="What do you want to know?" aria-label="Search">
+          <button type="submit">Search</button>
+        </form>
+        <div class="suggest" data-suggest></div>
+        <section class="setup" data-setup hidden>
+          <div class="setup-head">
+            <h2>Get one written answer with citations</h2>
+            <button type="button" class="setup-toggle" data-setup-toggle aria-expanded="false">Set up</button>
+            <button type="button" class="setup-close" data-setup-close aria-label="Hide">×</button>
+          </div>
+          <div class="setup-body" data-setup-body hidden>
+          <p>Free mode shows each server's results. Add an AI model to get one answer that cites them:</p>
+          <div class="setup-opts">
+            <div class="setup-opt wide">
+              <h3>Use your Claude subscription</h3>
+              <p>Run MCP Browser inside Claude Desktop or Claude Code. Claude does the thinking; MCP Browser gives it the servers.</p>
+              <div class="setup-two">
+                <div>
+                  <p class="setup-label">Claude Code: run in a terminal</p>
+                  <div class="copyline"><code data-cc-cmd></code><button type="button" data-copy="cc">Copy</button></div>
+                </div>
+                <div>
+                  <p class="setup-label">Claude Desktop: Settings → Developer → Edit config</p>
+                  <div class="copyline"><pre data-cd-json></pre><button type="button" data-copy="cd">Copy</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="setup-opt">
+              <h3>Add an API key</h3>
+              <p>Anthropic (Claude), OpenAI, Groq, OpenRouter or any OpenAI-compatible service. Answers appear right here in the browser.</p>
+              <button type="button" class="setup-btn" data-open-settings>Open Settings</button>
+            </div>
+            <div class="setup-opt">
+              <h3>Free and private with Ollama</h3>
+              <p>Install <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Ollama</a>, then run:</p>
+              <div class="copyline"><code>ollama pull qwen3:8b</code><button type="button" data-copy="ollama">Copy</button></div>
+              <button type="button" class="setup-btn" data-use-ollama>Use Ollama</button>
+              <span class="setup-msg" data-ollama-msg></span>
+            </div>
+          </div>
+          </div>
+        </section>
+        <section class="templates" data-templates hidden>
+          <h2>Templates</h2>
+          <div class="tpl-groups" data-tpl-list></div>
+          <form class="tpl-form" data-tpl-form hidden>
+            <h3 data-tpl-title></h3>
+            <p data-tpl-desc></p>
+            <div data-tpl-fields></div>
+            <p class="hint" data-tpl-note></p>
+            <div class="tpl-actions"><button type="submit">Run template</button> <button type="button" data-tpl-cancel>Cancel</button></div>
+          </form>
+        </section>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-search">
+    <section class="page search">
+      <div class="thread" data-thread></div>
+      <form class="followup" data-followup>
+        <input type="text" placeholder="Ask a follow-up" aria-label="Follow-up question">
+        <button type="submit">Ask</button>
+      </form>
+    </section>
+  </template>
+
+  <template id="tpl-turn">
+    <article class="turn">
+      <div class="q-row">
+        <h2 class="q" data-q></h2>
+        <form class="watch-form" data-watch-form>
+          <button type="button" class="watch-btn" data-copy-md title="Copy the question, answer and sources as Markdown">Copy</button>
+          <button type="button" class="watch-btn" data-watch-toggle>Watch</button>
+          <span class="watch-pick" data-watch-pick hidden>
+            <label class="sr-only" for="watch-every">How often</label>
+            <select data-watch-every aria-label="How often">
+              <option value="hourly">Every hour</option>
+              <option value="daily" selected>Every day</option>
+              <option value="weekly">Every week</option>
+            </select>
+            <button type="submit" class="watch-save">Save</button>
+          </span>
+          <span class="watch-done" data-watch-done hidden></span>
+        </form>
+      </div>
+      <p class="advice-note" data-advice-note hidden></p>
+      <p class="board-summary" data-board-summary hidden></p>
+      <div class="switchboard" data-switchboard aria-label="Servers consulted"></div>
+      <div class="turn-body">
+        <div class="answer-col">
+          <div class="notice" data-notice hidden></div>
+          <div class="answer md" data-answer><p class="placeholder">Finding the right servers…</p></div>
+          <div class="direct" data-direct></div>
+          <div class="direct-extra" data-direct-extra></div>
+          <details class="activity" data-activity-wrap>
+            <summary>Activity <span data-activity-count></span></summary>
+            <ol class="activity-list" data-activity></ol>
+          </details>
+        </div>
+        <aside class="sources" data-sources-wrap hidden>
+          <h3>Sources</h3>
+          <ol data-sources></ol>
+        </aside>
+      </div>
+    </article>
+  </template>
+
+  <template id="tpl-servers">
+    <section class="page panel servers">
+      <header class="panel-head">
+        <h1>MCP servers</h1>
+        <p class="panel-lede">The browser picks a few of these for every question. Curated servers are on by default. Turn on discovery to also use community servers from the official MCP Registry.</p>
+      </header>
+      <div class="registry-bar">
+        <div data-registry-status>Registry not downloaded yet.</div>
+        <div class="registry-actions">
+          <label class="switch"><input type="checkbox" data-discovery><span>Discovery</span></label>
+          <button data-sync>Update registry</button>
+        </div>
+      </div>
+      <details class="add-server">
+        <summary>Add a server by URL</summary>
+        <form data-add-server>
+          <p class="hint">Any MCP endpoint that speaks Streamable HTTP or SSE, including your company's own or one on this computer (for example http://localhost:3000/mcp). If it needs a key, add it after with Add key.</p>
+          <label>URL <input name="url" type="url" required placeholder="https://mcp.example.com/mcp"></label>
+          <label>Name <input name="title" placeholder="e.g. Acme internal docs"></label>
+          <label>What it's for <input name="description" placeholder="Helps routing pick it, e.g. 'Acme product docs and support tickets'"></label>
+          <div><button type="submit">Add server</button> <span class="add-msg" data-add-msg></span></div>
+        </form>
+      </details>
+      <div class="server-filters">
+        <input type="search" data-server-q placeholder="Search servers by topic, e.g. weather, papers, flights" aria-label="Search servers">
+        <select data-server-source aria-label="Filter">
+          <option value="all">All</option>
+          <option value="enabled">Enabled</option>
+          <option value="curated">Curated</option>
+          <option value="registry">Registry</option>
+          <option value="custom">Added by you</option>
+        </select>
+        <select data-server-sort aria-label="Sort">
+          <option value="">Best match</option>
+          <option value="stars">Most GitHub stars</option>
+        </select>
+      </div>
+      <p class="route-preview" data-route-preview></p>
+      <ul class="server-list" data-server-list></ul>
+      <button class="more" data-more hidden>Show more</button>
+    </section>
+  </template>
+
+  <template id="tpl-watches">
+    <section class="page panel watches">
+      <header class="panel-head">
+        <h1>Watches</h1>
+        <p class="panel-lede">Saved searches that run again on a schedule while MCP Browser is open, and tell you when something changed: new sources, or a different answer. Use Watch on any search to add one.</p>
+      </header>
+      <ul class="watch-list" data-watch-list></ul>
+    </section>
+  </template>
+
+  <template id="tpl-rank">
+    <section class="page panel rank">
+      <header class="panel-head">
+        <h1>MCP Rank</h1>
+        <p class="panel-lede">Servers ranked by what they actually do. Each one is asked questions with known answers; the score also counts whether it's free, honest (no ads or instructions hidden in results), safe, fast and well described. Better-ranked servers are preferred when routing.</p>
+      </header>
+      <div class="rank-bar">
+        <div class="rank-tabs" role="tablist" data-rank-tabs></div>
+        <div class="rank-run"><span data-rank-status></span><button data-rank-run>Run tests</button></div>
+      </div>
+      <p class="hint" data-rank-meta></p>
+      <ol class="rank-list" data-rank-list></ol>
+    </section>
+  </template>
+
+  <template id="tpl-settings">
+    <section class="page panel settings">
+      <header class="panel-head">
+        <h1>Settings</h1>
+        <p class="panel-lede">Without an AI model the browser runs in free mode: it asks each server directly and shows readable results with a quick answer when one sentence answers the question. Add a model for one written answer with citations.</p>
+      </header>
+      <form data-settings-form class="settings-form">
+        <fieldset>
+          <legend>Answer engine</legend>
+          <label>Provider
+            <select name="provider">
+              <option value="auto">Automatic</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI-compatible (OpenAI, Groq, OpenRouter, Ollama…)</option>
+              <option value="none">None — free mode</option>
+            </select>
+          </label>
+          <label>Model <input name="model" placeholder="Default for the provider"></label>
+          <label>API key <input name="apiKey" type="password" autocomplete="off" placeholder="Stored only on this computer"></label>
+          <label>Base URL <input name="baseUrl" placeholder="Only for OpenAI-compatible, e.g. http://localhost:11434/v1"></label>
+          <p class="hint" data-provider-state></p>
+        </fieldset>
+        <fieldset>
+          <legend>Routing</legend>
+          <div class="depth" role="radiogroup" aria-label="Search depth" data-depth>
+            <label><input type="radio" name="depth" value="fast"><span class="depth-text"><b>Fast</b><span>Vetted servers only (up to 4). Quickest, fewest surprises.</span></span></label>
+            <label><input type="radio" name="depth" value="balanced"><span class="depth-text"><b>Balanced</b><span>Adds the best-matching community servers (up to 8, 4 from the registry).</span></span></label>
+            <label><input type="radio" name="depth" value="wide"><span class="depth-text"><b>Wide</b><span>Casts a big net (up to 20, 14 from the registry). Slower, more noise.</span></span></label>
+          </div>
+          <p class="hint" data-depth-custom hidden>Your numbers below don't match a preset.</p>
+          <details class="advanced"><summary>Advanced</summary>
+          <label>Servers per question <input name="maxServers" type="number" min="1" max="100"></label>
+          <label>Tools offered to the AI per question <input name="maxToolsPerQuery" type="number" min="4" max="512"></label>
+          <label>Tool rounds per answer <input name="maxSteps" type="number" min="1" max="50"></label>
+          <label class="check"><input name="alwaysWebSearch" type="checkbox"> Always include web search</label>
+          <label class="check"><input name="semanticRouting" type="checkbox"> Match servers by meaning, not just keywords (local model)</label>
+          <label class="check"><input name="discovery" type="checkbox"> Discovery: use community servers from the registry</label>
+          <label>Community servers per question <input name="discoveryMax" type="number" min="0" max="100"></label>
+          <p class="hint">Community servers count inside "Servers per question". Only servers that clearly match a question are used, so a high limit is a ceiling, not a target. Large numbers make answers slower and send your question to more strangers' servers.</p>
+          <label>Tool timeout (ms) <input name="toolTimeoutMs" type="number" min="2000" max="600000" step="1000"></label>
+          <label>Free-mode page budget (ms) <input name="freeModeBudgetMs" type="number" min="3000" max="120000" step="1000"></label>
+          </details>
+        </fieldset>
+        <fieldset>
+          <legend>GitHub stars</legend>
+          <p class="hint">Stars show how popular a server's code is. They are shown next to MCP Rank scores but never change them: popular isn't the same as accurate.</p>
+          <label>GitHub token <input name="githubToken" type="password" autocomplete="off" placeholder="Optional: refreshes every repo in a few minutes"></label>
+          <p class="hint">A fine-grained token with no permissions is enough (github.com → Settings → Developer settings). Without one, stars come from ecosyste.ms open data, 1,000 repos per refresh.</p>
+          <div><button type="button" data-stars-refresh>Refresh stars</button> <span class="hint" data-stars-state></span></div>
+        </fieldset>
+        <div class="form-actions"><button type="submit">Save settings</button><span data-saved class="saved" hidden>Saved</span></div>
+      </form>
+    </section>
+  </template>
+
+  <script src="markdown.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
