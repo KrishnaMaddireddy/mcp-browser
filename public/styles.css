@@ -251,6 +251,9 @@ a.cite:hover { background: var(--signal); color: #fff; }
 .srv-desc { color: var(--muted); font-size: 14px; margin: 2px 0 4px; }
 .srv-meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
 .srv-url { font-family: var(--mono); word-break: break-all; }
+a.srv-url, a.srv-site { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+a.srv-url:hover, a.srv-site:hover { color: var(--signal); text-decoration-color: currentColor; }
+a.srv-site { font-weight: 600; margin-right: 6px; }
 .health.ok { color: var(--ok); }
 .health.fail { color: var(--err); }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 500; vertical-align: 2px; background: var(--chrome); color: var(--muted); }
