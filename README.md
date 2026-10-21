@@ -299,14 +299,24 @@ servers MCP Rank has tested, stars barely predict the score (see docs/RESEARCH.m
 - **Time**: filter by when a server was added to the registry, its latest release or its last GitHub push (last day, 7/30/90 days, 12 months or a custom range). The month chart shows how many servers were added each month; click a month to see only those.
 - **Per server**: links to the website, GitHub repo, package page and hosted endpoint; GitHub stars; downloads (npm and PyPI last 30 days, crates.io 90 days, Docker Hub all-time); first-listed and latest-release dates; and an install command to copy.
 
-A snapshot ships with the app (`src/data/catalog.json.gz`). To rebuild it from live sources:
+**Using servers, not just finding them.** The catalog opens on **Use cases**:
+
+- *What do you want to do?* — describe a task ("track competitor pricing"); you get catalog servers that match (and which words matched), one combined setup for the ones you tick, related use cases, and the servers MCP Browser would ask right now, with a button to ask it.
+- *Goals* (`public/use-cases.js`): 31 jobs people do with MCP servers, grouped for developers, data, research, marketing & sales, finance, work and everyday life. Each lists the kinds of server it needs (preferred servers first, then the best catalog matches), prompts to try (Ask runs them in MCP Browser) and setup for all of them at once.
+- *Workflows*: 8 multi-server recipes (competitor brief, error alert to fix, stock memo, literature review, trip plan, standup digest, metrics report, launch listening) with numbered steps, a server and prompt per step, and one setup for the whole chain.
+
+Every server also has **How to use it**: setup for Claude Code, Claude Desktop, Cursor and VS Code (required settings filled in as placeholders), *Add to MCP Browser* for hosted servers that work without a key, its tools with their inputs (listed by connecting to it), the use cases it's good for, and checks before relying on it — publisher vs repo owner, verified domain, sign-in or payment, tools that change things, archived or stale repo, low adoption.
+
+**Sample prompts.** Up to three per server: written ones for the most-used servers and for servers MCP Browser can call (`src/data/catalog-prompts.json`), otherwise built from the server's tools (labelled with the tool) or its description. On servers MCP Browser can call, clicking a prompt asks it in a new tab, sent to that server.
+
+A snapshot ships with the app (`src/data/catalog.json.gz`, with tool lists in `src/data/catalog-tools.json.gz`). To rebuild it from live sources:
 
 ```bash
 npm run catalog              # → ~/.mcp-browser/catalog.json.gz (used instead of the snapshot)
 npm run catalog -- --bundle  # also refresh the shipped snapshot
 ```
 
-Steps are cached in `~/.mcp-browser/catalog-build`, so reruns only redo what's stale (registry after 12 hours, downloads after 7 days). A first full run takes 30–60 minutes, mostly waiting on the public download-count APIs; `--skip-downloads`, `--skip-stars` and `--skip-neighbours` make it faster.
+Steps are cached in `~/.mcp-browser/catalog-build`, so reruns only redo what's stale (registry after 12 hours, downloads after 7 days). A first full run takes 30–60 minutes, mostly waiting on the public download-count APIs; `--skip-downloads`, `--skip-stars` and `--skip-neighbours` make it faster; `--skip-tools` skips connecting to hosted servers to list their tools.
 
 ## Routing
 
@@ -476,7 +486,8 @@ npm run test:live        # also hits the real curated servers
 | POST | `/api/stars/refresh` | refresh GitHub stars in the background (`/api/status` → `stars` shows progress) |
 | GET | `/api/servers?sort=stars` | most-starred first; every server row has `github: {repo, stars, pushedAt, archived, sharedWith, otherOwner}` |
 | GET | `/api/servers?sort=updated\|pushed\|oldest&since=N` | by registry update or last GitHub push; `since` keeps servers updated in the last N days. Rows carry `website`, `repo`, `updatedAt` |
-| GET | `/api/catalog` | the full registry catalog (categories, stars, downloads, dates), gzipped when accepted |
+| GET | `/api/catalog` | the full registry catalog (categories, stars, downloads, dates, prompts, setting names), gzipped when accepted |
+| GET | `/api/catalog/tools?id=` | one catalog server's tools (name, description, required inputs, whether it changes things) |
 
 POST requests need `content-type: application/json` and `x-mcpb: 1`.
 
