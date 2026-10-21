@@ -290,6 +290,24 @@ servers MCP Rank has tested, stars barely predict the score (see docs/RESEARCH.m
 * The labels export and the subregistry API carry stars too
   (`_meta["local.mcp-browser/github"]`).
 
+## Server catalog
+
+`mcp://catalog` (the grid button in the toolbar, or **Server catalog** in the menu) lists every server in the official MCP Registry — about 47,000 — whether or not MCP Browser can call it:
+
+- **Categories**: 22, from keyword rules over each server's title and description (`scripts/catalog/categories.mjs`); servers the rules can't place get the category their nearest neighbours share, using the same local embedding model routing uses.
+- **Search, sort and filters**: search by name or description; sort by popularity, GitHub stars, downloads, MCP Rank score, newest in the registry, latest release or latest GitHub activity; filter to hosted URLs, installable packages, servers on GitHub, servers that work without a key, MCP Rank–tested servers, servers with no required setup, or hide bulk publishers (100+ servers under one namespace).
+- **Time**: filter by when a server was added to the registry, its latest release or its last GitHub push (last day, 7/30/90 days, 12 months or a custom range). The month chart shows how many servers were added each month; click a month to see only those.
+- **Per server**: links to the website, GitHub repo, package page and hosted endpoint; GitHub stars; downloads (npm and PyPI last 30 days, crates.io 90 days, Docker Hub all-time); first-listed and latest-release dates; and an install command to copy.
+
+A snapshot ships with the app (`src/data/catalog.json.gz`). To rebuild it from live sources:
+
+```bash
+npm run catalog              # → ~/.mcp-browser/catalog.json.gz (used instead of the snapshot)
+npm run catalog -- --bundle  # also refresh the shipped snapshot
+```
+
+Steps are cached in `~/.mcp-browser/catalog-build`, so reruns only redo what's stale (registry after 12 hours, downloads after 7 days). A first full run takes 30–60 minutes, mostly waiting on the public download-count APIs; `--skip-downloads`, `--skip-stars` and `--skip-neighbours` make it faster.
+
 ## Routing
 
 Each question is matched against every server by **keywords** (BM25 over titles,
@@ -457,6 +475,8 @@ npm run test:live        # also hits the real curated servers
 | GET | `/oauth/callback` | where the sign-in page sends the browser back |
 | POST | `/api/stars/refresh` | refresh GitHub stars in the background (`/api/status` → `stars` shows progress) |
 | GET | `/api/servers?sort=stars` | most-starred first; every server row has `github: {repo, stars, pushedAt, archived, sharedWith, otherOwner}` |
+| GET | `/api/servers?sort=updated\|pushed\|oldest&since=N` | by registry update or last GitHub push; `since` keeps servers updated in the last N days. Rows carry `website`, `repo`, `updatedAt` |
+| GET | `/api/catalog` | the full registry catalog (categories, stars, downloads, dates), gzipped when accepted |
 
 POST requests need `content-type: application/json` and `x-mcpb: 1`.
 

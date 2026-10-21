@@ -22,7 +22,8 @@
     "test:live": "MCPB_LIVE=1 node --test --test-concurrency=1 test/live.test.js",
     "mcp": "node bin/mcp-server.js",
     "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac"
+    "dist:mac": "electron-builder --mac",
+    "catalog": "node scripts/build-catalog.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",

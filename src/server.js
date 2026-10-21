@@ -3,6 +3,7 @@
 // open in other tabs can't drive it or read the API key.
 import http from 'node:http';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEngine } from './app.js';
@@ -13,6 +14,7 @@ import { TEMPLATES } from './templates.js';
 import { exportLabels } from './rank.js';
 import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
+import { catalogFile } from './catalog-data.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 // How Claude Desktop / Claude Code can start MCP server mode. From the project
@@ -353,6 +355,19 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     },
     'GET /api/templates': async (req, res) => json(res, 200, { templates: TEMPLATES }),
     'GET /api/rank/labels': async (req, res) => json(res, 200, exportLabels(undefined, { github: (id) => engine.githubById(id) })),
+    // The MCP server catalog (every registry server with categories, stars and
+    // downloads), built by scripts/catalog. Sent gzipped when the client accepts it.
+    'GET /api/catalog': async (req, res) => {
+      const f = catalogFile();
+      if (!f) return json(res, 404, { error: 'No catalog yet. Run npm run catalog to build one.' });
+      fs.readFile(f.path, (err, data) => {
+        if (err) return json(res, 500, { error: 'could not read the catalog' });
+        const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
+        if (!f.gzip) return res.writeHead(200, headers), res.end(data);
+        if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.writeHead(200, { ...headers, 'content-encoding': 'gzip' }), res.end(data);
+        zlib.gunzip(data, (e, raw) => (e ? json(res, 500, { error: 'catalog is damaged' }) : (res.writeHead(200, headers), res.end(raw))));
+      });
+    },
     'GET /api/rank': async (req, res) => {
       const data = engine.rankData();
       // Attach GitHub stars to each result for display (the score itself ignores them).

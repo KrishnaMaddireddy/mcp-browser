@@ -140,6 +140,12 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'catalog': {
+        entry.title = 'Server catalog';
+        const el = $('#tpl-catalog').content.firstElementChild.cloneNode(true);
+        window.MCPCatalog?.mount(el, entry);
+        return el;
+      }
       case 'web':
         entry.title = hostOf(entry.url);
         return buildWeb(entry);
@@ -163,6 +169,7 @@
     if (/^mcp:\/\/settings/i.test(s)) return navigate(tab, { kind: 'settings' });
     if (/^mcp:\/\/rank/i.test(s)) return navigate(tab, { kind: 'rank' });
     if (/^mcp:\/\/watches/i.test(s)) return navigate(tab, { kind: 'watches' });
+    if (/^mcp:\/\/catalog/i.test(s)) return navigate(tab, { kind: 'catalog' });
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -223,6 +230,7 @@
   $('#openRank').addEventListener('click', () => open('mcp://rank'));
   $('#openWatches').addEventListener('click', () => open('mcp://watches'));
   $('#openSettings').addEventListener('click', () => open('mcp://settings'));
+  $('#openCatalog').addEventListener('click', () => open('mcp://catalog'));
   $('#modeChip').addEventListener('click', () => open('mcp://settings'));
 
   document.addEventListener('keydown', (e) => {

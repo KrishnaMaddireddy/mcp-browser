@@ -28,6 +28,7 @@
         <button type="button" data-go="mcp://watches">Watches</button>
         <button type="button" data-go="mcp://rank">MCP Rank</button>
         <button type="button" data-go="mcp://servers">MCP servers</button>
+        <button type="button" data-go="mcp://catalog">Server catalog</button>
         <button type="button" data-go="mcp://settings">Settings</button>
       </nav>
       <button class="icon-btn has-badge" id="openWatches" title="Watches" aria-label="Watches">
@@ -39,6 +40,9 @@
       </button>
       <button class="icon-btn" id="openServers" title="MCP servers" aria-label="MCP servers">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="4" cy="10" r="2.2"/><circle cx="16" cy="4" r="2.2"/><circle cx="16" cy="16" r="2.2"/><path d="M6 10h4m0 0 4-5m-4 5 4 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="icon-btn" id="openCatalog" title="Server catalog" aria-label="Server catalog">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="2.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="11.5" width="6" height="6" rx="1.2"/></svg>
       </button>
       <button class="icon-btn" id="openSettings" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.6 1.6M14.4 14.4 16 16M4 16l1.6-1.6M14.4 5.6 16 4" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -240,6 +244,72 @@
     </section>
   </template>
 
+  <template id="tpl-catalog">
+    <section class="page panel catalog">
+      <header class="panel-head">
+        <h1>Server catalog</h1>
+        <p class="panel-lede" data-cat-lede>Loading the catalog…</p>
+      </header>
+      <div class="cat-spectrum" data-cat-spectrum role="group" aria-label="Servers by category"></div>
+      <p class="cat-speckey" data-cat-speckey></p>
+      <div class="cat-timeline">
+        <div class="cat-timeline-head"><span>Servers added to the registry each month. Pick a month to see only those.</span><span data-cat-monthnote></span></div>
+        <div class="cat-months" data-cat-months role="group" aria-label="Servers added per month"></div>
+        <div class="cat-axis" data-cat-axis aria-hidden="true"></div>
+      </div>
+      <div class="cat-controls">
+        <input type="search" data-cat-q placeholder="Search servers: postgres, weather, github, stripe…" aria-label="Search the catalog" autocomplete="off">
+        <select data-cat-sort aria-label="Sort by">
+          <option value="pop">Most popular</option>
+          <option value="stars">Most GitHub stars</option>
+          <option value="dl">Most downloads</option>
+          <option value="rank">MCP Rank score</option>
+          <option value="added">Newest in registry</option>
+          <option value="new">Latest release</option>
+          <option value="pushed">Latest GitHub activity</option>
+          <option value="oldest">Oldest in registry</option>
+          <option value="name">Name A–Z</option>
+        </select>
+        <div class="cat-chips" role="group" aria-label="Filters">
+          <button type="button" data-cat-filter="remote" aria-pressed="false">Hosted URL</button>
+          <button type="button" data-cat-filter="pkg" aria-pressed="false">Installable package</button>
+          <button type="button" data-cat-filter="gh" aria-pressed="false">On GitHub</button>
+          <button type="button" data-cat-filter="free" aria-pressed="false">Works without a key</button>
+          <button type="button" data-cat-filter="rank" aria-pressed="false">Tested by MCP Rank</button>
+          <button type="button" data-cat-filter="noenv" aria-pressed="false">No setup required</button>
+          <button type="button" data-cat-filter="bulk" aria-pressed="false">Hide bulk publishers</button>
+        </div>
+        <div class="cat-time" role="group" aria-label="Time period">
+          <select data-cat-datefield aria-label="Which date">
+            <option value="added">Added to registry</option>
+            <option value="updated">Latest release</option>
+            <option value="pushed">Last GitHub push</option>
+          </select>
+          <select data-cat-period aria-label="Time period">
+            <option value="any">Any time</option>
+            <option value="1">Last 24 hours</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 12 months</option>
+            <option value="custom">Custom range</option>
+          </select>
+          <span data-cat-range hidden><label>From <input type="date" data-cat-from></label> <label>to <input type="date" data-cat-to></label></span>
+          <button type="button" class="link-btn" data-cat-clear hidden>Clear dates</button>
+        </div>
+      </div>
+      <div class="cat-body">
+        <nav class="cat-rail" aria-label="Categories"><ul data-cat-cats></ul></nav>
+        <div class="cat-results">
+          <div class="cat-head"><strong data-cat-count>Loading…</strong><span data-cat-note></span></div>
+          <ul class="cat-list" data-cat-list></ul>
+          <button type="button" class="more" data-cat-more hidden>Show more</button>
+        </div>
+      </div>
+      <p class="hint">From the official MCP Registry. Stars from the open GitHub indexes (ecosyste.ms, ungh); downloads from npm and PyPI (last 30 days), crates.io (90 days) and Docker Hub (all-time). Categories come from each server's title and description, so a few are off. Rebuild with <code>npm run catalog</code>.</p>
+    </section>
+  </template>
+
   <template id="tpl-settings">
     <section class="page panel settings">
       <header class="panel-head">
@@ -296,6 +366,7 @@
   </template>
 
   <script src="markdown.js"></script>
+  <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
