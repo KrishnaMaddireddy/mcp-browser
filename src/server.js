@@ -99,6 +99,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       signIn: engine.oauth.status(s) || (s.signIn ? 'needed' : null) || (h?.error && /needs sign-in|sign-in expired/.test(h.error) ? 'needed' : null),
       override: engine.settings.serverOverrides[s.id] ?? null,
       website: s.website,
+      repo: typeof s.repo === 'string' && /^https?:\/\//i.test(s.repo) ? s.repo : null,
       updatedAt: s.updatedAt || null,
       health: h ? { status: h.status, checkedAt: h.checkedAt, latencyMs: h.latencyMs, tools: h.tools?.length ?? 0, error: h.error, available: engine.health.isAvailable(s.id) } : null,
     };

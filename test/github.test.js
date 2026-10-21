@@ -140,6 +140,8 @@ test('the servers API sorts and filters by update time', async () => {
   const r = await get('q=weather&sort=pushed');
   assert.equal(r.servers[0].id, 'big'); // only big has a known push date
   assert.ok(r.servers.find((s) => s.id === 'small').updatedAt);
+  assert.equal(r.servers.find((s) => s.id === 'small').repo, 'https://github.com/small/one');
+  assert.equal(r.servers.find((s) => s.id === 'norepo').repo, null);
 });
 
 test('the servers API carries stars and can sort by them', async () => {

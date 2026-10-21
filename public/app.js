@@ -578,6 +578,14 @@
     return String(n);
   }
   /** GitHub stars badge (+ archived / stale / missing flags) for a server or rank result. */
+  // A plain link to the server's source repo (GitHub or elsewhere), when known.
+  function repoLink(s) {
+    const href = s.github?.url || (s.github?.repo ? `https://github.com/${s.github.repo}` : '') || s.repo || '';
+    if (!/^https?:\/\//i.test(href) || s.github?.missing) return '';
+    const label = /github\.com/i.test(href) ? 'GitHub' : /gitlab\.com/i.test(href) ? 'GitLab' : 'Source';
+    return `<a class="srv-site srv-repo" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(href.replace(/^https?:\/\//, ''))}">${label}</a> `;
+  }
+
   function starChip(g) {
     if (!g || g.unknown) return '';
     if (g.missing) return `<span class="badge warn" title="${esc(`GitHub repo ${g.repo} not found: deleted, renamed or private.`)}">repo gone</span>`;
@@ -1413,7 +1421,7 @@
         <div class="srv-main">
           <div class="srv-title">${esc(s.title)} <span class="badge ${esc(s.source)}">${s.source === 'curated' ? 'Curated' : s.source === 'registry' ? 'Registry' : 'Added by you'}</span>${s.trust === 'community' && s.source !== 'curated' ? '' : ''}${s.needsAuth ? `<span class="badge key">${s.hasAuth ? 'Key added' : 'Needs a key'}</span>` : ''}${s.signIn === 'signed-in' ? '<span class="badge key">Signed in</span>' : s.signIn === 'needed' ? '<span class="badge key">Needs sign-in</span>' : ''}${starChip(s.github)}</div>
           <div class="srv-desc">${esc(s.description || '')}</div>
-          <div class="srv-meta"><span class="health ${state}">${esc(stateText)}</span> ${/^https?:\/\//i.test(s.website || '') ? `<a class="srv-site" href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(s.website))}</a> ` : ''}${/^https?:\/\/[^{}\s]+$/i.test(s.url || '') ? `<a class="srv-url" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="Open the server address">${esc(s.url)}</a>` : `<span class="srv-url">${esc(s.url)}</span>`}${s.updatedAt ? ` <span class="srv-date" title="Last change to its registry entry">Updated ${esc(new Date(s.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}${s.github?.pushedAt ? ` <span class="srv-date" title="Last push to its GitHub repo">Pushed ${esc(new Date(s.github.pushedAt + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}</div>
+          <div class="srv-meta"><span class="health ${state}">${esc(stateText)}</span> ${/^https?:\/\//i.test(s.website || '') ? `<a class="srv-site" href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(s.website))}</a> ` : ''}${repoLink(s)}${/^https?:\/\/[^{}\s]+$/i.test(s.url || '') ? `<a class="srv-url" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="Open the server address">${esc(s.url)}</a>` : `<span class="srv-url">${esc(s.url)}</span>`}${s.updatedAt ? ` <span class="srv-date" title="Last change to its registry entry">Updated ${esc(new Date(s.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}${s.github?.pushedAt ? ` <span class="srv-date" title="Last push to its GitHub repo">Pushed ${esc(new Date(s.github.pushedAt + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}</div>
         </div>
         <div class="srv-actions"><button class="probe">Check</button><button class="signin" ${s.signIn ? '' : 'hidden'}>${s.signIn === 'signed-in' ? 'Sign out' : 'Sign in'}</button><button class="keybtn${s.needsAuth || s.hasAuth ? '' : ' quiet'}" ${s.signIn && !s.hasAuth && s.source === 'curated' ? 'hidden' : ''}>${s.hasAuth ? 'Change key' : s.needsAuth ? 'Add key' : 'Use own key'}</button>${s.source === 'custom' ? '<button class="removebtn">Remove</button>' : ''}</div>
         <form class="keyform" hidden>
