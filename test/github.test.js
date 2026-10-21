@@ -116,7 +116,9 @@ before(async () => {
     path.join(process.env.MCPB_DATA_DIR, 'github-stars.json'),
     JSON.stringify({ fetchedAt: '2026-10-20T00:00:00Z', source: 'test', repos: { 'big/one': { s: 5000, p: '2026-10-01', n: 'Big/one' }, 'small/one': { s: 3 }, 'gone/one': { x: 1 } } })
   );
-  const mk = (id, repo) => ({ id, title: `Weather ${id}`, description: 'weather forecasts', url: `https://${id}.test/mcp`, source: 'registry', trust: 'community', tags: ['weather'], repo });
+  const ago = (d) => new Date(Date.now() - d * 86400_000).toISOString();
+  const updated = { small: ago(2), big: ago(400), gone: ago(40) };
+  const mk = (id, repo) => ({ id, title: `Weather ${id}`, description: 'weather forecasts', url: `https://${id}.test/mcp`, source: 'registry', trust: 'community', tags: ['weather'], repo, updatedAt: updated[id] });
   const engine = createEngine({
     providerOverride: null,
     curated: [],
@@ -128,6 +130,17 @@ before(async () => {
   base = `http://127.0.0.1:${await app.listen()}`;
 });
 after(() => app.close());
+
+test('the servers API sorts and filters by update time', async () => {
+  const get = (qs) => fetch(`${base}/api/servers?${qs}`).then((x) => x.json());
+  assert.deepEqual((await get('q=weather&sort=updated')).servers.map((s) => s.id), ['small', 'gone', 'big', 'norepo']);
+  assert.deepEqual((await get('q=weather&sort=oldest')).servers.map((s) => s.id), ['big', 'gone', 'small', 'norepo']);
+  assert.deepEqual((await get('q=weather&since=30')).servers.map((s) => s.id), ['small']);
+  assert.deepEqual((await get('since=90&sort=updated')).servers.map((s) => s.id), ['small', 'gone']);
+  const r = await get('q=weather&sort=pushed');
+  assert.equal(r.servers[0].id, 'big'); // only big has a known push date
+  assert.ok(r.servers.find((s) => s.id === 'small').updatedAt);
+});
 
 test('the servers API carries stars and can sort by them', async () => {
   const r = await fetch(`${base}/api/servers?q=weather&sort=stars`).then((x) => x.json());

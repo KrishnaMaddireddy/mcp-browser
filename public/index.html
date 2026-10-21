@@ -196,6 +196,17 @@
         <select data-server-sort aria-label="Sort">
           <option value="">Best match</option>
           <option value="stars">Most GitHub stars</option>
+          <option value="updated">Recently updated</option>
+          <option value="pushed">Recent GitHub activity</option>
+          <option value="oldest">Oldest update first</option>
+        </select>
+        <select data-server-since aria-label="Updated within">
+          <option value="">Any time</option>
+          <option value="1">Updated in the last day</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 12 months</option>
         </select>
       </div>
       <p class="route-preview" data-route-preview></p>

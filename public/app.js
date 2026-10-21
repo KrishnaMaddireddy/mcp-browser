@@ -1369,6 +1369,7 @@
     const q = $('[data-server-q]', el);
     const src = $('[data-server-source]', el);
     const sort = $('[data-server-sort]', el);
+    const since = $('[data-server-since]', el);
     const more = $('[data-more]', el);
     const regStatus = $('[data-registry-status]', el);
     const disc = $('[data-discovery]', el);
@@ -1384,7 +1385,7 @@
         list.innerHTML = '';
       }
       const my = ++loadSeq;
-      const params = new URLSearchParams({ q: q.value, source: src.value, sort: sort.value, limit: '40', offset: String(offset) });
+      const params = new URLSearchParams({ q: q.value, source: src.value, sort: sort.value, since: since.value, limit: '40', offset: String(offset) });
       try {
         const r = await api.get(`/api/servers?${params}`);
         if (my !== loadSeq) return; // a newer search or filter replaced this one
@@ -1412,7 +1413,7 @@
         <div class="srv-main">
           <div class="srv-title">${esc(s.title)} <span class="badge ${esc(s.source)}">${s.source === 'curated' ? 'Curated' : s.source === 'registry' ? 'Registry' : 'Added by you'}</span>${s.trust === 'community' && s.source !== 'curated' ? '' : ''}${s.needsAuth ? `<span class="badge key">${s.hasAuth ? 'Key added' : 'Needs a key'}</span>` : ''}${s.signIn === 'signed-in' ? '<span class="badge key">Signed in</span>' : s.signIn === 'needed' ? '<span class="badge key">Needs sign-in</span>' : ''}${starChip(s.github)}</div>
           <div class="srv-desc">${esc(s.description || '')}</div>
-          <div class="srv-meta"><span class="health ${state}">${esc(stateText)}</span> ${/^https?:\/\//i.test(s.website || '') ? `<a class="srv-site" href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(s.website))}</a> ` : ''}${/^https?:\/\/[^{}\s]+$/i.test(s.url || '') ? `<a class="srv-url" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="Open the server address">${esc(s.url)}</a>` : `<span class="srv-url">${esc(s.url)}</span>`}</div>
+          <div class="srv-meta"><span class="health ${state}">${esc(stateText)}</span> ${/^https?:\/\//i.test(s.website || '') ? `<a class="srv-site" href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(s.website))}</a> ` : ''}${/^https?:\/\/[^{}\s]+$/i.test(s.url || '') ? `<a class="srv-url" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="Open the server address">${esc(s.url)}</a>` : `<span class="srv-url">${esc(s.url)}</span>`}${s.updatedAt ? ` <span class="srv-date" title="Last change to its registry entry">Updated ${esc(new Date(s.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}${s.github?.pushedAt ? ` <span class="srv-date" title="Last push to its GitHub repo">Pushed ${esc(new Date(s.github.pushedAt + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}</span>` : ''}</div>
         </div>
         <div class="srv-actions"><button class="probe">Check</button><button class="signin" ${s.signIn ? '' : 'hidden'}>${s.signIn === 'signed-in' ? 'Sign out' : 'Sign in'}</button><button class="keybtn${s.needsAuth || s.hasAuth ? '' : ' quiet'}" ${s.signIn && !s.hasAuth && s.source === 'curated' ? 'hidden' : ''}>${s.hasAuth ? 'Change key' : s.needsAuth ? 'Add key' : 'Use own key'}</button>${s.source === 'custom' ? '<button class="removebtn">Remove</button>' : ''}</div>
         <form class="keyform" hidden>
@@ -1580,6 +1581,7 @@
     });
     src.addEventListener('change', () => load(true));
     sort.addEventListener('change', () => load(true));
+    since.addEventListener('change', () => load(true));
     more.addEventListener('click', () => load(false));
     load(true);
     showRegistry();

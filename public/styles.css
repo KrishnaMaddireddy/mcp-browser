@@ -241,7 +241,9 @@ a.cite:hover { background: var(--signal); color: #fff; }
 .registry-bar { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
 .registry-actions { display: flex; align-items: center; gap: 14px; flex: none; }
 .registry-actions button { height: 34px; padding: 0 14px; border-radius: 8px; font-weight: 500; }
-.server-filters { display: flex; gap: 8px; margin: 18px auto 6px; }
+.server-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px auto 6px; }
+.server-filters input { flex-basis: 260px; }
+.srv-date { color: var(--muted); white-space: nowrap; margin-left: 6px; }
 .server-filters input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .server-filters select { height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 0 8px; }
 .route-preview { color: var(--muted); font-size: 13px; min-height: 1.5em; margin-top: 4px; margin-bottom: 4px; }

@@ -99,6 +99,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       signIn: engine.oauth.status(s) || (s.signIn ? 'needed' : null) || (h?.error && /needs sign-in|sign-in expired/.test(h.error) ? 'needed' : null),
       override: engine.settings.serverOverrides[s.id] ?? null,
       website: s.website,
+      updatedAt: s.updatedAt || null,
       health: h ? { status: h.status, checkedAt: h.checkedAt, latencyMs: h.latencyMs, tools: h.tools?.length ?? 0, error: h.error, available: engine.health.isAvailable(s.id) } : null,
     };
   }
@@ -182,6 +183,22 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       if (url.searchParams.get('sort') === 'stars') {
         const st = (s) => engine.starsFor(s)?.stars ?? -1;
         list = list.map((s, i) => ({ s, i, n: st(s) })).sort((a, b) => b.n - a.n || a.i - b.i).map((x) => x.s);
+      }
+      // since=N: only servers whose registry entry changed in the last N days.
+      const since = Number(url.searchParams.get('since')) || 0;
+      if (since > 0) {
+        const cutoff = new Date(Date.now() - since * 86400_000).toISOString();
+        list = list.filter((s) => s.updatedAt && s.updatedAt >= cutoff);
+      }
+      // sort=updated / oldest: by the registry's last update; pushed: by the repo's last push.
+      const sortBy = url.searchParams.get('sort');
+      if (sortBy === 'updated' || sortBy === 'oldest' || sortBy === 'pushed') {
+        const key = sortBy === 'pushed' ? (s) => engine.starsFor(s)?.pushedAt || '' : (s) => s.updatedAt || '';
+        const dir = sortBy === 'oldest' ? 1 : -1;
+        list = list
+          .map((s, i) => ({ s, i, k: key(s) }))
+          .sort((a, b) => (!a.k !== !b.k ? (a.k ? -1 : 1) : a.k === b.k ? a.i - b.i : (a.k < b.k ? -1 : 1) * dir))
+          .map((x) => x.s);
       }
       json(res, 200, { total: list.length, servers: list.slice(offset, offset + limit).map(serverView) });
     },
