@@ -115,6 +115,12 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       ? body.history.slice(-3).map((h) => ({ q: String(h?.q || '').slice(0, 2000), a: String(h?.a || '').slice(0, 6000) }))
       : [];
     const servers = Array.isArray(body.servers) ? body.servers.slice(0, 10).map(String) : undefined;
+    // Catalog servers this browser hasn't synced: allow them for this one question,
+    // only as hosted HTTPS servers with no key (the pool's network guard still applies).
+    const adhoc = (Array.isArray(body.adhoc) ? body.adhoc : body.adhoc ? [body.adhoc] : [])
+      .slice(0, 5)
+      .filter((a) => a && typeof a === 'object' && servers?.includes(String(a.id)) && /^https:\/\/[^\s{}]+$/i.test(String(a.url || '')) && String(a.url).length < 500)
+      .map((a) => ({ id: String(a.id).slice(0, 200), title: String(a.title || a.id).slice(0, 120), description: String(a.description || '').slice(0, 400), url: String(a.url), transport: a.transport === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] }));
     const discovery = body.discovery === true;
     const wide = body.wide === true; // "Search wider": one search with a bigger net
     res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
@@ -127,7 +133,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
     try {
       emit('provider', engine.providerInfo());
-      await engine.agent.search(query, { emit, signal: ac.signal, history, servers, discovery, wide });
+      await engine.agent.search(query, { emit, signal: ac.signal, history, servers, discovery, wide, adhoc });
     } catch (e) {
       if (!ac.signal.aborted) {
         log.warn('search failed:', errMsg(e));

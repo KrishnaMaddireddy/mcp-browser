@@ -50,6 +50,12 @@
       return Math.log10(s + 1) + Math.log10(d + 1) * 0.75 + (r[F.rank] ? r[F.rank] / 40 : 0) + (r[F.reach] === 1 ? 0.3 : 0) - (r[F.archived] ? 1 : 0) - (r[F.deprecated] ? 1 : 0) - (r[F.pubCount] >= 100 ? 0.4 : 0);
     };
     const shortName = (r) => (r[F.name].split('/').pop() || r[F.name]).replace(/[^a-z0-9-]+/gi, '-').toLowerCase().slice(0, 40);
+    // MCP Browser can call it right now: hosted over HTTPS, no key, last seen answering.
+    function runnable(r) {
+      if (F.listed != null && r[F.listed] === 1) return true;
+      const u = r[F.remoteUrl];
+      return Boolean(u) && /^https:\/\/[^\s{}]+$/i.test(u) && !(r[F.required] > 0) && ![2, 3, 5].includes(r[F.reach]);
+    }
     function installCmd(r) {
       const t = r[F.pkgType];
       if (t && PKG[t]) return PKG[t].cmd(r[F.pkgId]);
@@ -210,20 +216,20 @@
       if (pkgUrl) a(pkgUrl, pk.label);
       if (r[F.remoteUrl] && !/[{}]/.test(r[F.remoteUrl]) && safeUrl(r[F.remoteUrl])) a(r[F.remoteUrl], 'Endpoint');
       const cmd = installCmd(r);
-      const canAsk = F.listed != null && r[F.listed] === 1 && typeof hooks.ask === 'function';
+      const canAsk = runnable(r) && typeof hooks.ask === 'function';
       const prompts = F.prompts != null ? r[F.prompts] || [] : [];
       const promptHtml = prompts.length
         ? `<div class="cat-prompts"><span class="cat-prompts-label">${canAsk ? 'Try asking' : 'Example prompts'}</span><ul>${prompts
             .map(([p, src]) => {
               const via = src && src.startsWith('t:') ? `<span class="cat-via" title="Built from this tool">${esc(src.slice(2))}</span>` : src === 'd' ? '<span class="cat-via" title="Built from the server’s description">from description</span>' : '';
-              return `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${canAsk ? esc(r[F.name]) : ''}" title="${canAsk ? 'Ask this in a new tab, sent to this server' : 'Copy this prompt'}"><span>${esc(p)}</span><span class="cat-prompt-act">${canAsk ? 'Ask' : 'Copy'}</span></button>${via}</li>`;
+              return `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${canAsk ? esc(r[F.name]) : ''}" title="${canAsk ? 'Run this here, sent to this server' : 'Copy this prompt: this server has to be installed first'}"><span>${esc(p)}</span><span class="cat-prompt-act">${canAsk ? 'Run' : 'Copy'}</span></button>${via}</li>`;
             })
             .join('')}</ul></div>`
         : '';
       const toolNames = F.tools != null ? r[F.tools] || [] : [];
       const toolsHtml = toolNames.length ? `<p class="cat-toolnames"><span>Tools</span> ${toolNames.map((n) => `<code>${hl(n, t)}</code>`).join(' ')}</p>` : '';
       const unit = pk && pk.unit ? pk.unit : 'downloads';
-      return `<li class="cat-item"><div class="cat-main"><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><div class="cat-guide" hidden></div></div>
+      return `<li class="cat-item"><div class="cat-main" data-run-host><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><div class="cat-guide" hidden></div></div>
         <div class="cat-metrics">
           <div class="m star"><span>GitHub stars</span><b class="${r[F.stars] < 0 ? 'none' : ''}">${r[F.stars] < 0 ? 'none' : fmt(r[F.stars])}</b></div>
           <div class="m"><span>${esc(unit)}</span><b class="${r[F.downloads] < 0 ? 'none' : ''}">${r[F.downloads] < 0 ? (pk ? 'n/a' : 'none') : fmt(r[F.downloads])}</b></div>
@@ -275,10 +281,52 @@
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
       return 'Added to MCP Browser (under “Added by you”).';
     }
-    Object.assign(ctx, { showServer, addToBrowser });
+    Object.assign(ctx, { showServer, addToBrowser, runnable: (r) => runnable(r) });
+
+    // Run a prompt right where it was clicked; the answer appears below, with the
+    // same view as a search tab (servers asked, results, sources, follow-ups).
+    function adhocFor(id) {
+      const r = byName.get(id);
+      return r && r[F.remoteUrl] ? { id, url: r[F.remoteUrl], transport: r[F.remoteType] === 'sse' ? 'sse' : 'streamable-http', title: r[F.title] || id.split('/').pop(), description: r[F.desc] || '' } : undefined;
+    }
+    const adhocList = (ids) => (ids || []).map(adhocFor).filter(Boolean);
+    function runHere(btn) {
+      const prompt = btn.dataset.prompt;
+      // data-ask: one server, several (comma-separated, asked together), or * (normal routing).
+      const ids = btn.dataset.ask === '*' ? [] : btn.dataset.ask.split(',').filter(Boolean);
+      const id = ids.length ? ids : undefined;
+      const host = btn.closest('[data-run-host]') || btn.closest('li') || btn.parentElement;
+      if (typeof hooks.runInline !== 'function') return hooks.ask?.(prompt, id, adhocList(id));
+      let box = host.querySelector(':scope > .cat-run');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'cat-run';
+        box.innerHTML = '<div class="cat-run-bar"><span>Answer</span><button type="button" class="link-btn" data-run-tab>Open in a tab</button><button type="button" class="link-btn" data-run-close>Close</button></div><div class="cat-run-body"></div>';
+        host.appendChild(box);
+      }
+      for (const b of host.querySelectorAll('.cat-prompt[aria-pressed="true"]')) b.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-pressed', 'true');
+      box.dataset.prompt = prompt;
+      box.dataset.server = (id || []).join(',');
+      hooks.runInline(box.querySelector('.cat-run-body'), prompt, id, adhocList(id));
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     el.addEventListener('click', (e) => {
       if (window.MCPGuide?.handleClick(e, ctx)) return;
+      const rt = e.target.closest('[data-run-tab]');
+      if (rt) {
+        const box = rt.closest('.cat-run');
+        const ids = box.dataset.server ? box.dataset.server.split(',') : undefined;
+        return hooks.ask(box.dataset.prompt, ids, adhocList(ids));
+      }
+      const rc = e.target.closest('[data-run-close]');
+      if (rc) {
+        const box = rc.closest('.cat-run');
+        box.querySelector('.cat-run-body').__entry?.abort?.abort();
+        for (const b of box.parentElement.querySelectorAll('.cat-prompt[aria-pressed="true"]')) b.setAttribute('aria-pressed', 'false');
+        return box.remove();
+      }
       const v = e.target.closest('[data-view]');
       if (v) return setView(v.dataset.view);
       const sv = e.target.closest('[data-show]');
@@ -311,7 +359,7 @@
       if (m) return pickMonth(m.dataset.month);
       const pr = e.target.closest('.cat-prompt');
       if (pr) {
-        if (pr.dataset.ask) return hooks.ask(pr.dataset.prompt, pr.dataset.ask === '*' ? undefined : pr.dataset.ask);
+        if (pr.dataset.ask) return runHere(pr);
         const act = pr.querySelector('.cat-prompt-act');
         const done = () => { act.textContent = 'Copied'; setTimeout(() => (act.textContent = 'Copy'), 1400); };
         try { navigator.clipboard.writeText(pr.dataset.prompt).then(done, () => {}); } catch {}

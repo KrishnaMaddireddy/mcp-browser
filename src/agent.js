@@ -69,7 +69,7 @@ export class SearchAgent {
    * @param {string} query
    * @param {{emit?: Function, signal?: AbortSignal, history?: {q:string,a:string}[], servers?: string[]}} opts
    */
-  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false } = {}) {
+  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc } = {}) {
     const t0 = Date.now();
     // A template may turn on discovery for this one search; "Search wider" also
     // casts a bigger net (more servers, more time) just this once.
@@ -85,7 +85,7 @@ export class SearchAgent {
     // 1. Route
     let routed;
     if (forcedIds?.length) {
-      routed = forcedIds.map((id) => this.catalog.get(id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason: 'chosen by you' }));
+      routed = forcedIds.map((id) => this.catalog.get(id) || (adhoc || []).find((a) => a.id === id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason: 'chosen by you' }));
       // Asked for servers this browser doesn't have (e.g. from the catalog): route normally.
       if (!routed.length) forcedIds = undefined;
     }

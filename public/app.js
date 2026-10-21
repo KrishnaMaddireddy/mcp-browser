@@ -145,7 +145,19 @@
         const el = $('#tpl-catalog').content.firstElementChild.cloneNode(true);
         window.MCPCatalog?.mount(el, entry, {
           // Run a sample prompt in a new tab, sent to that server.
-          ask: (query, serverId) => newTab({ kind: 'search', query, servers: serverId ? [serverId] : undefined, label: query }),
+          ask: (query, ids, adhoc) => newTab({ kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query }),
+          // Run a prompt right inside the catalog: the same answer view as a tab, embedded.
+          runInline: (box, query, ids, adhoc) => {
+            box.__entry?.abort?.abort();
+            const inlineEntry = { kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query, inline: true };
+            const fakeTab = { btn: Object.assign(document.createElement('div'), { innerHTML: '<span class="tab-title"></span>' }), history: [inlineEntry], idx: 0 };
+            const page = buildSearch(fakeTab, inlineEntry);
+            page.classList.add('inline-run');
+            page.hidden = false;
+            box.replaceChildren(page);
+            box.__entry = inlineEntry;
+            return inlineEntry;
+          },
         });
         return el;
       }
@@ -788,7 +800,7 @@
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-mcpb': '1' },
         // A question asked from the catalog goes to that one server (first turn only).
-        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers } : {}) }),
+        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers, ...(entry.adhoc ? { adhoc: entry.adhoc } : {}) } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);

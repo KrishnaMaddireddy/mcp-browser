@@ -56,16 +56,16 @@
 
     // ---------- rendering ----------
     const chip = (r, label) => `<button type="button" class="u-server" data-show="${esc(r[F.name])}" title="${esc(r[F.desc] || '')}"><b>${esc(r[F.title] || r[F.name].split('/').pop())}</b>${r[F.stars] > 0 ? `<span>★ ${fmt(r[F.stars])}</span>` : ''}${r[F.listed] ? '<span class="u-live">works in MCP Browser</span>' : ''}${label ? `<em>${esc(label)}</em>` : ''}</button>`;
-    const promptBtn = (p, serverName) => `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${esc(serverName || '*')}" title="Ask this in MCP Browser"><span>${esc(p)}</span><span class="cat-prompt-act">Ask</span></button></li>`;
+    const promptBtn = (p, serverName) => `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${esc(serverName || '*')}" title="Run this here in MCP Browser"><span>${esc(p)}</span><span class="cat-prompt-act">Run</span></button></li>`;
 
     function goalCard(g) {
       const needs = g.needs.map((nd) => ({ nd, picks: pick(nd) }));
       const first = needs.map((x) => x.picks[0]).filter(Boolean);
-      return `<article class="u-card" id="goal-${esc(g.id)}" data-goal-card="${esc(g.id)}">
+      return `<article class="u-card" id="goal-${esc(g.id)}" data-goal-card="${esc(g.id)}" data-run-host>
         <h3>${esc(g.title)}</h3>
         <p class="u-why">${esc(g.why)}</p>
         ${needs.map(({ nd, picks }) => `<div class="u-need"><span class="u-label">${esc(nd.label)}</span><div class="u-servers">${picks.map((r) => chip(r)).join('') || '<span class="u-none">No match in the catalog yet</span>'}</div></div>`).join('')}
-        <div class="u-prompts"><span class="u-label">Try asking</span><ul>${g.prompts.map((p) => promptBtn(p)).join('')}</ul></div>
+        <div class="u-prompts"><span class="u-label">Try asking <em class="u-runs">runs here, on the best servers MCP Browser has for it</em></span><ul>${g.prompts.map((p) => promptBtn(p)).join('')}</ul></div>
         ${first.length ? `<details class="u-setup"><summary>Set up ${first.length === 1 ? 'this server' : `these ${first.length} servers`} in Claude, Cursor or VS Code</summary>${window.MCPGuide.setupHtml(first, F, { title: 'Setup' })}</details>` : ''}
       </article>`;
     }
@@ -73,11 +73,11 @@
     function workflowCard(w) {
       const steps = w.steps.map((s) => ({ s, r: pick(s.need, 1)[0] }));
       const servers = steps.map((x) => x.r).filter(Boolean);
-      return `<article class="u-card u-flow" id="wf-${esc(w.id)}">
+      return `<article class="u-card u-flow" id="wf-${esc(w.id)}" data-run-host>
         <h3>${esc(w.title)}</h3>
         <p class="u-why">${esc(w.outcome)}</p>
         <ol class="u-steps">${steps
-          .map(({ s, r }) => `<li><div class="u-step-head"><b>${esc(s.label)}</b>${r ? chip(r) : '<span class="u-none">No match yet</span>'}</div><ul>${promptBtn(s.prompt, r && r[F.listed] ? r[F.name] : '')}</ul></li>`)
+          .map(({ s, r }) => `<li><div class="u-step-head"><b>${esc(s.label)}</b>${r ? chip(r) : '<span class="u-none">No match yet</span>'}</div><ul>${promptBtn(s.prompt, r && ctx.runnable?.(r) ? r[F.name] : '')}</ul></li>`)
           .join('')}</ol>
         ${servers.length ? `<details class="u-setup"><summary>Set up all ${servers.length} servers at once</summary>${window.MCPGuide.setupHtml(servers, F, { title: 'Setup' })}<p class="g-note">With all of them connected, ask for the whole outcome in one message and Claude chains the steps.</p></details>` : ''}
       </article>`;
@@ -133,7 +133,7 @@
               ? `<ul class="u-plan-list">${servers.map(([, r, hit]) => `<li><label><input type="checkbox" data-plan-pick="${esc(r[F.name])}" checked> ${chip(r)}</label><p>${esc((r[F.desc] || '').slice(0, 140))}</p><p class="u-why-match">Matches: ${hit.map(esc).join(', ')}</p></li>`).join('')}</ul><div data-u-plan-setup></div>`
               : '<p class="hint">No catalog server matches those words. Try other words, or browse the goals below.</p>'
           }</section>
-          <section><h3>Ask MCP Browser now</h3><ul class="u-plan-ask">${promptBtn(text)}</ul><p class="hint" data-u-route>Checking which servers would answer…</p>
+          <section data-run-host><h3>Ask MCP Browser now</h3><ul class="u-plan-ask">${promptBtn(text)}</ul><p class="hint" data-u-route>Checking which servers would answer…</p>
           ${goalHits.length ? `<h3>Related use cases</h3><p class="g-goals">${goalHits.map(([, g]) => `<button type="button" class="g-goal" data-goal="${esc(g.id)}">${esc(g.title)}</button>`).join('')}</p>` : ''}</section>
         </div>`;
       updatePlanSetup();

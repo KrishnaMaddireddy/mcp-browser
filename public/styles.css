@@ -739,3 +739,15 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .g-checks li.warn::marker { color: var(--warn); }
 .g-checks li.bad { color: var(--err); }
 @media (max-width: 860px) { .u-plan-cols { grid-template-columns: minmax(0, 1fr); } }
+.u-runs { font-style: normal; color: var(--ok); margin-left: 6px; }
+.cat-prompt[aria-pressed="true"] { border-color: var(--signal); background: var(--signal-soft); }
+.cat-run { margin-top: 10px; border: 1px solid var(--signal); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.cat-run-bar { display: flex; gap: 14px; align-items: center; padding: 6px 12px; background: var(--signal-soft); font-size: 13px; }
+.cat-run-bar span { font-weight: 700; margin-right: auto; }
+.cat-run-body { max-height: 560px; overflow: auto; }
+.page.inline-run { position: static; inset: auto; overflow: visible; padding: 4px 12px 12px; }
+.page.inline-run .search-inner, .page.inline-run > * { width: 100%; max-width: none; margin: 0; }
+.page.search.inline-run { padding: 8px 12px 0; }
+.page.inline-run .thread { padding-bottom: 8px; }
+.page.inline-run .followup { position: static; background: none; padding: 8px 0 12px; }
+.page.inline-run .followup input, .page.inline-run .followup button { height: 38px; }

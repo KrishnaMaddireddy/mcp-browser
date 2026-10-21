@@ -99,3 +99,20 @@ test('use cases point at servers that exist in the shipped catalog', async () =>
   assert.deepEqual(ids.filter((i) => !names.has(i)), []);
   for (const g of U.goals) assert.ok(g.prompts.length >= 2 && g.needs.length >= 1, g.id);
 });
+
+test('a question can name a catalog server the browser has not synced (HTTPS only)', async () => {
+  const body = (adhoc) => JSON.stringify({ query: 'hello', servers: ['com.acme/x'], adhoc });
+  const send = async (adhoc) => {
+    const r = await fetch(`${base}/api/search`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: body(adhoc) });
+    const text = await r.text();
+    const route = text.split('\n\n').find((b) => b.startsWith('event: route'));
+    return route ? JSON.parse(route.split('\ndata: ')[1]) : null;
+  };
+  const ok = await send({ id: 'com.acme/x', url: 'https://127.0.0.1:9/mcp', title: 'Acme' });
+  assert.deepEqual(ok.servers.map((s) => s.id), ['com.acme/x']);
+  // Plain http, templated URLs and ids not asked for are ignored: normal routing instead.
+  for (const bad of [{ id: 'com.acme/x', url: 'http://acme.com/mcp' }, { id: 'com.acme/x', url: 'https://acme.com/{tenant}/mcp' }, { id: 'other/y', url: 'https://acme.com/mcp' }]) {
+    const r = await send(bad);
+    assert.ok(!r || !r.servers.some((s) => s.id === 'com.acme/x'));
+  }
+});
