@@ -312,6 +312,7 @@
       box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    el.addEventListener('input', (e) => window.MCPGuide?.handleInput(e));
     el.addEventListener('click', (e) => {
       if (window.MCPGuide?.handleClick(e, ctx)) return;
       const op = e.target.closest('[data-open]');
