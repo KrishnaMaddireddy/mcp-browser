@@ -13,6 +13,7 @@ import { errMsg, mapLimit, log } from './util.js';
 import { EmbeddingIndex } from './embeddings.js';
 import { runRank, rankScores, loadRank, SUITES } from './rank.js';
 import { WatchStore, WatchScheduler } from './watches.js';
+import { LocalServers } from './local-servers.js';
 
 function isLocalHostUrl(url) {
   try {
@@ -34,7 +35,10 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
   const catalog = new Catalog({ health, settings, curated, embeddings });
   catalog.rankScores = rankScores();
   if (extraServers.length) catalog.addServers(extraServers);
+  const local = new LocalServers({ onChange: () => catalog.invalidate() });
+  catalog.local = local;
   const pool = new McpPool({
+    localLaunch: (s) => local.launch(s),
     connectTimeoutMs: settings.connectTimeoutMs,
     health,
     fetchImpl,
@@ -180,6 +184,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     startWatches() {
       scheduler.start();
     },
+    local,
     rankState: rank,
     /** Stars lookup by server id (for MCP Rank labels and pages). */
     githubById(id) {

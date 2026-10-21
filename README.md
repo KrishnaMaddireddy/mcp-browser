@@ -522,3 +522,20 @@ Pick the servers you care about with **+ Add to my stack** (on any catalog serve
 - **Prefer Terminal?** Download the same setup as `setup-mcp.mjs` (`node setup-mcp.mjs --dry-run`, then `node setup-mcp.mjs`) or `setup-mcp.ts` (`npx tsx setup-mcp.ts`). It asks for keys with hidden typing, or reads them from your environment. `--clients=desktop,code,cursor,vscode` picks apps, `--remove` takes the servers out.
 
 VS Code gets `${input:...}` prompts for keys, so they never sit in its file. Claude Desktop and Cursor keep them in their config files (mode 0600), as those apps require.
+
+## Run package servers on this computer
+
+About 12,600 servers in the catalog need no key but ship as npm or Python packages (or Docker images) instead of a web address. MCP Browser can start them itself, so you can ask them questions without Claude, Cursor or another app. Click **Run on this Mac** on a catalog server (or Run on one of its prompts) and approve it:
+
+- **You see what will run first**: the exact command, the version (pinned: an update needs your OK again), GitHub stars and downloads, install-time behaviour, and any warning signs. Servers with warning signs (little adoption, archived, deprecated, publisher doesn't match the code's owner, template farms) need an extra “run it anyway”. About 630 package servers pass without one.
+- **No code runs at install**: npm runs with install scripts off; Python packages install only from prebuilt wheels (`uvx --no-build`). Packages that must build from source only run in Docker.
+- **Isolation**, chosen per server:
+  - *macOS sandbox* (default on a Mac): the server can't read or write your home folder outside its own folder. MCP Browser checks on your Mac that the sandbox really blocks your files before offering it.
+  - *Docker*: a container with no host folders, no added privileges and a memory limit.
+  - *No sandbox*: only after you tick that it can read and change your files.
+- **Its own folder and environment**: each server gets a private home, temp and package cache, and only its own settings: none of MCP Browser's keys or your shell's variables.
+- **Keys stay in memory**: they're asked for when you approve and again after MCP Browser restarts; never saved.
+- **Tools that change things** (send, write, delete, pay) are never offered to the AI model, as for every server.
+- Servers start when a question needs them and stop after 10 minutes unused. **My MCP stack** lists them with Start, Stop and Remove from this Mac.
+
+**Set up now** and the downloadable setup script follow the same rules: packages are pinned to the current version, npm install scripts are off, and servers with warning signs are only set up after you confirm each one.

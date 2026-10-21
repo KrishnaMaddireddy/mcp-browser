@@ -64,7 +64,9 @@ export class Catalog {
     const seen = new Set();
     const out = [];
     const custom = (this.settings?.customServers || []).map((s) => ({ source: 'custom', trust: 'community', tags: [], ...s }));
-    for (const s of [...this.curated, ...custom, ...this._extra, ...(this.registry.servers || [])]) {
+    // Package servers the user approved to run on this computer (local-servers.js).
+    const local = this.local?.servers() || [];
+    for (const s of [...this.curated, ...custom, ...local, ...this._extra, ...(this.registry.servers || [])]) {
       const key = s.url.replace(/\/+$/, '').toLowerCase();
       if (seen.has(key) || seen.has('id:' + s.id)) continue;
       seen.add(key);

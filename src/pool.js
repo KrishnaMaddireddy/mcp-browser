@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { guardedFetch } from './netguard.js';
 import { withTimeout, errMsg, log, cleanText } from './util.js';
 
@@ -17,7 +18,8 @@ export class McpPool {
    * @param {(server) => boolean} [o.allowPrivate] servers allowed to be on localhost/LAN
    * @param {import('./health.js').HealthStore} [o.health]
    */
-  constructor({ connectTimeoutMs = 10000, idleMs = 5 * 60_000, maxConnections = 12, allowPrivate = () => false, authFor = () => null, oauthFor = () => null, health, fetchImpl } = {}) {
+  constructor({ connectTimeoutMs = 10000, idleMs = 5 * 60_000, maxConnections = 12, allowPrivate = () => false, authFor = () => null, oauthFor = () => null, health, fetchImpl, localLaunch = null } = {}) {
+    this.localLaunch = localLaunch; // (server) => { command, args, env, cwd, secrets } for approved package servers
     this.authFor = authFor;
     this.oauthFor = oauthFor;
     this.connectTimeoutMs = connectTimeoutMs;
@@ -50,7 +52,7 @@ export class McpPool {
             r.client.close().catch(() => {});
             throw new Error('connection was closed');
           }
-          Object.assign(c, r);
+          Object.assign(c, r, { since: Date.now() });
           // A connection that drops is removed, so the next call reconnects.
           r.client.onclose = () => {
             if (this.conns.get(server.id) === c) this.conns.delete(server.id);
@@ -83,7 +85,41 @@ export class McpPool {
     return c;
   }
 
+  /** A package server this computer starts (approved in local-servers.js), spoken to over stdio. */
+  async _connectLocal(server) {
+    const t0 = Date.now();
+    if (!this.localLaunch) throw new Error('this server runs on this computer, which isn’t set up here');
+    const spec = this.localLaunch(server);
+    const transport = new StdioClientTransport({ command: spec.command, args: spec.args, env: spec.env, cwd: spec.cwd, stderr: 'pipe' });
+    let tail = '';
+    transport.stderr?.on('data', (d) => (tail = (tail + d).slice(-6000)));
+    const client = new Client(CLIENT_INFO, { capabilities: {} });
+    const hide = (m) => redactAll(m, spec.secrets);
+    const timeout = server.connectTimeoutMs || 120000;
+    try {
+      await withTimeout(client.connect(transport), timeout, `start ${server.title || server.id}`);
+      const tools = await withTimeout(listAllTools(client), this.connectTimeoutMs * 2, `tools/list ${server.id}`);
+      this.health?.recordOk(server.id, { latencyMs: Date.now() - t0, tools, serverName: cleanText(client.getServerVersion()?.name || '').slice(0, 80) });
+      const entry = { client, tools, log: () => hide(tail), pid: transport.pid };
+      transport.stderr?.on('data', () => {}); // keep draining
+      return entry;
+    } catch (e) {
+      try {
+        await client.close();
+      } catch {
+        /* ignore */
+      }
+      const last = hide(tail).trim().split('\n').filter(Boolean).slice(-6).join('\n');
+      const msg = hide(errMsg(e)) + (last ? `\n${last}` : '');
+      this.health?.recordFail(server.id, msg.slice(0, 500));
+      const err = new Error(msg);
+      err.log = hide(tail);
+      throw err;
+    }
+  }
+
   async _connect(server) {
+    if (server.kind === 'local') return this._connectLocal(server);
     const t0 = Date.now();
     const fetchFn = guardedFetch({ allowPrivate: this.allowPrivate(server), fetchImpl: this.fetchImpl });
     const attempts = server.transport === 'sse' ? ['sse'] : ['streamable-http', 'sse'];
@@ -196,12 +232,19 @@ export class McpPool {
   _sweep() {
     const now = Date.now();
     for (const [id, c] of this.conns) {
-      if (c.client && c.inflight === 0 && now - c.lastUsed > this.idleMs) this._detach(id);
+      if (c.client && c.inflight === 0 && now - c.lastUsed > (c.server.idleMs ?? this.idleMs)) this._detach(id);
     }
   }
 
   stats() {
     return { open: [...this.conns.values()].filter((c) => c.client).length, max: this.maxConnections };
+  }
+
+  /** Connection state of one server: 'running' | 'starting' | null. */
+  state(id) {
+    const c = this.conns.get(id);
+    if (!c) return null;
+    return c.client ? { status: 'running', since: c.since, lastUsed: c.lastUsed, tools: c.tools?.length ?? 0, pid: c.pid ?? null } : { status: 'starting' };
   }
 }
 
@@ -215,6 +258,13 @@ async function listAllTools(client) {
     if (!cursor || tools.length >= MAX_TOOLS_PER_SERVER) break;
   }
   return tools.slice(0, MAX_TOOLS_PER_SERVER);
+}
+
+/** Replace each secret in text with ***. */
+export function redactAll(msg, secrets = []) {
+  let m = String(msg || '');
+  for (const s of [...secrets].filter((x) => typeof x === 'string' && x.length >= 4).sort((a, b) => b.length - a.length)) m = m.split(s).join('***');
+  return m;
 }
 
 /** Remove a saved key (and the query string of a saved URL) from error text. */

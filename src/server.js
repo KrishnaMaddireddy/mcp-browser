@@ -16,7 +16,8 @@ import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
 import { catalogFile, catalogTools } from './catalog-data.js';
 import { auditInstalled } from './audit.js';
-import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable } from './catalog-index.js';
+import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib } from './catalog-index.js';
+import { packageInfo, runtimes, sandboxStatus } from './local-servers.js';
 import { StackStore } from './stack.js';
 import { setupScript } from './stack-script.js';
 import { applyStack, detectClients } from './stack-run.js';
@@ -153,7 +154,147 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     }
   }
 
+  // ---------- package servers run on this computer (local-servers.js) ----------
+  const LOCAL_TYPES = new Set(['npm', 'pypi', 'oci']);
+  /** The catalog facts behind an approval: what it is, its settings, how much to trust it. */
+  function localFacts(id) {
+    const c = loadCatalog();
+    const r = c?.byName.get(String(id));
+    if (!r) return null;
+    const { F } = c;
+    const type = r[F.pkgType];
+    const settings = ((F.envs != null && r[F.envs]) || []).filter(([, , , kind]) => kind !== 'h').map(([name, secret, d]) => ({ name, secret: Boolean(secret), description: guideLib().explain(name, d).slice(0, 200) }));
+    return { row: r, F, type, pkgId: r[F.pkgId], title: r[F.title] || r[F.name].split('/').pop(), description: r[F.desc] || '', settings, trust: trustOf(r), stars: r[F.stars], downloads: r[F.downloads], repo: r[F.repo], hosted: catalogRunnable(r, F) };
+  }
+  const shq = (x) => (/^[\w@%+=:,./-]+$/.test(x) ? x : `'${String(x).replace(/'/g, `'\\''`)}'`);
+  function commandText(type, name, version, isolation) {
+    const pkg = type === 'oci' ? name : `${name}@${version}`;
+    if (type === 'oci' || isolation === 'docker') return `docker run -i --rm --cap-drop ALL ${type === 'oci' ? shq(pkg) : type === 'npm' ? `node:22-slim npx -y ${shq(pkg)}` : `ghcr.io/astral-sh/uv:python3.12-bookworm-slim uvx ${shq(pkg)}`}`;
+    const cmd = type === 'npm' ? `npx -y ${shq(pkg)}` : `uvx --no-build ${shq(pkg)}`;
+    return isolation === 'sandbox' ? `${cmd}   (inside the macOS sandbox)` : cmd;
+  }
+  /** Current version (and wheel) of each package row, to pin setups to. */
+  async function pinsFor(rows) {
+    const c = loadCatalog();
+    const out = {};
+    await Promise.all(
+      rows.map(async (r) => {
+        const t = r[c.F.pkgType];
+        if (t !== 'npm' && t !== 'pypi') return;
+        const i = await packageInfo(t, r[c.F.pkgId]);
+        if (i.version) out[r[c.F.name]] = { version: i.version, wheel: i.wheel !== false };
+      })
+    );
+    return out;
+  }
+
+  async function startLocal(id) {
+    const server = engine.catalog.get(id);
+    if (!server || server.kind !== 'local') return { ok: false, error: 'fill in its settings first' };
+    try {
+      const { tools } = await engine.pool.get(server);
+      return { ok: true, tools: tools.map((t) => t.name), state: engine.pool.state(id) };
+    } catch (e) {
+      return { ok: false, error: errMsg(e).slice(0, 1500), log: String(e.log || '').slice(-4000) };
+    }
+  }
+  function localView(a) {
+    const st = engine.pool.state(a.id);
+    const h = engine.health.get(a.id);
+    return { id: a.id, title: a.title, type: a.type, name: a.name, version: a.version, isolation: a.isolation, approvedAt: a.approvedAt, trusted: a.trusted, settings: a.settings, values: a.values, missing: engine.local.missing(a), state: st, lastError: h?.status === 'fail' ? h.error : null, command: commandText(a.type, a.name, a.version, a.isolation) };
+  }
+
   const routes = {
+    // Package servers approved to run here, and what this computer can run them with.
+    'GET /api/local': async (req, res) => {
+      const rt = runtimes();
+      json(res, 200, { platform: process.platform, runtimes: { npx: Boolean(rt.npx), uvx: Boolean(rt.uvx), docker: Boolean(rt.docker) }, sandbox: await sandboxStatus(), servers: engine.local.approved.map(localView) });
+    },
+    // Everything the approval dialog shows before anything is downloaded or started.
+    'GET /api/local/check': async (req, res, url) => {
+      const f = localFacts(url.searchParams.get('id'));
+      if (!f) return json(res, 404, { error: 'not in the catalog' });
+      if (!LOCAL_TYPES.has(f.type)) return json(res, 400, { error: f.type ? `MCP Browser can't start ${f.type} packages yet` : 'this server has no package to run' });
+      const [info, sandbox] = await Promise.all([packageInfo(f.type, f.pkgId), sandboxStatus()]);
+      const rt = runtimes();
+      const needs = f.type === 'npm' ? 'npx' : f.type === 'pypi' ? 'uvx' : 'docker';
+      const how = {
+        sandbox: f.type === 'oci' ? { available: false, reason: 'Docker images already run in their own container.' } : !rt[needs] ? { available: false, reason: `${needs} isn’t installed` } : sandbox,
+        docker: rt.docker ? { available: true } : { available: false, reason: 'Docker isn’t installed.' },
+        none: f.type === 'oci' ? { available: false, reason: 'Docker images run in Docker.' } : rt[needs] ? { available: true } : { available: false, reason: `${needs} isn’t installed: ${needs === 'uvx' ? 'brew install uv' : 'get Node.js from nodejs.org'}` },
+      };
+      if (f.type === 'pypi' && info.wheel === false) Object.assign(how, { sandbox: { available: false, reason: 'This package must be built from source, which runs its code during install. That only happens inside Docker.' }, none: { available: false, reason: 'This package must be built from source; run it in Docker.' } });
+      const prefer = ['sandbox', 'docker', 'none'].find((k) => how[k].available) || null;
+      const a = engine.local.get(f.row[f.F.name]);
+      json(res, 200, {
+        id: f.row[f.F.name],
+        title: f.title,
+        description: f.description,
+        type: f.type,
+        package: info,
+        hosted: f.hosted,
+        github: /^[\w.-]+\/[\w.-]+$/.test(f.repo || '') ? `https://github.com/${f.repo}` : null,
+        stars: f.stars,
+        downloads: f.downloads,
+        trust: f.trust,
+        settings: f.settings,
+        how,
+        prefer,
+        commands: Object.fromEntries(['sandbox', 'docker', 'none'].map((k) => [k, info.version ? commandText(f.type, info.name, info.version, k) : ''])),
+        approved: a ? localView(a) : null,
+        stackValues: stack().items.find((x) => x.id === f.row[f.F.name])?.values || {},
+      });
+    },
+    // Approve (pin version, choose isolation), keep keys in memory, start it.
+    'POST /api/local/approve': async (req, res) => {
+      const b = await readJson(req);
+      const f = localFacts(b.id);
+      if (!f) return json(res, 404, { error: 'not in the catalog' });
+      if (!LOCAL_TYPES.has(f.type)) return json(res, 400, { error: 'this server has no package MCP Browser can start' });
+      const info = await packageInfo(f.type, f.pkgId);
+      if (info.error) return json(res, 502, { error: `couldn’t look up the package: ${info.error}` });
+      const version = String(b.version || info.version);
+      if (version !== info.version) return json(res, 409, { error: `the package changed to ${info.version} since you looked: check again` });
+      const isolation = f.type === 'oci' ? 'docker' : String(b.isolation || '');
+      if (!['sandbox', 'docker', 'none'].includes(isolation)) return json(res, 400, { error: 'choose how to run it' });
+      if (isolation === 'sandbox' && !(await sandboxStatus()).available) return json(res, 400, { error: 'the sandbox isn’t available on this computer' });
+      if (isolation === 'docker' && !runtimes().docker) return json(res, 400, { error: 'Docker isn’t installed' });
+      if (f.type === 'pypi' && info.wheel === false && isolation !== 'docker') return json(res, 400, { error: 'this package must be built from source: run it in Docker' });
+      if (!f.trust.trusted && b.acceptRisk !== true) return json(res, 400, { error: 'this server has warning signs: confirm you want to run it anyway' });
+      if (isolation === 'none' && b.acceptNoSandbox !== true) return json(res, 400, { error: 'confirm you want to run it without a sandbox' });
+      const a = engine.local.approve({ id: f.row[f.F.name], title: f.title, description: f.description, type: f.type, name: info.name, version: info.version, isolation, settings: f.settings, values: b.values, secrets: b.secrets, trusted: f.trust.trusted });
+      // Keep non-secret settings with the stack too, if it's there.
+      if (stack().has(a.id) && a.values && Object.keys(a.values).length) stack().setValues(a.id, a.values, a.settings.filter((s) => s.secret).map((s) => s.name));
+      await engine.pool.close(a.id);
+      json(res, 200, { approved: localView(a), ...(await startLocal(a.id)) });
+    },
+    // Keys again after MCP Browser restarted (they are never saved).
+    'POST /api/local/keys': async (req, res) => {
+      const b = await readJson(req);
+      try {
+        engine.local.setKeys(String(b.id), b.secrets);
+      } catch (e) {
+        return json(res, 400, { error: errMsg(e) });
+      }
+      json(res, 200, await startLocal(String(b.id)));
+    },
+    'POST /api/local/start': async (req, res) => {
+      const b = await readJson(req);
+      if (!engine.local.get(String(b.id))) return json(res, 404, { error: 'not approved' });
+      json(res, 200, await startLocal(String(b.id)));
+    },
+    'POST /api/local/stop': async (req, res) => {
+      const b = await readJson(req);
+      await engine.pool.close(String(b.id));
+      json(res, 200, { ok: true });
+    },
+    // Stop it, drop the approval and delete its folder (package cache included).
+    'POST /api/local/forget': async (req, res) => {
+      const b = await readJson(req);
+      await engine.pool.close(String(b.id));
+      engine.local.forget(String(b.id));
+      json(res, 200, { ok: true });
+    },
     'GET /api/status': async (req, res) => {
       json(res, 200, {
         provider: engine.providerInfo(),
@@ -394,7 +535,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const items = stack().items.map((it) => {
         const row = c?.byName.get(it.id);
         const inst = installed.filter((s) => s.catalog?.server_id === it.id).map((s) => s.client);
-        return { id: it.id, addedAt: it.addedAt, values: it.values || {}, found: Boolean(row), installedIn: [...new Set(inst)], ...(row ? { server: describeCatalogRow(row, { full: true }), runnable: catalogRunnable(row, c.F), adhoc: adhocFor(row) } : {}) };
+        return { id: it.id, addedAt: it.addedAt, values: it.values || {}, found: Boolean(row), installedIn: [...new Set(inst)], ...(row ? { server: describeCatalogRow(row, { full: true }), runnable: catalogRunnable(row, c.F), adhoc: adhocFor(row), trust: trustOf(row) } : {}) };
       });
       json(res, 200, { items });
     },
@@ -435,7 +576,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const rows = items.map((it) => c.byName.get(it.id)).filter(Boolean);
       if (!rows.length) return json(res, 400, { error: 'your stack is empty' });
       const format = url.searchParams.get('format') === 'ts' ? 'ts' : 'mjs';
-      const body = setupScript(scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}]))), { format });
+      const servers = scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}])), await pinsFor(rows)).map((s, i) => {
+        const t = trustOf(rows[i]);
+        return t.trusted ? s : { ...s, warning: t.why.join('; ') };
+      });
+      const body = setupScript(servers, { format });
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': `attachment; filename="setup-mcp.${format}"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       res.end(body);
     },
@@ -449,11 +594,17 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       if (!c) return json(res, 404, { error: 'no catalog' });
       const want = Array.isArray(b.ids) ? b.ids.map(String) : [];
       const items = stack().items.filter((it) => !want.length || want.includes(it.id));
-      const rows = items.map((it) => c.byName.get(it.id)).filter(Boolean);
+      let rows = items.map((it) => c.byName.get(it.id)).filter(Boolean);
       if (!rows.length) return json(res, 400, { error: 'your stack is empty' });
-      const servers = scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}])));
+      // Servers with warning signs are only set up when you said so for each one.
+      const accepted = new Set(Array.isArray(b.acceptRisk) ? b.acceptRisk.map(String) : []);
+      const held = b.remove ? [] : rows.filter((r) => !trustOf(r).trusted && !accepted.has(r[c.F.name]));
+      rows = rows.filter((r) => !held.includes(r));
+      const heldNote = held.length ? `Not set up, because of warning signs you haven’t confirmed: ${held.map((r) => r[c.F.title] || r[c.F.name]).join(', ')}.\n\n` : '';
+      if (!rows.length) return json(res, 200, { ok: false, output: heldNote.trim() });
+      const servers = scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}])), b.remove ? {} : await pinsFor(rows));
       const r = await applyStack(servers, { clients: Array.isArray(b.clients) ? b.clients.map(String) : [], secrets: b.secrets && typeof b.secrets === 'object' ? b.secrets : {}, dry: b.dry !== false, remove: Boolean(b.remove) });
-      json(res, 200, r);
+      json(res, 200, { ...r, output: heldNote + r.output });
     },
     // Read-only check of the MCP servers installed in this computer's clients.
     'GET /api/audit': async (req, res) => {

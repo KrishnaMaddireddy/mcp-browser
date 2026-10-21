@@ -125,8 +125,13 @@ export function adhocFor(r) {
   return { id: r[F.name], title: r[F.title] || r[F.name].split('/').pop(), description: r[F.desc] || '', url: r[F.remoteUrl], transport: r[F.remoteType] === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] };
 }
 
-/** Script-ready description of catalog rows (for the stack setup script). values: id → { NAME: value } */
-export function scriptServers(rows, values = {}) {
+/**
+ * Script-ready description of catalog rows (for the stack setup script).
+ * values: id → { NAME: value }. pins: id → { version, wheel } from the package
+ * registry: packages are pinned to that version, npm install scripts are turned
+ * off and PyPI packages with wheels are installed without building.
+ */
+export function scriptServers(rows, values = {}, pins = {}) {
   const c = loadCatalog();
   const { F } = c;
   const g = guideLib();
@@ -137,16 +142,44 @@ export function scriptServers(rows, values = {}) {
     for (let i = 2; used.has(key); i++) key = `${l.name}-${i}`;
     used.add(key);
     const v = values[r[F.name]] || {};
+    const pin = pins[r[F.name]];
+    let fixedEnv;
+    if (l.kind === 'local' && pin?.version && /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(pin.version)) {
+      if (r[F.pkgType] === 'npm') {
+        l.args = ['-y', `${r[F.pkgId].replace(/(?<=.)@[^/@]*$/, '')}@${pin.version}`];
+        fixedEnv = { npm_config_ignore_scripts: 'true' };
+      } else if (r[F.pkgType] === 'pypi') l.args = [...(pin.wheel ? ['--no-build'] : []), `${r[F.pkgId].replace(/[=<>!~@].*$/, '')}@${pin.version}`];
+    }
     const settings = ((F.envs != null && r[F.envs]) || []).map(([name, secret, d, kind]) => ({ name, secret: Boolean(secret), description: g.explain(name, d).slice(0, 200), header: kind === 'h', ...(!secret && v[name] ? { value: v[name] } : {}) }));
     return {
       key,
       id: r[F.name],
       title: r[F.title] || r[F.name].split('/').pop(),
       kind: l.kind,
-      ...(l.kind === 'local' ? { command: l.command, args: l.args } : {}),
+      ...(l.kind === 'local' ? { command: l.command, args: l.args, ...(fixedEnv ? { fixedEnv } : {}), ...(pin?.version ? { version: pin.version } : {}) } : {}),
       ...(l.kind === 'remote' ? { url: l.url, transport: l.transport } : {}),
       settings: l.kind === 'none' ? [] : settings,
       ...(l.note ? { note: l.note } : {}),
     };
   });
+}
+
+/**
+ * Whether MCP Browser offers to run a package server with a plain approval, or
+ * only after an explicit "run it anyway": real adoption, maintained, and the
+ * publisher matches the code's owner.
+ */
+export function trustOf(r) {
+  const c = loadCatalog();
+  const { F } = c;
+  const checks = guideLib().gotchas(r, F);
+  const why = [];
+  const stars = r[F.stars] ?? -1;
+  const dl = r[F.downloads] ?? -1;
+  if (!(stars >= 100 || dl >= 5000)) why.push(`little adoption so far (${stars >= 0 ? `${stars} GitHub stars` : 'no GitHub stars'}, ${dl >= 0 ? `${dl.toLocaleString()} downloads a month` : 'downloads unknown'})`);
+  if (r[F.archived]) why.push('its GitHub repo is archived');
+  if (r[F.deprecated]) why.push('it is marked deprecated');
+  if (r[F.pubCount] >= 100) why.push(`its publisher has ${r[F.pubCount]} servers in the registry, many generated from templates`);
+  for (const [level, t] of checks) if (level === 'bad' || (level === 'warn' && /^Published by GitHub user/.test(t))) why.push(t.replace(/[.\s]+$/, '').replace(/^./, (x) => x.toLowerCase()));
+  return { trusted: !why.length, why: [...new Set(why)], checks: checks.map(([level, t]) => [level, t]) };
 }

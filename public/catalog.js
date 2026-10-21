@@ -45,6 +45,7 @@
     let view = [], shown = 0, catSel = entry.category || 'all', range = null;
     const filters = new Set();
     let stackIds = new Set();
+    window.MCPLocal?.refresh();
     window.MCPStack?.ids().then((s) => (stackIds = s));
 
     const popularity = (r) => {
@@ -218,20 +219,27 @@
       if (pkgUrl) a(pkgUrl, pk.label);
       if (r[F.remoteUrl] && !/[{}]/.test(r[F.remoteUrl]) && safeUrl(r[F.remoteUrl])) a(r[F.remoteUrl], 'Endpoint');
       const cmd = installCmd(r);
-      const canAsk = runnable(r) && typeof hooks.ask === 'function';
+      // A package server MCP Browser can start on this computer, once you approve it.
+      const L = window.MCPLocal;
+      const local = Boolean(L) && !runnable(r) && L.isPackage(r[F.pkgType]);
+      const localReady = local && L.canRun(r[F.name]);
+      const localApproved = local && L.get(r[F.name]);
+      if (localReady) tags.unshift('<span class="cat-state ok">Runs on this Mac</span>');
+      else if (localApproved) tags.unshift(`<span class="cat-state warn">Needs ${esc(localApproved.missing.join(', '))} again</span>`);
+      const canAsk = (runnable(r) || local) && typeof hooks.ask === 'function';
       const prompts = F.prompts != null ? r[F.prompts] || [] : [];
       const promptHtml = prompts.length
         ? `<div class="cat-prompts"><span class="cat-prompts-label">${canAsk ? 'Try asking' : 'Example prompts'}</span><ul>${prompts
             .map(([p, src]) => {
               const via = src && src.startsWith('t:') ? `<span class="cat-via" title="Built from this tool">${esc(src.slice(2))}</span>` : src === 'd' ? '<span class="cat-via" title="Built from the server’s description">from description</span>' : '';
-              return `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${canAsk ? esc(r[F.name]) : ''}" title="${canAsk ? 'Run this here, sent to this server' : 'Copy this prompt: this server has to be installed first'}"><span>${esc(p)}</span><span class="cat-prompt-act">${canAsk ? 'Run' : 'Copy'}</span></button>${via}</li>`;
+              return `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${canAsk ? esc(r[F.name]) : ''}"${local ? ' data-local="1"' : ''} title="${local && !localReady ? 'Run this here: MCP Browser starts this server on your computer after you approve it' : canAsk ? 'Run this here, sent to this server' : 'Copy this prompt: this server has to be installed first'}"><span>${esc(p)}</span><span class="cat-prompt-act">${canAsk ? 'Run' : 'Copy'}</span></button>${via}</li>`;
             })
             .join('')}</ul></div>`
         : '';
       const toolNames = F.tools != null ? r[F.tools] || [] : [];
       const toolsHtml = toolNames.length ? `<p class="cat-toolnames"><span>Tools</span> ${toolNames.map((n) => `<code>${hl(n, t)}</code>`).join(' ')}</p>` : '';
       const unit = pk && pk.unit ? pk.unit : 'downloads';
-      return `<li class="cat-item"><div class="cat-main" data-run-host><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<div class="cat-actions"><button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><button type="button" class="cat-stack-btn" data-stack="${esc(r[F.name])}" aria-pressed="${stackIds.has(r[F.name])}">${stackIds.has(r[F.name]) ? '✓ In my stack' : '+ Add to my stack'}</button><button type="button" class="link-btn" data-open="mcp://stack" data-stack-go="${esc(r[F.name])}" ${stackIds.has(r[F.name]) ? '' : 'hidden'}>Set it up in my apps</button></div><div class="cat-guide" hidden></div></div>
+      return `<li class="cat-item"><div class="cat-main" data-run-host><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<div class="cat-actions">${local && !localReady ? `<button type="button" class="cat-stack-btn" data-local-run="${esc(r[F.name])}">${localApproved ? 'Enter key to run' : 'Run on this Mac'}</button>` : ''}<button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><button type="button" class="cat-stack-btn" data-stack="${esc(r[F.name])}" aria-pressed="${stackIds.has(r[F.name])}">${stackIds.has(r[F.name]) ? '✓ In my stack' : '+ Add to my stack'}</button><button type="button" class="link-btn" data-open="mcp://stack" data-stack-go="${esc(r[F.name])}" ${stackIds.has(r[F.name]) ? '' : 'hidden'}>Set it up in my apps</button></div><div class="cat-guide" hidden></div></div>
         <div class="cat-metrics">
           <div class="m star"><span>GitHub stars</span><b class="${r[F.stars] < 0 ? 'none' : ''}">${r[F.stars] < 0 ? 'none' : fmt(r[F.stars])}</b></div>
           <div class="m"><span>${esc(unit)}</span><b class="${r[F.downloads] < 0 ? 'none' : ''}">${r[F.downloads] < 0 ? (pk ? 'n/a' : 'none') : fmt(r[F.downloads])}</b></div>
@@ -314,6 +322,26 @@
       box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    // The approval panel for a package server, under the item; then run what was asked.
+    function localPanel(btn, id, then) {
+      const host = btn.closest('[data-run-host]') || btn.parentElement;
+      let slot = host.querySelector(':scope > .lr-host');
+      if (!slot) {
+        slot = document.createElement('div');
+        slot.className = 'lr-host';
+        host.appendChild(slot);
+      }
+      window.MCPLocal.panel(slot, id, {
+        onReady: () => {
+          for (const b of host.querySelectorAll('[data-local-run]')) b.remove();
+          const tags = host.querySelector('.cat-tags');
+          if (tags && !tags.querySelector('.lr-on')) tags.insertAdjacentHTML('afterbegin', '<span class="cat-state ok lr-on">Runs on this Mac</span>');
+          then?.();
+        },
+      });
+      slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     el.addEventListener('input', (e) => window.MCPGuide?.handleInput(e));
     el.addEventListener('click', (e) => {
       if (window.MCPGuide?.handleClick(e, ctx)) return;
@@ -387,8 +415,11 @@
       }
       const m = e.target.closest('[data-month]');
       if (m) return pickMonth(m.dataset.month);
+      const lr = e.target.closest('[data-local-run]');
+      if (lr) return localPanel(lr, lr.dataset.localRun);
       const pr = e.target.closest('.cat-prompt');
       if (pr) {
+        if (pr.dataset.local && !window.MCPLocal.canRun(pr.dataset.ask)) return localPanel(pr, pr.dataset.ask, () => runHere(pr));
         if (pr.dataset.ask) return runHere(pr);
         const act = pr.querySelector('.cat-prompt-act');
         const done = () => { act.textContent = 'Copied'; setTimeout(() => (act.textContent = 'Copy'), 1400); };
@@ -412,7 +443,8 @@
       render();
     });
 
-    load().then((data) => {
+    // (wait for the approved package servers so "Runs on this Mac" shows on first render)
+    Promise.all([load(), window.MCPLocal?.ready()]).then(([data]) => {
       D = data;
       D.fields.forEach((f, i) => (F[f] = i));
       cats = D.cats.map(([id, label], i) => ({ id, label, i }));

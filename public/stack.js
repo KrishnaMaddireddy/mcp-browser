@@ -26,6 +26,7 @@
     let clients = null; // [{ id, label, present, file }]
     const typed = {}; // id → { NAME: key } typed this visit; kept in memory only, never saved
     const picked = new Set();
+    const accepted = new Set(); // servers with warning signs you confirmed (this visit)
 
     async function load() {
       $('[data-st-sum]').textContent = 'Loading your stack…';
@@ -33,6 +34,7 @@
         fetch('/api/stack').then((r) => r.json()),
         window.MCPCatalog.load().catch(() => null),
         clients ? null : fetch('/api/stack/clients').then((r) => r.json()).catch(() => ({ clients: [] })),
+        window.MCPLocal?.refresh(),
       ]);
       if (cl) {
         clients = cl.clients || [];
@@ -52,6 +54,12 @@
       if (!s) return `<li class="st-item"><div class="st-head"><h3>${esc(it.id)}</h3></div><p class="hint">No longer in the registry catalog.</p><p><button type="button" class="link-btn" data-st-remove="${esc(it.id)}">Remove</button></p></li>`;
       const settings = (byName && byName.get(it.id) && F.envs != null ? byName.get(it.id)[F.envs] || [] : []);
       const warn = (s.checks || []).filter((c) => /^(warn|bad):/.test(c));
+      // A package server MCP Browser can start on this computer once approved.
+      const L = window.MCPLocal;
+      const row = byName?.get(it.id);
+      const local = Boolean(L && row) && !it.runnable && L.isPackage(row[F.pkgType]);
+      const localReady = local && L.canRun(it.id);
+      const canRun = it.runnable || localReady;
       return `<li class="st-item" data-st-id="${esc(it.id)}">
         <div class="st-head">
           <div class="st-title"><h3>${esc(s.title)}</h3><code>${esc(it.id)}</code></div>
@@ -63,13 +71,15 @@
           ${s.github_stars != null ? `<span class="cat-tag">★ ${fmt(s.github_stars)}</span>` : ''}
           ${s.downloads ? `<span class="cat-tag">${fmt(s.downloads.count)} ${esc(s.downloads.source)} / mo</span>` : ''}
           ${it.installedIn.length ? `<span class="cat-state ok">Installed in ${esc(it.installedIn.join(', '))}</span>` : '<span class="cat-state warn">Not installed yet</span>'}
-          ${it.runnable ? '<span class="cat-state ok">Works in MCP Browser now</span>' : ''}
+          ${it.runnable ? '<span class="cat-state ok">Works in MCP Browser now</span>' : localReady ? '<span class="cat-state ok">Runs on this Mac</span>' : ''}
+          ${it.trust && !it.trust.trusted ? '<span class="cat-state bad">Warning signs</span>' : ''}
           ${warn.length ? `<span class="cat-state warn" title="${esc(warn.map((w) => w.replace(/^\w+: /, '')).join('\n'))}">${warn.length} thing${warn.length > 1 ? 's' : ''} to check</span>` : ''}
         </p>
         ${settings.length ? `<div class="st-settings">${settings.map(([n, secret, d]) => `<label class="g-set"><span><code>${esc(n)}</code>${secret ? ' <em>secret</em>' : ''}</span><small>${esc(window.MCPGuide.explain(n, d))}</small>${secret ? `<input type="password" data-st-secret="${esc(n)}" value="${esc(typed[it.id]?.[n] || '')}" placeholder="Paste it here: used only when you click Set up, never saved" autocomplete="off" spellcheck="false">` : `<input type="text" data-st-val="${esc(n)}" value="${esc(it.values[n] || '')}" placeholder="value" autocomplete="off" spellcheck="false">`}</label>`).join('')}</div>` : ''}
-        ${s.sample_prompts?.length ? `<div class="cat-prompts" data-run-host><span class="cat-prompts-label">${it.runnable ? 'Try it' : 'Prompts to try once it’s installed'}</span><ul>${s.sample_prompts.map((p) => `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" ${it.runnable ? `data-st-run="${esc(it.id)}"` : 'data-st-copy'}><span>${esc(p)}</span><span class="cat-prompt-act">${it.runnable ? 'Run' : 'Copy'}</span></button></li>`).join('')}</ul></div>` : ''}
+        ${s.sample_prompts?.length ? `<div class="cat-prompts" data-run-host><span class="cat-prompts-label">${canRun ? 'Try it' : local ? 'Try it: MCP Browser starts it on this Mac after you approve it' : 'Prompts to try once it’s installed'}</span><ul>${s.sample_prompts.map((p) => `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" ${canRun || local ? `data-st-run="${esc(it.id)}"` : 'data-st-copy'}${local ? ' data-st-local="1"' : ''}><span>${esc(p)}</span><span class="cat-prompt-act">${canRun || local ? 'Run' : 'Copy'}</span></button></li>`).join('')}</ul></div>` : ''}
+        ${it.trust && !it.trust.trusted ? `<div class="lr-warn"><p><b>Warning signs:</b> ${esc(it.trust.why.join('; '))}.</p><label class="lr-check"><input type="checkbox" data-st-risk="${esc(it.id)}" ${accepted.has(it.id) ? 'checked' : ''}> I checked it: include it when I set up my apps</label></div>` : ''}
         ${warn.length ? `<details class="st-warn"><summary>Things to check</summary><ul class="g-checks">${warn.map((w) => `<li class="${w.split(':')[0]}">${esc(w.replace(/^\w+: /, ''))}</li>`).join('')}</ul></details>` : ''}
-        <p class="st-links">${s.github ? `<a href="${esc(s.github)}" target="_blank" rel="noopener noreferrer">GitHub</a>` : ''}${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">Website</a>` : ''}<button type="button" class="link-btn" data-st-show="${esc(it.id)}">In the catalog</button></p>
+        <p class="st-links">${s.github ? `<a href="${esc(s.github)}" target="_blank" rel="noopener noreferrer">GitHub</a>` : ''}${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">Website</a>` : ''}<button type="button" class="link-btn" data-st-show="${esc(it.id)}">In the catalog</button>${local && !localReady ? `<button type="button" class="link-btn" data-st-local-run="${esc(it.id)}">${L.get(it.id) ? 'Enter key to run here' : 'Run on this Mac'}</button>` : ''}</p><div class="lr-host" data-st-lr></div>
       </li>`;
     }
 
@@ -89,7 +99,7 @@
       const rows = byName ? items.map((it) => byName.get(it.id)).filter(Boolean) : [];
       const values = Object.fromEntries(items.map((it) => [it.id, it.values || {}]));
       const snippets = rows.length ? window.MCPGuide.setupHtml(rows, F, { title: 'Or paste the config yourself' }) : '';
-      return `<section class="st-setup">
+      return `${window.MCPLocal?.listHtml() || ''}<section class="st-setup">
         <h2>Set up all ${items.length} in your apps</h2>
         <p>MCP Browser adds these servers to the apps you pick. It backs up each config file first and only adds or replaces these servers; everything else in your config stays as it is.</p>
         <fieldset class="st-clients"><legend>Apps on this computer</legend>
@@ -154,7 +164,7 @@ node setup-mcp.mjs --clients=desktop,code   # only some clients</pre><button typ
       out.hidden = false;
       out.textContent = '';
       try {
-        const r = await post('/api/stack/apply', { clients: [...picked], secrets, dry: mode === 'dry', remove: mode === 'remove' });
+        const r = await post('/api/stack/apply', { clients: [...picked], secrets, dry: mode === 'dry', remove: mode === 'remove', acceptRisk: [...accepted] });
         out.textContent = r.error || r.output || (r.ok ? 'Done.' : 'It stopped without saying why.');
         out.classList.toggle('bad', !r.ok);
         if (r.ok && mode !== 'dry') {
@@ -185,6 +195,8 @@ node setup-mcp.mjs --clients=desktop,code   # only some clients</pre><button typ
         (typed[id] ||= {})[sec.dataset.stSecret] = sec.value;
         return;
       }
+      const rk = e.target.closest('[data-st-risk]');
+      if (rk) return rk.checked ? accepted.add(rk.dataset.stRisk) : accepted.delete(rk.dataset.stRisk);
       const cb = e.target.closest('[data-st-client]');
       if (cb) return cb.checked ? picked.add(cb.dataset.stClient) : picked.delete(cb.dataset.stClient);
       const inp = e.target.closest('[data-st-val]');
@@ -213,9 +225,19 @@ node setup-mcp.mjs --clients=desktop,code   # only some clients</pre><button typ
         await post('/api/stack/move', { id: li.dataset.stId, delta: Number(t('[data-st-move]').dataset.stMove) });
         return load();
       }
+      if (window.MCPLocal && (await window.MCPLocal.handleListClick(e, render))) return;
+      const lrun = t('[data-st-local-run]');
+      if (lrun) {
+        const li = lrun.closest('[data-st-id]');
+        return window.MCPLocal.panel(li.querySelector('[data-st-lr]'), lrun.dataset.stLocalRun, { onReady: () => window.MCPLocal.refresh() });
+      }
       const ap = t('[data-st-apply]');
       if (ap) return apply(ap);
       const run = t('[data-st-run]');
+      if (run && run.dataset.stLocal && !window.MCPLocal.canRun(run.dataset.stRun)) {
+        const li = run.closest('[data-st-id]');
+        return window.MCPLocal.panel(li.querySelector('[data-st-lr]'), run.dataset.stRun, { onReady: () => window.MCPLocal.refresh().then(() => run.click()) });
+      }
       if (run) {
         const it = items.find((x) => x.id === run.dataset.stRun);
         const host = run.closest('[data-run-host]');
