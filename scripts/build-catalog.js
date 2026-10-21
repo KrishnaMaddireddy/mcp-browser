@@ -3,7 +3,7 @@
 // official MCP Registry with a category, links, GitHub stars, package downloads,
 // version history, reachability and MCP Rank score.
 //
-//   node scripts/build-catalog.js [--bundle] [--fresh] [--skip-stars] [--skip-downloads] [--skip-neighbours]
+//   node scripts/build-catalog.js [--bundle] [--fresh] [--skip-stars] [--skip-downloads] [--skip-neighbours] [--skip-tools]
 //
 // Steps are cached in <data dir>/catalog-build, so a rerun only redoes what is
 // stale (registry: 12 hours; downloads: 7 days). Output: <data dir>/catalog.json.gz,
@@ -21,6 +21,8 @@ import { fetchRegistry } from './catalog/registry.mjs';
 import { fetchDownloads, dockerKey } from './catalog/downloads.mjs';
 import { CATEGORIES, categorize } from './catalog/categories.mjs';
 import { classifyNeighbours } from './catalog/neighbours.mjs';
+import { probeTools, listable } from './catalog/tools.mjs';
+import { samplePrompts } from './catalog/prompts.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -77,6 +79,19 @@ if (!args.has('--skip-stars')) {
 }
 const stars = { ...readJson(path.join(root, 'src', 'data', 'github-stars.json'), { repos: {} }).repos, ...readJson(path.join(dataDir(), 'github-stars.json'), { repos: {} }).repos };
 
+// 3b. Tool lists of hosted servers that answer without a key (re-listed weekly).
+const toolsPath = file('tools.json');
+const tools = readJson(toolsPath, {});
+if (!args.has('--skip-tools')) {
+  log('Listing tools of hosted servers…');
+  const reachNow = readJson(path.join(root, 'src', 'data', 'reachability.json'), { servers: {} }).servers;
+  const todo = listable(latest).filter((s) => !['dead', 'auth', 'paid'].includes(reachNow[s.id]));
+  await probeTools(todo, tools, { concurrency: 64, deadline: Date.now() + 2 * 3600_000, save: () => fs.writeFileSync(toolsPath, JSON.stringify(tools)), log });
+}
+
+// Prompts written for popular servers (src/data/catalog-prompts.json) win over generated ones.
+const written = readJson(path.join(root, 'src', 'data', 'catalog-prompts.json'), {});
+
 // 4. Categories, with neighbours for what keywords miss.
 let knn = fresh('neighbours.json', 24 * 7) ? readJson(file('neighbours.json'), {}) : null;
 if (!knn) {
@@ -98,6 +113,12 @@ const clean = (s) => {
 };
 const pubCount = {};
 for (const s of latest) pubCount[s.name.split('/')[0]] = (pubCount[s.name.split('/')[0]] || 0) + 1;
+
+// [text, source]: source 'w' = written for this server, 't:<tool>' = from that tool, 'd' = from its description.
+function promptsFor(s, cat) {
+  if (Array.isArray(written[s.name]) && written[s.name].length) return written[s.name].slice(0, 3).map((p) => [clean(p).slice(0, 160), 'w']);
+  return samplePrompts({ ...s, title: clean(s.title), description: clean(s.description) }, cat, tools[s.name]?.tools || []).map(([p, t]) => [p, t ? 't:' + t : 'd']);
+}
 
 const rows = [];
 for (const s of latest) {
@@ -125,13 +146,14 @@ for (const s of latest) {
     REACH[reach[s.name]] || 0, rank.get(s.name)?.bestScore || 0, day(s.updated || s.published), s.version || '', env,
     st?.p || '', st?.a ? 1 : 0, pubCount[s.name.split('/')[0]] || 1, guessed, s.status === 'deprecated' ? 1 : 0,
     day(versions[s.name]?.first || s.published || s.updated), versions[s.name]?.versions || 1,
+    promptsFor(s, cat), (tools[s.name]?.tools || []).filter((t) => !t.w).map((t) => t.n).slice(0, 12), tools[s.name]?.tools?.length ? 1 : 0,
   ]);
 }
 const out = {
   generatedAt: new Date().toISOString(),
   sources: { registry: 'registry.modelcontextprotocol.io', stars: 'ecosyste.ms and ungh open indexes', downloads: dl.fetchedAt || '' },
   cats: [...CATEGORIES.map((c) => [c[0], c[1]]), ['other', 'Other']],
-  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions'],
+  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed'],
   rows,
 };
 const gz = zlib.gzipSync(JSON.stringify(out).replace(/�/g, ''), { level: 9 });

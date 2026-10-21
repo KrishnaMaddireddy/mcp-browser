@@ -86,7 +86,10 @@ export class SearchAgent {
     let routed;
     if (forcedIds?.length) {
       routed = forcedIds.map((id) => this.catalog.get(id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason: 'chosen by you' }));
-    } else {
+      // Asked for servers this browser doesn't have (e.g. from the catalog): route normally.
+      if (!routed.length) forcedIds = undefined;
+    }
+    if (!forcedIds?.length) {
       // Say it the way specialist servers describe themselves: "dollars to yen" → currency
       // exchange rate USD JPY; "Nvidia stock price" → stock quote NVDA.
       const pair = currencyPair(query);

@@ -655,3 +655,14 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
   .cat-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
   .cat-chips button { flex: none; }
 }
+.cat-prompts { margin-top: 10px; }
+.cat-prompts-label, .cat-toolnames > span { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+.cat-prompts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cat-prompts li { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.cat-prompt { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 5px 6px 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; font-size: 14px; line-height: 1.35; }
+.cat-prompt > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cat-prompt:hover { border-color: var(--signal); }
+.cat-prompt-act { flex: none; font-size: 12px; font-weight: 700; color: var(--signal); padding: 2px 7px; border-radius: 6px; background: var(--signal-soft); }
+.cat-via { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.cat-toolnames { margin: 8px 0 0; font-size: 12.5px; line-height: 1.8; }
+.cat-toolnames code { font-family: var(--mono); font-size: 11.5px; background: var(--chrome); padding: 1px 5px; border-radius: 4px; }

@@ -143,7 +143,10 @@
       case 'catalog': {
         entry.title = 'Server catalog';
         const el = $('#tpl-catalog').content.firstElementChild.cloneNode(true);
-        window.MCPCatalog?.mount(el, entry);
+        window.MCPCatalog?.mount(el, entry, {
+          // Run a sample prompt in a new tab, sent to that server.
+          ask: (query, serverId) => newTab({ kind: 'search', query, servers: serverId ? [serverId] : undefined, label: query }),
+        });
         return el;
       }
       case 'web':
@@ -202,7 +205,7 @@
   $('#reload').addEventListener('click', () => {
     const e = current();
     if (!e) return;
-    if (e.kind === 'search') navigate(active, { kind: 'search', query: e.query, discovery: e.discovery, label: e.label });
+    if (e.kind === 'search') navigate(active, { kind: 'search', query: e.query, discovery: e.discovery, label: e.label, servers: e.servers });
     else if (e.kind === 'web' && e.webview) e.webview.reload();
     else navigate(active, { kind: e.kind, url: e.url });
   });
@@ -784,7 +787,8 @@
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-mcpb': '1' },
-        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide) }),
+        // A question asked from the catalog goes to that one server (first turn only).
+        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);

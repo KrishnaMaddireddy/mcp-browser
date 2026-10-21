@@ -38,7 +38,7 @@
     return dataPromise;
   }
 
-  function mount(el, entry = {}) {
+  function mount(el, entry = {}, hooks = {}) {
     const $ = (s) => el.querySelector(s);
     const F = {};
     let D, rows, cats, hues = {}, months = [];
@@ -210,8 +210,20 @@
       if (pkgUrl) a(pkgUrl, pk.label);
       if (r[F.remoteUrl] && !/[{}]/.test(r[F.remoteUrl]) && safeUrl(r[F.remoteUrl])) a(r[F.remoteUrl], 'Endpoint');
       const cmd = installCmd(r);
+      const canAsk = F.listed != null && r[F.listed] === 1 && typeof hooks.ask === 'function';
+      const prompts = F.prompts != null ? r[F.prompts] || [] : [];
+      const promptHtml = prompts.length
+        ? `<div class="cat-prompts"><span class="cat-prompts-label">${canAsk ? 'Try asking' : 'Example prompts'}</span><ul>${prompts
+            .map(([p, src]) => {
+              const via = src && src.startsWith('t:') ? `<span class="cat-via" title="Built from this tool">${esc(src.slice(2))}</span>` : src === 'd' ? '<span class="cat-via" title="Built from the server’s description">from description</span>' : '';
+              return `<li><button type="button" class="cat-prompt" data-prompt="${esc(p)}" data-ask="${canAsk ? esc(r[F.name]) : ''}" title="${canAsk ? 'Ask this in a new tab, sent to this server' : 'Copy this prompt'}"><span>${esc(p)}</span><span class="cat-prompt-act">${canAsk ? 'Ask' : 'Copy'}</span></button>${via}</li>`;
+            })
+            .join('')}</ul></div>`
+        : '';
+      const toolNames = F.tools != null ? r[F.tools] || [] : [];
+      const toolsHtml = toolNames.length ? `<p class="cat-toolnames"><span>Tools</span> ${toolNames.map((n) => `<code>${hl(n, t)}</code>`).join(' ')}</p>` : '';
       const unit = pk && pk.unit ? pk.unit : 'downloads';
-      return `<li class="cat-item"><div class="cat-main"><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}</div>
+      return `<li class="cat-item"><div class="cat-main"><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}</div>
         <div class="cat-metrics">
           <div class="m star"><span>GitHub stars</span><b class="${r[F.stars] < 0 ? 'none' : ''}">${r[F.stars] < 0 ? 'none' : fmt(r[F.stars])}</b></div>
           <div class="m"><span>${esc(unit)}</span><b class="${r[F.downloads] < 0 ? 'none' : ''}">${r[F.downloads] < 0 ? (pk ? 'n/a' : 'none') : fmt(r[F.downloads])}</b></div>
@@ -243,6 +255,14 @@
       }
       const m = e.target.closest('[data-month]');
       if (m) return pickMonth(m.dataset.month);
+      const pr = e.target.closest('.cat-prompt');
+      if (pr) {
+        if (pr.dataset.ask) return hooks.ask(pr.dataset.prompt, pr.dataset.ask);
+        const act = pr.querySelector('.cat-prompt-act');
+        const done = () => { act.textContent = 'Copied'; setTimeout(() => (act.textContent = 'Copy'), 1400); };
+        try { navigator.clipboard.writeText(pr.dataset.prompt).then(done, () => {}); } catch {}
+        return;
+      }
       const cp = e.target.closest('.cat-copy');
       if (cp) {
         const done = () => { cp.textContent = 'Copied'; setTimeout(() => (cp.textContent = 'Copy'), 1400); };
@@ -268,7 +288,7 @@
       rows = D.rows;
       const m = {};
       for (const r of rows) {
-        r._hay ||= [r[F.title], r[F.name], r[F.desc], r[F.pkgId], cats[r[F.cat]].label].join(' ').toLowerCase();
+        r._hay ||= [r[F.title], r[F.name], r[F.desc], r[F.pkgId], cats[r[F.cat]].label, ...(F.tools != null ? r[F.tools] || [] : [])].join(' ').toLowerCase();
         r._titleHay ||= (r[F.title] + ' ' + r[F.name]).toLowerCase();
         r._pop = popularity(r);
         const k = (r[F.added] || r[F.updated] || '').slice(0, 7);
