@@ -132,13 +132,14 @@ for (const s of latest) {
   let pkgId = '';
   let downloads = -1;
   let env = 0;
+  let envs = [];
   for (const p of s.packages || []) {
     const n = p.type === 'npm' ? dl.npm[p.id] : p.type === 'pypi' ? dl.pypi[(p.id || '').toLowerCase()] : p.type === 'cargo' ? dl.cargo[p.id] : p.type === 'oci' ? dl.docker[dockerKey(p.id)] : undefined;
     const v = typeof n === 'number' ? n : -1;
-    if (!pkgType || v > downloads) (pkgType = p.type), (pkgId = p.id), (downloads = v), (env = p.env || 0);
+    if (!pkgType || v > downloads) (pkgType = p.type), (pkgId = p.id), (downloads = v), (env = p.env || 0), (envs = (p.envNames || []).map((e) => [e.n, e.s ? 1 : 0, clean(e.d).slice(0, 100)]));
   }
   const remote = (s.remotes || [])[0];
-  if (remote && !pkgType) env = remote.headers || 0;
+  if (remote && !pkgType) (env = remote.headers || 0), (envs = (remote.headerNames || []).map((e) => [e.n, e.s ? 1 : 0, clean(e.d).slice(0, 100), 'h']));
   rows.push([
     s.name, clean(s.title), clean(s.description).slice(0, 240), catIdx[cat], also.map((a) => catIdx[a]),
     /^https?:\/\//i.test(s.website) ? s.website : '', key || (/^https?:\/\//i.test(s.repo) ? s.repo : ''),
@@ -147,16 +148,24 @@ for (const s of latest) {
     st?.p || '', st?.a ? 1 : 0, pubCount[s.name.split('/')[0]] || 1, guessed, s.status === 'deprecated' ? 1 : 0,
     day(versions[s.name]?.first || s.published || s.updated), versions[s.name]?.versions || 1,
     promptsFor(s, cat), (tools[s.name]?.tools || []).filter((t) => !t.w).map((t) => t.n).slice(0, 12), tools[s.name]?.tools?.length ? 1 : 0,
+    envs, (tools[s.name]?.tools || []).filter((t) => t.w).length,
   ]);
 }
 const out = {
   generatedAt: new Date().toISOString(),
   sources: { registry: 'registry.modelcontextprotocol.io', stars: 'ecosyste.ms and ungh open indexes', downloads: dl.fetchedAt || '' },
   cats: [...CATEGORIES.map((c) => [c[0], c[1]]), ['other', 'Other']],
-  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed'],
+  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed', 'envs', 'writeTools'],
   rows,
 };
 const gz = zlib.gzipSync(JSON.stringify(out).replace(/�/g, ''), { level: 9 });
 fs.writeFileSync(path.join(dataDir(), 'catalog.json.gz'), gz);
 if (args.has('--bundle')) fs.writeFileSync(path.join(root, 'src', 'data', 'catalog.json.gz'), gz);
+// Full tool lists (descriptions, inputs) for the per-server guide, fetched one server at a time.
+const toolsOut = {};
+for (const [id, v] of Object.entries(tools)) if (v.tools?.length) toolsOut[id] = { at: v.at, tools: v.tools };
+const tgz = zlib.gzipSync(JSON.stringify(toolsOut), { level: 9 });
+fs.writeFileSync(path.join(dataDir(), 'catalog-tools.json.gz'), tgz);
+if (args.has('--bundle')) fs.writeFileSync(path.join(root, 'src', 'data', 'catalog-tools.json.gz'), tgz);
+log(`Tool lists: ${Object.keys(toolsOut).length} servers, ${(tgz.length / 1e6).toFixed(1)} MB`);
 log(`Catalog: ${rows.length} servers, ${(gz.length / 1e6).toFixed(1)} MB → ${path.join(dataDir(), 'catalog.json.gz')}${args.has('--bundle') ? ' and src/data/catalog.json.gz' : ''}`);

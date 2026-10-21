@@ -223,7 +223,7 @@
       const toolNames = F.tools != null ? r[F.tools] || [] : [];
       const toolsHtml = toolNames.length ? `<p class="cat-toolnames"><span>Tools</span> ${toolNames.map((n) => `<code>${hl(n, t)}</code>`).join(' ')}</p>` : '';
       const unit = pk && pk.unit ? pk.unit : 'downloads';
-      return `<li class="cat-item"><div class="cat-main"><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}</div>
+      return `<li class="cat-item"><div class="cat-main"><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><div class="cat-guide" hidden></div></div>
         <div class="cat-metrics">
           <div class="m star"><span>GitHub stars</span><b class="${r[F.stars] < 0 ? 'none' : ''}">${r[F.stars] < 0 ? 'none' : fmt(r[F.stars])}</b></div>
           <div class="m"><span>${esc(unit)}</span><b class="${r[F.downloads] < 0 ? 'none' : ''}">${r[F.downloads] < 0 ? (pk ? 'n/a' : 'none') : fmt(r[F.downloads])}</b></div>
@@ -243,7 +243,61 @@
       render();
     }
 
+    // Shared with the use-case view and the per-server guide.
+    const ctx = { hooks };
+    const byName = new Map();
+    let uses = null;
+    function setView(v) {
+      entry.view = v;
+      for (const b of el.querySelectorAll('[data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === v));
+      $('[data-cat-uses]').hidden = v !== 'uses';
+      $('[data-cat-all]').hidden = v !== 'all';
+    }
+    function showServer(name) {
+      setView('all');
+      catSel = entry.category = 'all';
+      filters.clear();
+      for (const b of el.querySelectorAll('[data-cat-filter]')) b.setAttribute('aria-pressed', 'false');
+      $('[data-cat-period]').value = 'any';
+      $('[data-cat-q]').value = name;
+      render();
+      const first = $('[data-cat-list] .cat-item');
+      first?.scrollIntoView({ block: 'start' });
+      first?.querySelector('[data-guide]')?.click();
+    }
+    async function addToBrowser(id) {
+      const post = (path, body) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify(body) });
+      let r = await post('/api/servers/toggle', { id, enabled: true });
+      if (r.ok) return 'Turned on in MCP Browser. Questions can now use it.';
+      const row = byName.get(id);
+      if (!row || !row[F.remoteUrl]) throw new Error('it has no hosted address');
+      r = await post('/api/servers/custom', { url: row[F.remoteUrl], title: row[F.title] || id.split('/').pop(), description: row[F.desc] || '' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      return 'Added to MCP Browser (under “Added by you”).';
+    }
+    Object.assign(ctx, { showServer, addToBrowser });
+
     el.addEventListener('click', (e) => {
+      if (window.MCPGuide?.handleClick(e, ctx)) return;
+      const v = e.target.closest('[data-view]');
+      if (v) return setView(v.dataset.view);
+      const sv = e.target.closest('[data-show]');
+      if (sv) return showServer(sv.dataset.show);
+      const gb = e.target.closest('[data-guide]');
+      if (gb) {
+        const panel = gb.nextElementSibling;
+        const open = panel.hidden;
+        panel.hidden = !open;
+        gb.setAttribute('aria-expanded', String(open));
+        gb.textContent = open ? 'Hide how to use it' : 'How to use it';
+        if (open && !panel.dataset.done) {
+          panel.dataset.done = '1';
+          window.MCPGuide.renderGuide(panel, byName.get(gb.dataset.guide), ctx);
+        }
+        return;
+      }
+      const gl = e.target.closest('.cat-guide [data-goal]');
+      if (gl && uses) return setView('uses'), uses.showGoal(gl.dataset.goal);
       const c = e.target.closest('[data-cat]');
       if (c) return setCat(c.dataset.cat === catSel && c.dataset.cat !== 'all' ? 'all' : c.dataset.cat);
       const f = e.target.closest('[data-cat-filter]');
@@ -257,7 +311,7 @@
       if (m) return pickMonth(m.dataset.month);
       const pr = e.target.closest('.cat-prompt');
       if (pr) {
-        if (pr.dataset.ask) return hooks.ask(pr.dataset.prompt, pr.dataset.ask);
+        if (pr.dataset.ask) return hooks.ask(pr.dataset.prompt, pr.dataset.ask === '*' ? undefined : pr.dataset.ask);
         const act = pr.querySelector('.cat-prompt-act');
         const done = () => { act.textContent = 'Copied'; setTimeout(() => (act.textContent = 'Copy'), 1400); };
         try { navigator.clipboard.writeText(pr.dataset.prompt).then(done, () => {}); } catch {}
@@ -298,7 +352,14 @@
       const gh = rows.filter((r) => r[F.stars] >= 0).length;
       const dl = rows.filter((r) => r[F.downloads] >= 0).length;
       const remote = rows.filter((r) => r[F.remoteUrl]).length;
-      $('[data-cat-lede]').innerHTML = `<b>${nf.format(rows.length)}</b> servers from the official MCP Registry in ${cats.length - 1} categories, as of ${esc(fmtDate(D.generatedAt))}. <b>${nf.format(gh)}</b> have GitHub stars, <b>${nf.format(dl)}</b> have package download counts and <b>${nf.format(remote)}</b> run at a hosted URL.`;
+      $('[data-cat-lede]').innerHTML = `<b>${nf.format(rows.length)}</b> servers from the official MCP Registry in ${cats.length - 1} categories, as of ${esc(fmtDate(D.generatedAt))}. <b>${nf.format(gh)}</b> have GitHub stars, <b>${nf.format(dl)}</b> have package download counts and <b>${nf.format(remote)}</b> run at a hosted URL. Start from what you want to do, or browse every server.`;
+      for (const r of rows) byName.set(r[F.name], r);
+      Object.assign(ctx, { F, rows, byName, catIndex: (id) => cats.findIndex((c) => c.id === id) });
+      if (window.MCPUseCases) {
+        uses = window.MCPUseCases.create($('[data-cat-uses]'), ctx);
+        uses.render();
+      }
+      setView(entry.view || (window.MCPUseCases ? 'uses' : 'all'));
       render();
     }).catch((e) => {
       $('[data-cat-lede]').textContent = '';

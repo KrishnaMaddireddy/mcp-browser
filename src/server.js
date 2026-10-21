@@ -14,7 +14,7 @@ import { TEMPLATES } from './templates.js';
 import { exportLabels } from './rank.js';
 import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
-import { catalogFile } from './catalog-data.js';
+import { catalogFile, catalogTools } from './catalog-data.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 // How Claude Desktop / Claude Code can start MCP server mode. From the project
@@ -367,6 +367,16 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.writeHead(200, { ...headers, 'content-encoding': 'gzip' }), res.end(data);
         zlib.gunzip(data, (e, raw) => (e ? json(res, 500, { error: 'catalog is damaged' }) : (res.writeHead(200, headers), res.end(raw))));
       });
+    },
+    'GET /api/catalog/tools': async (req, res, url) => {
+      const id = String(url.searchParams.get('id') || '').slice(0, 300);
+      let t = null;
+      try {
+        t = catalogTools(id);
+      } catch {
+        return json(res, 500, { error: 'could not read the tool lists' });
+      }
+      json(res, 200, { id, listedAt: t?.at || null, tools: t?.tools || [] });
     },
     'GET /api/rank': async (req, res) => {
       const data = engine.rankData();

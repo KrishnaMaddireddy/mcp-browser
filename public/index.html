@@ -250,6 +250,24 @@
         <h1>Server catalog</h1>
         <p class="panel-lede" data-cat-lede>Loading the catalog…</p>
       </header>
+      <div class="cat-views" role="tablist" aria-label="Catalog views">
+        <button type="button" role="tab" data-view="uses" aria-selected="true">Use cases</button>
+        <button type="button" role="tab" data-view="all" aria-selected="false">All servers</button>
+      </div>
+      <div class="u-wrap" data-cat-uses>
+        <form class="u-ask" data-u-form>
+          <label for="u-q">What do you want to do?</label>
+          <div class="u-ask-row"><input id="u-q" type="search" data-u-q placeholder="e.g. track competitor pricing, summarize my unread email, find papers on sleep" autocomplete="off"><button type="submit">Find servers</button></div>
+          <p class="u-examples">Try: <button type="button" data-u-example>triage production errors</button> <button type="button" data-u-example>research a stock before earnings</button> <button type="button" data-u-example>plan a trip to Lisbon</button> <button type="button" data-u-example>query our postgres database</button></p>
+        </form>
+        <div data-u-plan></div>
+        <div class="u-personas" data-u-personas role="group" aria-label="Who it’s for"></div>
+        <h2 class="u-h">Goals</h2>
+        <div class="u-grid" data-u-goals></div>
+        <h2 class="u-h" data-u-flows-head>Workflows that chain servers</h2>
+        <div class="u-grid" data-u-flows></div>
+      </div>
+      <div data-cat-all hidden>
       <div class="cat-spectrum" data-cat-spectrum role="group" aria-label="Servers by category"></div>
       <p class="cat-speckey" data-cat-speckey></p>
       <div class="cat-timeline">
@@ -305,6 +323,7 @@
           <ul class="cat-list" data-cat-list></ul>
           <button type="button" class="more" data-cat-more hidden>Show more</button>
         </div>
+      </div>
       </div>
       <p class="hint">From the official MCP Registry. Stars from the open GitHub indexes (ecosyste.ms, ungh); downloads from npm and PyPI (last 30 days), crates.io (90 days) and Docker Hub (all-time). Categories come from each server's title and description, so a few are off. Rebuild with <code>npm run catalog</code>.</p>
     </section>
@@ -366,6 +385,9 @@
   </template>
 
   <script src="markdown.js"></script>
+  <script src="use-cases.js"></script>
+  <script src="catalog-guide.js"></script>
+  <script src="catalog-usecases.js"></script>
   <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>

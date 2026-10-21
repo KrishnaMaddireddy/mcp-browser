@@ -13,8 +13,18 @@ function compact(e) {
   return {
     name: s.name, title: s.title || '', description: s.description || '', version: s.version || '',
     website: s.websiteUrl || '', repo: s.repository?.url || '',
-    packages: (s.packages || []).map((p) => ({ type: p.registryType || p.registry_type || '', id: p.identifier || p.name || '', env: (p.environmentVariables || []).filter((v) => v.isRequired).length })),
-    remotes: (s.remotes || []).map((r) => ({ type: r.type, url: r.url, headers: (r.headers || []).filter((h) => h.isRequired).length })),
+    packages: (s.packages || []).map((p) => {
+      const req = (p.environmentVariables || []).filter((v) => v.isRequired);
+      return {
+        type: p.registryType || p.registry_type || '', id: p.identifier || p.name || '', version: p.version || '', hint: p.runtimeHint || '',
+        transport: p.transport?.type || '', env: req.length,
+        envNames: req.slice(0, 6).map((v) => ({ n: String(v.name || '').slice(0, 60), d: String(v.description || '').slice(0, 140), s: v.isSecret ? 1 : 0 })),
+      };
+    }),
+    remotes: (s.remotes || []).map((r) => {
+      const req = (r.headers || []).filter((h) => h.isRequired);
+      return { type: r.type, url: r.url, headers: req.length, headerNames: req.slice(0, 4).map((h) => ({ n: String(h.name || '').slice(0, 60), d: String(h.description || '').slice(0, 140), s: h.isSecret ? 1 : 0 })) };
+    }),
     status: m.status || '', published: m.publishedAt || '', updated: m.updatedAt || '',
   };
 }
