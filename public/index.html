@@ -29,6 +29,7 @@
         <button type="button" data-go="mcp://rank">MCP Rank</button>
         <button type="button" data-go="mcp://servers">MCP servers</button>
         <button type="button" data-go="mcp://catalog">Server catalog</button>
+        <button type="button" data-go="mcp://stack">My MCP stack</button>
         <button type="button" data-go="mcp://audit">My installed servers</button>
         <button type="button" data-go="mcp://settings">Settings</button>
       </nav>
@@ -44,6 +45,9 @@
       </button>
       <button class="icon-btn" id="openCatalog" title="Server catalog" aria-label="Server catalog">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="2.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="11.5" width="6" height="6" rx="1.2"/></svg>
+      </button>
+      <button class="icon-btn" id="openStack" title="My MCP stack" aria-label="My MCP stack">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 2.5 2.5 6.5 10 10.5l7.5-4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m2.5 10 7.5 4 7.5-4M2.5 13.5l7.5 4 7.5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
       </button>
       <button class="icon-btn" id="openSettings" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.6 1.6M14.4 14.4 16 16M4 16l1.6-1.6M14.4 5.6 16 4" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -331,6 +335,18 @@
     </section>
   </template>
 
+  <template id="tpl-stack">
+    <section class="page panel stack">
+      <header class="panel-head">
+        <h1>My MCP stack</h1>
+        <p class="panel-lede">The MCP servers you picked from the catalog: what each needs, whether it’s installed, and prompts to try. Fill in their keys and set them all up in Claude, Cursor or VS Code from here.</p>
+      </header>
+      <p class="a-sum" data-st-sum></p>
+      <ul class="st-list" data-st-list></ul>
+      <div data-st-setup></div>
+    </section>
+  </template>
+
   <template id="tpl-audit">
     <section class="page panel audit">
       <header class="panel-head">
@@ -405,6 +421,7 @@
   <script src="catalog-usecases.js"></script>
   <script src="catalog.js"></script>
   <script src="audit.js"></script>
+  <script src="stack.js"></script>
   <script src="link-actions.js"></script>
   <script src="app.js"></script>
 </body>

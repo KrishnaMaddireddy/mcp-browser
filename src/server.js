@@ -16,7 +16,10 @@ import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
 import { catalogFile, catalogTools } from './catalog-data.js';
 import { auditInstalled } from './audit.js';
-import { searchCatalog, describe as describeCatalogRow, adhocFor } from './catalog-index.js';
+import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable } from './catalog-index.js';
+import { StackStore } from './stack.js';
+import { setupScript } from './stack-script.js';
+import { applyStack, detectClients } from './stack-run.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 // How Claude Desktop / Claude Code can start MCP server mode. From the project
@@ -46,6 +49,8 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 
 export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   let server;
+  let stackStore = null;
+  const stack = () => (stackStore ||= new StackStore());
   const allowedHosts = () => {
     const p = server?.address()?.port ?? port;
     return new Set([`127.0.0.1:${p}`, `localhost:${p}`, `[::1]:${p}`]);
@@ -375,6 +380,80 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.writeHead(200, { ...headers, 'content-encoding': 'gzip' }), res.end(data);
         zlib.gunzip(data, (e, raw) => (e ? json(res, 500, { error: 'catalog is damaged' }) : (res.writeHead(200, headers), res.end(raw))));
       });
+    },
+    // ---------- My MCP stack ----------
+    'GET /api/stack': async (req, res, url) => {
+      if (url.searchParams.get('ids') === '1') return json(res, 200, { ids: stack().items.map((x) => x.id) });
+      const c = loadCatalog();
+      let installed = [];
+      try {
+        installed = auditInstalled().servers;
+      } catch {
+        /* no configs readable */
+      }
+      const items = stack().items.map((it) => {
+        const row = c?.byName.get(it.id);
+        const inst = installed.filter((s) => s.catalog?.server_id === it.id).map((s) => s.client);
+        return { id: it.id, addedAt: it.addedAt, values: it.values || {}, found: Boolean(row), installedIn: [...new Set(inst)], ...(row ? { server: describeCatalogRow(row, { full: true }), runnable: catalogRunnable(row, c.F), adhoc: adhocFor(row) } : {}) };
+      });
+      json(res, 200, { items });
+    },
+    'POST /api/stack/add': async (req, res) => {
+      const { id } = await readJson(req);
+      if (!loadCatalog()?.byName.has(String(id))) return json(res, 404, { error: 'not in the catalog' });
+      try {
+        json(res, 200, { ids: stack().add(String(id)).map((x) => x.id) });
+      } catch (e) {
+        json(res, 400, { error: errMsg(e) });
+      }
+    },
+    'POST /api/stack/remove': async (req, res) => {
+      const { id } = await readJson(req);
+      json(res, 200, { ids: stack().remove(String(id)).map((x) => x.id) });
+    },
+    'POST /api/stack/move': async (req, res) => {
+      const { id, delta } = await readJson(req);
+      json(res, 200, { ids: stack().move(String(id), Number(delta) || 0).map((x) => x.id) });
+    },
+    'POST /api/stack/values': async (req, res) => {
+      const { id, values } = await readJson(req);
+      const c = loadCatalog();
+      const row = c?.byName.get(String(id));
+      const secrets = row && c.F.envs != null ? (row[c.F.envs] || []).filter(([, s]) => s).map(([n]) => n) : [];
+      try {
+        json(res, 200, stack().setValues(String(id), values, secrets));
+      } catch (e) {
+        json(res, 400, { error: errMsg(e) });
+      }
+    },
+    // A setup script for the stack (or the ids given): node setup-mcp.mjs / npx tsx setup-mcp.ts
+    'GET /api/stack/script': async (req, res, url) => {
+      const c = loadCatalog();
+      if (!c) return json(res, 404, { error: 'no catalog' });
+      const want = (url.searchParams.get('ids') || '').split(',').filter(Boolean);
+      const items = stack().items.filter((it) => !want.length || want.includes(it.id));
+      const rows = items.map((it) => c.byName.get(it.id)).filter(Boolean);
+      if (!rows.length) return json(res, 400, { error: 'your stack is empty' });
+      const format = url.searchParams.get('format') === 'ts' ? 'ts' : 'mjs';
+      const body = setupScript(scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}]))), { format });
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': `attachment; filename="setup-mcp.${format}"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      res.end(body);
+    },
+    // Which MCP apps (Claude Desktop, Claude Code, Cursor, VS Code) are on this computer.
+    'GET /api/stack/clients': async (req, res) => json(res, 200, { clients: await detectClients() }),
+    // Set up (or remove) the stack's servers in those apps from here. dry: true previews.
+    // Keys come in the request, go only to the setup run, and are never stored or echoed.
+    'POST /api/stack/apply': async (req, res) => {
+      const b = await readJson(req);
+      const c = loadCatalog();
+      if (!c) return json(res, 404, { error: 'no catalog' });
+      const want = Array.isArray(b.ids) ? b.ids.map(String) : [];
+      const items = stack().items.filter((it) => !want.length || want.includes(it.id));
+      const rows = items.map((it) => c.byName.get(it.id)).filter(Boolean);
+      if (!rows.length) return json(res, 400, { error: 'your stack is empty' });
+      const servers = scriptServers(rows, Object.fromEntries(items.map((it) => [it.id, it.values || {}])));
+      const r = await applyStack(servers, { clients: Array.isArray(b.clients) ? b.clients.map(String) : [], secrets: b.secrets && typeof b.secrets === 'object' ? b.secrets : {}, dry: b.dry !== false, remove: Boolean(b.remove) });
+      json(res, 200, r);
     },
     // Read-only check of the MCP servers installed in this computer's clients.
     'GET /api/audit': async (req, res) => {

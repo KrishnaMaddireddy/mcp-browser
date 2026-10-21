@@ -500,7 +500,7 @@ a.badge.stars:hover, a.badge.stars:focus-visible { background: var(--warn-soft);
 .menu-panel button { text-align: left; border: 0; background: none; padding: 9px 10px; border-radius: 6px; font-size: 15px; }
 .menu-panel button:hover { background: var(--chrome); }
 @media (max-width: 640px) {
-  #openWatches, #openRank, #openServers, #openCatalog, #openSettings, #modeChip, #fwd { display: none; }
+  #openWatches, #openRank, #openServers, #openCatalog, #openStack, #openSettings, #modeChip, #fwd { display: none; }
   .menu-btn { display: grid; }
   .q-row { flex-wrap: nowrap; }
   .q { font-size: 22px; }
@@ -799,3 +799,39 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .g-set em { font-style: normal; font-size: 11.5px; color: var(--warn); border: 1px solid currentColor; border-radius: 5px; padding: 0 5px; margin-left: 4px; }
 .g-set small { color: var(--muted); font-size: 12.5px; }
 .g-set input { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); font-family: var(--mono); font-size: 13px; }
+.cat-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 10px; }
+.cat-actions .cat-guide-btn { margin-top: 0; }
+.cat-stack-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 12px; font-size: 13.5px; font-weight: 700; color: var(--signal); }
+.cat-stack-btn[aria-pressed="true"] { background: var(--signal-soft); border-color: var(--signal); }
+.u-stack-all { margin: 10px 0 0; font-size: 14px; }
+.st-list { list-style: none; margin: 16px auto; padding: 0; display: grid; gap: 14px; }
+.st-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.st-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.st-title h3 { margin: 0; font-size: 18px; }
+.st-title code { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.st-order { display: flex; gap: 6px; align-items: center; }
+.st-order button:not(.link-btn) { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.st-desc { margin: 8px 0; }
+.st-chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12.5px; margin: 0 0 8px; }
+.st-settings { display: grid; gap: 8px; margin: 10px 0; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: var(--paper); }
+.st-warn { margin-top: 8px; font-size: 14px; }
+.st-warn summary { cursor: pointer; color: var(--warn); font-weight: 700; }
+.st-links { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 0; font-size: 14px; font-weight: 600; }
+.st-setup { background: var(--surface); border: 1px solid var(--signal); border-radius: 12px; padding: 18px; display: grid; gap: 10px; min-width: 0; }
+.st-setup h2 { margin: 0; font-size: 20px; }
+.st-setup p { margin: 0; }
+.st-setup code { font-family: var(--mono); font-size: 12.5px; }
+.st-dl { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.st-dl-btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 8px; background: var(--signal); color: var(--surface); font-weight: 700; text-decoration: none; }
+.st-run pre { background: var(--chrome); padding: 8px 10px; border-radius: 6px; }
+.st-dl-btn { border: 0; cursor: pointer; font: inherit; font-weight: 700; }
+.st-dl-btn.alt { background: var(--paper); color: var(--signal); border: 1px solid var(--signal); }
+.st-dl-btn:disabled { opacity: .6; cursor: progress; }
+.st-clients { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 10px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; }
+.st-clients legend { font-weight: 700; padding: 0 4px; font-size: 14px; }
+.st-client { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+.st-client small { color: var(--muted); }
+.st-missing { font-size: 14px; color: var(--warn); }
+.st-out { background: var(--chrome); border-radius: 8px; padding: 10px 12px; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12.5px; margin: 0; }
+.st-out.bad { outline: 1px solid var(--warn); }
+.st-missing:empty { display: none; }

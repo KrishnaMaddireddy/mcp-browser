@@ -124,3 +124,29 @@ export function adhocFor(r) {
   if (!runnable(r, F)) return null;
   return { id: r[F.name], title: r[F.title] || r[F.name].split('/').pop(), description: r[F.desc] || '', url: r[F.remoteUrl], transport: r[F.remoteType] === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] };
 }
+
+/** Script-ready description of catalog rows (for the stack setup script). values: id → { NAME: value } */
+export function scriptServers(rows, values = {}) {
+  const c = loadCatalog();
+  const { F } = c;
+  const g = guideLib();
+  const used = new Set();
+  return rows.map((r) => {
+    const l = g.launchOf(r, F);
+    let key = l.name;
+    for (let i = 2; used.has(key); i++) key = `${l.name}-${i}`;
+    used.add(key);
+    const v = values[r[F.name]] || {};
+    const settings = ((F.envs != null && r[F.envs]) || []).map(([name, secret, d, kind]) => ({ name, secret: Boolean(secret), description: g.explain(name, d).slice(0, 200), header: kind === 'h', ...(!secret && v[name] ? { value: v[name] } : {}) }));
+    return {
+      key,
+      id: r[F.name],
+      title: r[F.title] || r[F.name].split('/').pop(),
+      kind: l.kind,
+      ...(l.kind === 'local' ? { command: l.command, args: l.args } : {}),
+      ...(l.kind === 'remote' ? { url: l.url, transport: l.transport } : {}),
+      settings: l.kind === 'none' ? [] : settings,
+      ...(l.note ? { note: l.note } : {}),
+    };
+  });
+}

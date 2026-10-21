@@ -511,3 +511,14 @@ POST requests need `content-type: application/json` and `x-mcpb: 1`.
   registration can't be signed in to yet.
 * Running package-only servers locally (needs sandboxing).
 * An LLM re-rank of the routing shortlist (keywords + local embeddings + MCP Rank today).
+
+## My MCP stack (`mcp://stack`)
+
+Pick the servers you care about with **+ Add to my stack** (on any catalog server, use case or workflow), then open **My MCP stack** (the layers button in the toolbar):
+
+- Each server shows its category, stars, downloads, whether it is already installed in one of your apps, things to check, and prompts to try (Run works for hosted no-key servers).
+- Fill in each server's settings. Non-secret values (like `EDGAR_IDENTITY`) are remembered; keys are kept only on the open page and are never saved.
+- **Set up now** writes the servers into the apps you tick (Claude Desktop, Claude Code, Cursor, VS Code). Each config file is backed up first (`*.backup-<time>`), and only these servers are added or replaced. A server already set up under another name is left alone. **Preview changes** shows exactly what would change, with keys hidden. **Remove these from the apps** takes them out again.
+- **Prefer Terminal?** Download the same setup as `setup-mcp.mjs` (`node setup-mcp.mjs --dry-run`, then `node setup-mcp.mjs`) or `setup-mcp.ts` (`npx tsx setup-mcp.ts`). It asks for keys with hidden typing, or reads them from your environment. `--clients=desktop,code,cursor,vscode` picks apps, `--remove` takes the servers out.
+
+VS Code gets `${input:...}` prompts for keys, so they never sit in its file. Claude Desktop and Cursor keep them in their config files (mode 0600), as those apps require.

@@ -44,6 +44,8 @@
     let D, rows, cats, hues = {}, months = [];
     let view = [], shown = 0, catSel = entry.category || 'all', range = null;
     const filters = new Set();
+    let stackIds = new Set();
+    window.MCPStack?.ids().then((s) => (stackIds = s));
 
     const popularity = (r) => {
       const s = Math.max(0, r[F.stars]), d = Math.max(0, r[F.downloads]);
@@ -229,7 +231,7 @@
       const toolNames = F.tools != null ? r[F.tools] || [] : [];
       const toolsHtml = toolNames.length ? `<p class="cat-toolnames"><span>Tools</span> ${toolNames.map((n) => `<code>${hl(n, t)}</code>`).join(' ')}</p>` : '';
       const unit = pk && pk.unit ? pk.unit : 'downloads';
-      return `<li class="cat-item"><div class="cat-main" data-run-host><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><div class="cat-guide" hidden></div></div>
+      return `<li class="cat-item"><div class="cat-main" data-run-host><h3>${hl(title, t)}</h3><div class="cat-id">${hl(r[F.name], t)}</div>${r[F.desc] ? `<p class="cat-desc">${hl(r[F.desc], t)}</p>` : ''}<div class="cat-tags">${tags.join('')}</div>${promptHtml}${toolsHtml}${links.length ? `<div class="cat-links">${links.join('')}</div>` : ''}${cmd ? `<div class="cat-install"><code>${esc(cmd)}</code><button type="button" class="cat-copy" data-cmd="${esc(cmd)}">Copy</button></div>` : ''}<div class="cat-actions"><button type="button" class="cat-guide-btn" data-guide="${esc(r[F.name])}" aria-expanded="false">How to use it</button><button type="button" class="cat-stack-btn" data-stack="${esc(r[F.name])}" aria-pressed="${stackIds.has(r[F.name])}">${stackIds.has(r[F.name]) ? '✓ In my stack' : '+ Add to my stack'}</button><button type="button" class="link-btn" data-open="mcp://stack" data-stack-go="${esc(r[F.name])}" ${stackIds.has(r[F.name]) ? '' : 'hidden'}>Set it up in my apps</button></div><div class="cat-guide" hidden></div></div>
         <div class="cat-metrics">
           <div class="m star"><span>GitHub stars</span><b class="${r[F.stars] < 0 ? 'none' : ''}">${r[F.stars] < 0 ? 'none' : fmt(r[F.stars])}</b></div>
           <div class="m"><span>${esc(unit)}</span><b class="${r[F.downloads] < 0 ? 'none' : ''}">${r[F.downloads] < 0 ? (pk ? 'n/a' : 'none') : fmt(r[F.downloads])}</b></div>
@@ -315,6 +317,31 @@
     el.addEventListener('input', (e) => window.MCPGuide?.handleInput(e));
     el.addEventListener('click', (e) => {
       if (window.MCPGuide?.handleClick(e, ctx)) return;
+      const sb = e.target.closest('[data-stack]');
+      if (sb) {
+        sb.disabled = true;
+        window.MCPStack.toggle(sb.dataset.stack).then(
+          async (on) => {
+            stackIds = await window.MCPStack.ids();
+            for (const b of el.querySelectorAll(`[data-stack="${CSS.escape(sb.dataset.stack)}"]`)) (b.setAttribute('aria-pressed', String(on)), (b.textContent = on ? '✓ In my stack' : '+ Add to my stack'));
+            for (const b of el.querySelectorAll(`[data-stack-go="${CSS.escape(sb.dataset.stack)}"]`)) b.hidden = !on;
+            sb.disabled = false;
+          },
+          (err) => ((sb.textContent = err.message), (sb.disabled = false))
+        );
+        return;
+      }
+      const sa = e.target.closest('[data-stack-all]');
+      if (sa) {
+        const list = sa.dataset.stackAll.split(',').filter(Boolean);
+        sa.disabled = true;
+        (async () => {
+          for (const id of list) if (!(await window.MCPStack.ids()).has(id)) await window.MCPStack.toggle(id);
+          stackIds = await window.MCPStack.ids();
+          sa.innerHTML = `Added to <button type="button" class="link-btn" data-open="mcp://stack">my stack</button>`;
+        })();
+        return;
+      }
       const op = e.target.closest('[data-open]');
       if (op) return hooks.open?.(op.dataset.open);
       const rt = e.target.closest('[data-run-tab]');
@@ -420,5 +447,5 @@
     });
   }
 
-  window.MCPCatalog = { mount };
+  window.MCPCatalog = { mount, load };
 })();

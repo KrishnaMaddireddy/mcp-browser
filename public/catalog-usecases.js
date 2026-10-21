@@ -66,6 +66,7 @@
         <p class="u-why">${esc(g.why)}</p>
         ${needs.map(({ nd, picks }) => `<div class="u-need"><span class="u-label">${esc(nd.label)}</span><div class="u-servers">${picks.map((r) => chip(r)).join('') || '<span class="u-none">No match in the catalog yet</span>'}</div></div>`).join('')}
         <div class="u-prompts"><span class="u-label">Try asking <em class="u-runs">runs here, on the best servers MCP Browser has for it</em></span><ul>${g.prompts.map((p) => promptBtn(p)).join('')}</ul></div>
+        ${first.length ? `<p class="u-stack-all"><button type="button" class="link-btn" data-stack-all="${esc(first.map((r) => r[F.name]).join(','))}">+ Add ${first.length === 1 ? 'it' : `these ${first.length}`} to my stack</button></p>` : ''}
         ${first.length ? `<details class="u-setup"><summary>Set up ${first.length === 1 ? 'this server' : `these ${first.length} servers`} in Claude, Cursor or VS Code</summary>${window.MCPGuide.setupHtml(first, F, { title: 'Setup' })}</details>` : ''}
       </article>`;
     }
@@ -84,6 +85,7 @@
           <span class="u-auto-sched"><label>Autopilot <select data-flow-every aria-label="How often"><option value="daily">daily</option><option value="weekly" selected>weekly</option><option value="hourly">hourly</option></select></label><button type="button" class="link-btn" data-flow-watch>Put on autopilot</button></span>
           <p class="g-note" data-flow-msg>Autopilot re-runs every step on schedule while MCP Browser is open and flags only what changed (in Watches).</p>
         </div>
+        ${servers.length ? `<p class="u-stack-all"><button type="button" class="link-btn" data-stack-all="${esc(servers.map((r) => r[F.name]).join(','))}">+ Add all ${servers.length} to my stack</button></p>` : ''}
         ${servers.length ? `<details class="u-setup"><summary>Set up all ${servers.length} servers at once</summary>${window.MCPGuide.setupHtml(servers, F, { title: 'Setup' })}<p class="g-note">With all of them connected, ask for the whole outcome in one message and Claude chains the steps.</p></details>` : ''}
       </article>`;
     }

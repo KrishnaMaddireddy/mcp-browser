@@ -140,6 +140,12 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'stack': {
+        entry.title = 'My MCP stack';
+        const el = $('#tpl-stack').content.firstElementChild.cloneNode(true);
+        window.MCPStack?.mount(el, { open: (u) => open(u), runInline, showServer: (id) => navigate(active, { kind: 'catalog', view: 'all', show: id }) });
+        return el;
+      }
       case 'audit': {
         entry.title = 'My installed servers';
         const el = $('#tpl-audit').content.firstElementChild.cloneNode(true);
@@ -238,6 +244,7 @@
     if (/^mcp:\/\/watches/i.test(s)) return navigate(tab, { kind: 'watches' });
     if (/^mcp:\/\/catalog/i.test(s)) return navigate(tab, { kind: 'catalog' });
     if (/^mcp:\/\/audit/i.test(s)) return navigate(tab, { kind: 'audit' });
+    if (/^mcp:\/\/stack/i.test(s)) return navigate(tab, { kind: 'stack' });
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -300,6 +307,7 @@
   $('#openWatches').addEventListener('click', () => open('mcp://watches'));
   $('#openSettings').addEventListener('click', () => open('mcp://settings'));
   $('#openCatalog').addEventListener('click', () => open('mcp://catalog'));
+  $('#openStack').addEventListener('click', () => open('mcp://stack'));
   $('#modeChip').addEventListener('click', () => open('mcp://settings'));
 
   document.addEventListener('keydown', (e) => {

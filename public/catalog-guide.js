@@ -220,5 +220,5 @@
     return false;
   }
 
-  window.MCPGuide = { setupFor, setupHtml, gotchas, renderGuide, handleClick, handleInput, keyName, explain };
+  window.MCPGuide = { setupFor, setupHtml, gotchas, renderGuide, handleClick, handleInput, keyName, explain, launchOf };
 })();
