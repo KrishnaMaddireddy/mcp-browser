@@ -189,6 +189,12 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'pipelines': {
+        entry.title = 'Pipelines';
+        const el = $('#tpl-pipelines').content.firstElementChild.cloneNode(true);
+        window.MCPPipelines?.mount(el, { open: (u) => open(u) });
+        return el;
+      }
       case 'webmcp': {
         entry.title = 'Websites with AI tools';
         const el = $('#tpl-webmcp').content.firstElementChild.cloneNode(true);
@@ -320,6 +326,7 @@
     if (/^mcp:\/\/audit/i.test(s)) return navigate(tab, { kind: 'audit' });
     if (/^mcp:\/\/stack/i.test(s)) return navigate(tab, { kind: 'stack' });
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
+    if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -684,7 +691,8 @@
       li.innerHTML = `
         <div class="watch-main">
           <div class="watch-title">${w.unseen ? '<span class="new-pill">New</span>' : ''}${esc(w.label || w.query)}</div>
-          <div class="watch-state">${esc(state)} · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}</div>
+          ${w.met ? `<div class="watch-met"><b>Found “${esc(w.until)}”</b> ${esc(timeAgo(w.met.at))}, so it stopped: …${esc(w.met.snippet)}…</div>` : ''}
+          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? ` · stops when it mentions “${esc(w.until)}”` : ''}</div>
           <details class="watch-hist">
             <summary>History (${w.history.length})</summary>
             <ol></ol>

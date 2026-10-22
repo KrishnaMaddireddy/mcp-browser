@@ -19,6 +19,7 @@ import { auditInstalled } from './audit.js';
 import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib } from './catalog-index.js';
 import { packageInfo, runtimes, sandboxStatus } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
+import { STARTERS, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
 import { setupScript } from './stack-script.js';
@@ -397,7 +398,69 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     return data;
   }
 
+  // ---------- pipelines: servers working together ----------
+  let pipeStore = null;
+  const pipes = () => (pipeStore ||= new PipelineStore());
+  /** Step server ids → what agent.search needs: catalog servers it hasn't synced go as adhoc. */
+  function resolveServers(ids) {
+    const c = loadCatalog();
+    const adhoc = ids.filter((id) => !engine.catalog.get(id)).map((id) => c?.byName.get(id)).filter(Boolean).map(adhocFor).filter(Boolean);
+    return { servers: ids, adhoc };
+  }
+  const titleOf = (id) => engine.catalog.get(id)?.title || (loadCatalog()?.byName.get(id)?.[loadCatalog().F.title]) || id;
+
   const routes = {
+    'GET /api/pipelines': async (req, res) => {
+      const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.servers || []).map(titleOf) })) });
+      json(res, 200, { starters: STARTERS.map(withTitles), mine: pipes().list.map(withTitles) });
+    },
+    'POST /api/pipelines/save': async (req, res) => {
+      try {
+        json(res, 200, { pipeline: pipes().put((await readJson(req)).pipeline) });
+      } catch (e) {
+        json(res, 400, { error: errMsg(e) });
+      }
+    },
+    'POST /api/pipelines/delete': async (req, res) => {
+      pipes().remove(String((await readJson(req)).id || ''));
+      json(res, 200, { ok: true });
+    },
+    // On a schedule, optionally until the result says something (a loop).
+    'POST /api/pipelines/watch': async (req, res) => {
+      const b = await readJson(req);
+      try {
+        const p = cleanPipeline(b.pipeline);
+        const ids = [...new Set(p.steps.flatMap((s) => s.servers || []))];
+        const w = engine.watches.add({ query: `${p.title}: ${String(b.input || '').slice(0, 200)}`, every: b.every, label: p.title, pipeline: p, input: b.input, until: b.until, pipeAdhoc: resolveServers(ids).adhoc });
+        json(res, 200, { watch: { id: w.id } });
+      } catch (e) {
+        json(res, 400, { error: errMsg(e) });
+      }
+    },
+    // Run one: a stream of pipe_step / pipe_run / pipe_result / pipe_done events.
+    'POST /api/pipelines/run': async (req, res) => {
+      const b = await readJson(req);
+      let p;
+      try {
+        p = cleanPipeline(b.pipeline);
+      } catch (e) {
+        return json(res, 400, { error: errMsg(e) });
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+      const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
+      try {
+        emit('provider', engine.providerInfo());
+        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers });
+      } catch (e) {
+        if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
+      } finally {
+        clearInterval(ping);
+        res.end();
+      }
+    },
     'GET /api/discover': async (req, res) => {
       const d = discover();
       const w = webmcpDir?.data ? webmcp().info() : null;

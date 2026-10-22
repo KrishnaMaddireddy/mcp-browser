@@ -1,5 +1,6 @@
 // Watches: saved searches that re-run on a schedule while the app is open and
 // report what changed since last time (new sources, a different answer).
+import { runPipeline, pipelineText } from './pipelines.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -62,7 +63,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '' }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc }) {
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('query required');
     if (!EVERY[every]) throw new Error('every must be hourly, daily or weekly');
@@ -78,6 +79,9 @@ export class WatchStore {
       ...(Array.isArray(adhoc) && adhoc.length ? { adhoc: cleanAdhoc(adhoc, servers) } : {}),
       // Watches made from one workflow share a group (its title).
       ...(group ? { group: String(group).trim().slice(0, 120) } : {}),
+      // A pipeline on a schedule (pipelines.js); "until": stop once its result says this.
+      ...(pipeline ? { pipeline, input: String(input || '').slice(0, 200), ...(pipeAdhoc && Array.isArray(pipeAdhoc) ? { pipeAdhoc: cleanAdhoc(pipeAdhoc, pipeAdhoc.map((a) => a?.id)) } : {}) } : {}),
+      ...(String(until || '').trim() ? { until: String(until).trim().slice(0, 120) } : {}),
       createdAt: this.now(),
       nextRunAt: this.now(), // first run as soon as the scheduler ticks
       lastRun: null,
@@ -202,6 +206,18 @@ export class WatchScheduler {
     });
   }
 
+  /** Loops: once the result says what you were waiting for, stop running and flag it. */
+  _until(w, text) {
+    if (!w.until || w.met) return;
+    const i = String(text).toLowerCase().indexOf(w.until.toLowerCase());
+    if (i < 0) return;
+    const t = String(text);
+    w.met = { at: this.store.now(), snippet: t.slice(Math.max(0, i - 80), i + w.until.length + 120).replace(/\s+/g, ' ').trim() };
+    w.nextRunAt = Number.MAX_SAFE_INTEGER;
+    w.unseen = (w.unseen || 0) + 1;
+    this.store.save();
+  }
+
   async _run(id) {
     const w = this.store.get(id);
     if (!w) return null;
@@ -221,8 +237,19 @@ export class WatchScheduler {
           reject(new Error('the search took longer than 5 minutes'));
         }, this.runTimeoutMs);
       });
+      if (w.pipeline) {
+        const resolveServers = (ids) => ({ servers: ids, adhoc: (w.pipeAdhoc || []).filter((a) => ids.includes(a.id)) });
+        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers }), timeout]);
+        const text = pipelineText(r);
+        const sources = r.steps.flatMap((s) => s.runs.flatMap((x) => x.sources));
+        const rec = this.store.record(id, { mode: 'llm', answer: text, results: [], sources });
+        this._until(w, text);
+        return rec;
+      }
       const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal, servers: w.servers, adhoc: w.adhoc }), timeout]);
-      return this.store.record(id, { mode: r.mode, answer: r.answer || '', results, sources: r.sources || [] });
+      const rec = this.store.record(id, { mode: r.mode, answer: r.answer || '', results, sources: r.sources || [] });
+      this._until(w, [r.answer || '', ...results.map((x) => x.text)].join('\n'));
+      return rec;
     } catch (e) {
       log.warn('watch failed', errMsg(e));
       return this.store.record(id, { error: errMsg(e).slice(0, 200) });
