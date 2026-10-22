@@ -1,6 +1,7 @@
-// Where the MCP server catalog lives: a fresh build in the data dir wins over
-// the snapshot that ships with the app (src/data/catalog.json.gz). Same for the
-// per-server tool lists (catalog-tools.json.gz).
+// Where the MCP server catalog lives: a build in the data dir or the snapshot that
+// ships with the app (src/data/catalog.json.gz), whichever is newer, so an app
+// update's snapshot replaces an older local build. Same for the per-server tool
+// lists (catalog-tools.json.gz).
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -10,14 +11,16 @@ import { dataDir } from './config.js';
 const BUNDLED = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
 
 function find(base) {
+  let best = null;
   for (const [p, gzip] of [[path.join(dataDir(), base + '.gz'), true], [path.join(dataDir(), base), false], [path.join(BUNDLED, base + '.gz'), true]]) {
     try {
-      if (fs.statSync(p).size > 0) return { path: p, gzip };
+      const st = fs.statSync(p);
+      if (st.size > 0 && (!best || st.mtimeMs > best.mtime)) best = { path: p, gzip, mtime: st.mtimeMs };
     } catch {
       /* not there */
     }
   }
-  return null;
+  return best && { path: best.path, gzip: best.gzip };
 }
 
 export const catalogFile = () => find('catalog.json');

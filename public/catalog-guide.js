@@ -7,18 +7,134 @@
   const keyName = (name) => (String(name).split('/').pop() || String(name)).replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase().slice(0, 40) || 'server';
   const placeholder = (n) => `<${n}>`;
 
-  /** How to launch one server: { kind: 'local'|'remote'|'none', name, command, args, env, url, headers, note } */
-  function launchOf(row, F) {
+  // ---------- command-line arguments from the registry ----------
+  // Runtime arguments go to npx / uvx / docker before the package; package
+  // arguments go to the server after it ("uvx --with edgartools[ai] edgartools mcp").
+  // Both come from the publisher, so runtime arguments are limited to safe ones:
+  // no other package index, URL or local path, and for Docker no folder mounts,
+  // host network or extra privileges.
+  const PY_REQ = /^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9,._ -]+\])?(\s*(===?|>=|<=|~=|!=|>|<)\s*[A-Za-z0-9.*+!_-]+(\s*,\s*(===?|>=|<=|~=|!=|>|<)\s*[A-Za-z0-9.*+!_-]+)*)?$/;
+  const NPM_SPEC = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*(@[A-Za-z0-9.^~<>=*|+-]{1,40})?$/;
+  const HOLE = /\{[^{}]*\}|<[^<>]*>|\$\{/;
+  const pyName = (spec) => String(spec).replace(/[\[=<>!~@ ].*$/, '').toLowerCase().replace(/[-_.]+/g, '-');
+  const bare = (t, id) => String(id || '').replace(t === 'npm' ? /(?<=.)@[^/@]*$/ : t === 'pypi' ? /[=<>!~@].*$/ : /$^/, '');
+  const PY_VER = /^(python)?3(\.\d{1,2})?$/;
+  const ENV_ARG = /^[A-Za-z_][A-Za-z0-9_]{0,63}(=\S{0,200})?$/;
+  // Per runtime: flags that are always there (skipped), flags allowed with a checked value,
+  // and flags known to take a value (dropped together with it).
+  const RT = {
+    npm: { skip: ['-y', '--yes'], ok: { '-p': NPM_SPEC, '--package': NPM_SPEC }, valued: ['--registry', '--cache', '--prefix', '--userconfig', '--node-options', '-c', '--call', '--workspace', '-w'] },
+    pypi: { skip: [], ok: { '--with': PY_REQ, '-w': PY_REQ, '--python': PY_VER, '-p': PY_VER, '--from': PY_REQ }, valued: ['--index-url', '-i', '--extra-index-url', '--index', '--default-index', '--find-links', '-f', '--python-preference', '--env-file', '--directory', '--project', '--config-file', '-m', '--with-requirements', '--with-editable', '--constraints', '-c', '--overrides'] },
+    oci: { skip: ['run', '-i', '--interactive', '--rm', '--init', '-t', '-it', '--tty'], ok: { '-e': ENV_ARG, '--env': ENV_ARG }, valued: ['-v', '--volume', '--mount', '-p', '--publish', '--network', '--net', '--add-host', '--security-opt', '--name', '-w', '--workdir', '-u', '--user', '--env-file', '--cap-add', '--device', '--entrypoint', '--platform', '--memory', '-m', '--pid', '--ipc', '--label', '-l', '--group-add', '--privileged'] },
+  };
+  const tokensOf = (list) => list.flatMap(([t, n, v]) => (t === 'n' ? (v !== '' && v != null ? [String(n), String(v)] : [String(n)]) : v !== '' && v != null ? [String(v)] : []));
+  /**
+   * { runtime: [...], pkg: [...], dropped: [labels], needs: [labels], unpinned } for a catalog row.
+   * pin: the version the package is pinned to.
+   */
+  function argsOf(row, F, { pin } = {}) {
+    // viaFlag: the package is named by -p / --from, so the next word is the command, not the package.
+    const out = { runtime: [], pkg: [], dropped: [], needs: [], moved: [], unpinned: false, viaFlag: false };
+    const a = (F.args != null && row[F.args]) || 0;
+    if (!a) return out;
+    const [rargs = [], pargs = []] = a;
+    const type = row[F.pkgType];
+    const rt = RT[type] || { skip: [], ok: {}, valued: [] };
+    const self = pyName(bare('pypi', row[F.pkgId]));
+    const repin = (v) => (pin && pyName(v) === self ? v.replace(/\s*(===?|@)\s*[A-Za-z0-9.*+!_-]+$/, '') + '==' + pin : v);
+    const tk = tokensOf(rargs);
+    for (let i = 0; i < tk.length; i++) {
+      const tok = tk[i];
+      if (HOLE.test(tok)) {
+        out.needs.push(tok);
+        continue;
+      }
+      if (rt.skip.includes(tok)) continue;
+      const [flag, inline] = tok.startsWith('--') && tok.includes('=') ? [tok.slice(0, tok.indexOf('=')), tok.slice(tok.indexOf('=') + 1)] : [tok, null];
+      if (rt.ok[flag]) {
+        let v = inline ?? tk[++i];
+        if (v == null || HOLE.test(v)) {
+          out.needs.push(`${flag} ${v ?? ''}`.trim());
+          continue;
+        }
+        if (!rt.ok[flag].test(v)) {
+          out.dropped.push(`${flag} ${v}`);
+          continue;
+        }
+        if (type === 'pypi' && (flag === '--with' || flag === '-w' || flag === '--from')) {
+          if (flag === '--from') out.viaFlag = true;
+          if (flag === '--from' && pyName(v) !== self) out.unpinned = true;
+          v = repin(v);
+        }
+        if (type === 'npm' && (flag === '-p' || flag === '--package')) {
+          const same = bare('npm', v) === bare('npm', row[F.pkgId]);
+          if (same) (out.viaFlag = true), pin && (v = `${bare('npm', v)}@${pin}`);
+        }
+        out.runtime.push(flag, v);
+      } else if (tok.startsWith('-')) {
+        // Not allowed: drop it, and the value it takes.
+        const takes = rt.valued.includes(flag) && inline == null && tk[i + 1] != null && !String(tk[i + 1]).startsWith('-');
+        out.dropped.push(takes ? `${tok} ${tk[++i]}` : tok);
+      } else if (type === 'oci') out.dropped.push(tok); // before the image it would be read as the image
+      else {
+        // A plain word before the package is almost always the server's subcommand ("mcp"):
+        // after the package only the server sees it.
+        out.moved.push(tok);
+        out.pkg.push(tok);
+      }
+    }
+    for (const [t, n0, v0, req, d] of pargs) {
+      const n = String(n0 || '');
+      const v = String(v0 ?? '').replace(/[\u0000-\u001f]/g, '');
+      if (HOLE.test(v) || HOLE.test(n) || (!v && req && t === 'p')) {
+        out.needs.push([n, v].filter(Boolean).join(' ') || d || 'an argument');
+        continue;
+      }
+      if (t === 'n' && !/^-{1,2}[A-Za-z0-9][\w.-]*$/.test(n)) {
+        out.dropped.push(n);
+        continue;
+      }
+      if (t === 'n' && !v) {
+        if (req) out.pkg.push(n); // a required flag
+        continue; // an optional setting left at the server's default
+      }
+      out.pkg.push(...(t === 'n' ? [n, v] : v ? [v] : []));
+    }
+    return out;
+  }
+
+  /**
+   * How to launch one server: { kind: 'local'|'remote'|'none', name, command, args, env, url, headers, note, needsArgs }.
+   * pin: { version, wheel } pins the package (and installs PyPI wheels without building).
+   */
+  function launchOf(row, F, { pin } = {}) {
     const name = keyName(row[F.name]);
     const envs = (F.envs != null && row[F.envs]) || [];
     const t = row[F.pkgType];
-    const id = row[F.pkgId];
+    const pv = pin && /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(pin.version || '') ? pin.version : '';
+    const a = argsOf(row, F, { pin: pv });
+    // Named by -p / --from: the next plain word is the command. Without one, npx goes back to the
+    // usual form (drop -p) and uvx runs the package's own command.
+    const cmdWord = a.pkg.length && !String(a.pkg[0]).startsWith('-');
+    if (a.viaFlag && !cmdWord && t === 'npm') {
+      const i = a.runtime.findIndex((x, j) => (x === '-p' || x === '--package') && bare('npm', a.runtime[j + 1]) === bare('npm', row[F.pkgId]));
+      if (i >= 0) a.runtime.splice(i, 2);
+      a.viaFlag = false;
+    }
+    const pinned = pv && !a.unpinned && (t === 'npm' || t === 'pypi') ? `${bare(t, row[F.pkgId])}@${pv}` : row[F.pkgId];
+    const id = a.viaFlag ? (cmdWord ? null : bare(t, row[F.pkgId])) : pinned;
     const env = {};
     for (const [n, , , kind] of envs) if (kind !== 'h') env[n] = placeholder(n);
-    if (t === 'npm') return { kind: 'local', name, command: 'npx', args: ['-y', id], env };
-    if (t === 'pypi') return { kind: 'local', name, command: 'uvx', args: [id], env };
-    if (t === 'oci') return { kind: 'local', name, command: 'docker', args: ['run', '-i', '--rm', ...Object.keys(env).flatMap((k) => ['-e', k]), id], env };
-    if (t === 'nuget') return { kind: 'local', name, command: 'dnx', args: [id, '--yes'], env };
+    const notes = [];
+    if (a.needs.length) notes.push(`Fill in its arguments first: ${a.needs.join('; ')} (see its README).`);
+    if (a.dropped.length) notes.push(`Left out from its registry entry, for safety: ${a.dropped.join('; ')}.`);
+    const extra = { ...(notes.length ? { note: notes.join(' ') } : {}), ...(a.needs.length ? { needsArgs: a.needs } : {}) };
+    const tail = [...a.pkg, ...a.needs.map((x) => `<${x}>`)];
+    const idArg = id == null ? [] : [id];
+    if (t === 'npm') return { kind: 'local', name, command: 'npx', args: ['-y', ...a.runtime, ...idArg, ...tail], env, ...extra };
+    if (t === 'pypi') return { kind: 'local', name, command: 'uvx', args: [...(pv && pin.wheel !== false ? ['--no-build'] : []), ...a.runtime, ...idArg, ...tail], env, ...extra };
+    if (t === 'oci') return { kind: 'local', name, command: 'docker', args: ['run', '-i', '--rm', ...Object.keys(env).flatMap((k) => ['-e', k]), ...a.runtime, id, ...tail], env, ...extra };
+    if (t === 'nuget') return { kind: 'local', name, command: 'dnx', args: [id, '--yes', ...tail], env, ...extra };
     const url = row[F.remoteUrl];
     if (url) {
       const headers = {};
@@ -220,5 +336,5 @@
     return false;
   }
 
-  window.MCPGuide = { setupFor, setupHtml, gotchas, renderGuide, handleClick, handleInput, keyName, explain, launchOf };
+  window.MCPGuide = { setupFor, setupHtml, gotchas, renderGuide, handleClick, handleInput, keyName, explain, launchOf, argsOf };
 })();

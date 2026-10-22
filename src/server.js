@@ -250,11 +250,28 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     return { row: r, F, type, pkgId: r[F.pkgId], title: r[F.title] || r[F.name].split('/').pop(), description: r[F.desc] || '', settings, trust: trustOf(r), stars: r[F.stars], downloads: r[F.downloads], repo: r[F.repo], hosted: catalogRunnable(r, F) };
   }
   const shq = (x) => (/^[\w@%+=:,./-]+$/.test(x) ? x : `'${String(x).replace(/'/g, `'\\''`)}'`);
-  function commandText(type, name, version, isolation) {
-    const pkg = type === 'oci' ? name : `${name}@${version}`;
-    if (type === 'oci' || isolation === 'docker') return `docker run -i --rm --cap-drop ALL ${type === 'oci' ? shq(pkg) : type === 'npm' ? `node:22-slim npx -y ${shq(pkg)}` : `ghcr.io/astral-sh/uv:python3.12-bookworm-slim uvx ${shq(pkg)}`}`;
-    const cmd = type === 'npm' ? `npx -y ${shq(pkg)}` : `uvx --no-build ${shq(pkg)}`;
+  /** The command an approval runs: argv is what follows npx / uvx / docker run (see argvFor). */
+  function commandText(type, name, version, isolation, argv) {
+    const rest = (argv?.length ? argv : [type === 'oci' ? name : `${name}@${version}`]).map(shq).join(' ');
+    if (type === 'oci' || isolation === 'docker') return `docker run -i --rm --cap-drop ALL ${type === 'oci' ? rest : type === 'npm' ? `node:22-slim npx -y ${rest}` : `ghcr.io/astral-sh/uv:python3.12-bookworm-slim uvx ${rest}`}`;
+    const cmd = type === 'npm' ? `npx -y ${rest}` : `uvx --no-build ${rest}`;
     return isolation === 'sandbox' ? `${cmd}   (inside the macOS sandbox)` : cmd;
+  }
+  /**
+   * What follows npx / uvx / docker run for a catalog row pinned to version: the
+   * registry's startup arguments (made safe) around the package. { argv, needs, note }
+   */
+  function argvFor(f, version, wheel) {
+    const l = guideLib().launchOf(f.row, f.F, { pin: { version, wheel } });
+    if (l.kind !== 'local') return { argv: [], needs: [] };
+    let args = l.args.slice();
+    if (f.type === 'npm' && args[0] === '-y') args = args.slice(1);
+    if (f.type === 'pypi' && args[0] === '--no-build') args = args.slice(1);
+    if (f.type === 'oci') {
+      args = args.slice(3); // run -i --rm
+      while (args[0] === '-e' && f.settings.some((s) => s.name === args[1])) args = args.slice(2); // MCP Browser passes settings itself
+    }
+    return { argv: args, needs: l.needsArgs || [], note: l.note || '' };
   }
   /** Current version (and wheel) of each package row, to pin setups to. */
   async function pinsFor(rows) {
@@ -271,6 +288,26 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     return out;
   }
 
+  /** Approvals from before startup arguments were known: add them (same pinned version). */
+  function upgradeApprovals() {
+    let changed = false;
+    for (const a of engine.local.approved) {
+      if (a.argv) continue;
+      const f = localFacts(a.id);
+      if (!f || f.F.args == null || !f.row[f.F.args]) continue;
+      const av = argvFor(f, a.version, a.isolation !== 'docker');
+      if (av.argv.length && !av.needs.length) (a.argv = av.argv), (changed = true);
+    }
+    if (changed) engine.local.save();
+  }
+  setImmediate(() => {
+    try {
+      upgradeApprovals();
+    } catch (e) {
+      log.warn('upgrading approvals:', errMsg(e));
+    }
+  });
+
   async function startLocal(id) {
     const server = engine.catalog.get(id);
     if (!server || server.kind !== 'local') return { ok: false, error: 'fill in its settings first' };
@@ -284,7 +321,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   function localView(a) {
     const st = engine.pool.state(a.id);
     const h = engine.health.get(a.id);
-    return { id: a.id, title: a.title, type: a.type, name: a.name, version: a.version, isolation: a.isolation, approvedAt: a.approvedAt, trusted: a.trusted, settings: a.settings, values: a.values, missing: engine.local.missing(a), state: st, lastError: h?.status === 'fail' ? h.error : null, command: commandText(a.type, a.name, a.version, a.isolation) };
+    return { id: a.id, title: a.title, type: a.type, name: a.name, version: a.version, isolation: a.isolation, approvedAt: a.approvedAt, trusted: a.trusted, settings: a.settings, values: a.values, missing: engine.local.missing(a), state: st, lastError: h?.status === 'fail' ? h.error : null, command: commandText(a.type, a.name, a.version, a.isolation, a.argv) };
   }
 
   const routes = {
@@ -355,7 +392,8 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         settings: f.settings,
         how,
         prefer,
-        commands: Object.fromEntries(['sandbox', 'docker', 'none'].map((k) => [k, info.version ? commandText(f.type, info.name, info.version, k) : ''])),
+        commands: Object.fromEntries(['sandbox', 'docker', 'none'].map((k) => [k, info.version ? commandText(f.type, info.name, info.version, k, argvFor(f, info.version, k === 'docker' ? false : info.wheel !== false).argv) : ''])),
+        args: info.version ? (({ needs, note }) => ({ needs, note }))(argvFor(f, info.version, info.wheel !== false)) : { needs: [], note: '' },
         approved: a ? localView(a) : null,
         stackValues: stack().items.find((x) => x.id === f.row[f.F.name])?.values || {},
       });
@@ -377,7 +415,9 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       if (f.type === 'pypi' && info.wheel === false && isolation !== 'docker') return json(res, 400, { error: 'this package must be built from source: run it in Docker' });
       if (!f.trust.trusted && b.acceptRisk !== true) return json(res, 400, { error: 'this server has warning signs: confirm you want to run it anyway' });
       if (isolation === 'none' && b.acceptNoSandbox !== true) return json(res, 400, { error: 'confirm you want to run it without a sandbox' });
-      const a = engine.local.approve({ id: f.row[f.F.name], title: f.title, description: f.description, type: f.type, name: info.name, version: info.version, isolation, settings: f.settings, values: b.values, secrets: b.secrets, trusted: f.trust.trusted });
+      const av = argvFor(f, info.version, isolation === 'docker' ? false : info.wheel !== false);
+      if (av.needs.length) return json(res, 400, { error: `this server needs startup arguments only you can fill in (${av.needs.join('; ')}), so MCP Browser can’t start it yet. Its README says what to use.` });
+      const a = engine.local.approve({ id: f.row[f.F.name], title: f.title, description: f.description, type: f.type, name: info.name, version: info.version, isolation, settings: f.settings, values: b.values, secrets: b.secrets, trusted: f.trust.trusted, argv: av.argv });
       // Keep non-secret settings with the stack too, if it's there.
       if (stack().has(a.id) && a.values && Object.keys(a.values).length) stack().setValues(a.id, a.values, a.settings.filter((s) => s.secret).map((s) => s.name));
       await engine.pool.close(a.id);

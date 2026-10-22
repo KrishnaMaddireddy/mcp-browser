@@ -263,16 +263,19 @@ export function launchSpec(a, values, { base = path.join(dataDir(), 'local-serve
   const npmEnv = { npm_config_ignore_scripts: 'true', npm_config_cache: path.join(dir, 'cache'), npm_config_userconfig: npmrc, npm_config_update_notifier: 'false', npm_config_fund: 'false', npm_config_audit: 'false', npm_config_yes: 'true', npm_config_loglevel: 'error' };
   const uvEnv = { UV_CACHE_DIR: path.join(dir, 'cache', 'uv'), UV_TOOL_DIR: path.join(dir, 'cache', 'uv-tools'), UV_PYTHON_INSTALL_DIR: path.join(dir, 'cache', 'uv-python'), UV_NO_CONFIG: '1', UV_NO_PROGRESS: '1' };
   const pkg = a.type === 'npm' ? `${a.name}@${a.version}` : a.type === 'pypi' ? `${a.name}@${a.version}` : a.name;
+  // The approved command after npx / uvx / docker run (startup arguments included, pinned);
+  // approvals from before startup arguments were known run just the package.
+  const argv = Array.isArray(a.argv) && a.argv.length ? a.argv : [pkg];
 
   if (a.isolation === 'docker' || a.type === 'oci') {
     if (!rt.docker) throw new Error('Docker isn’t installed or isn’t running');
     // The docker command itself needs the real home folder (its settings and socket); the server doesn't see it.
     const dEnv = { PATH: searchPath().join(path.delimiter), HOME: process.env.HOME || home(), ...(process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}), ...(process.env.DOCKER_CONTEXT ? { DOCKER_CONTEXT: process.env.DOCKER_CONTEXT } : {}), ...settingEnv };
     const common = ['run', '-i', '--rm', '--init', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '1g', '--pids-limit', '512', '--label', 'mcp-browser=1', ...Object.keys(settingEnv).flatMap((k) => ['-e', k])];
-    if (a.type === 'oci') return { command: rt.docker, args: [...common, a.name], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
-    if (a.type === 'npm') return { command: rt.docker, args: [...common, '-e', 'npm_config_ignore_scripts=true', '-e', 'npm_config_update_notifier=false', '-v', `mcpb-${a.key}-npm:/root/.npm`, NODE_IMAGE, 'npx', '-y', pkg], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
+    if (a.type === 'oci') return { command: rt.docker, args: [...common, ...(Array.isArray(a.argv) && a.argv.length ? a.argv : [a.name])], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
+    if (a.type === 'npm') return { command: rt.docker, args: [...common, '-e', 'npm_config_ignore_scripts=true', '-e', 'npm_config_update_notifier=false', '-v', `mcpb-${a.key}-npm:/root/.npm`, NODE_IMAGE, 'npx', '-y', ...argv], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
     // In Docker, PyPI packages may build from source: that happens inside the container.
-    return { command: rt.docker, args: [...common, '-v', `mcpb-${a.key}-uv:/root/.cache/uv`, UV_IMAGE, 'uvx', pkg], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
+    return { command: rt.docker, args: [...common, '-v', `mcpb-${a.key}-uv:/root/.cache/uv`, UV_IMAGE, 'uvx', ...argv], env: dEnv, cwd: path.join(dir, 'work'), isolation: 'docker' };
   }
 
   let command;
@@ -280,17 +283,19 @@ export function launchSpec(a, values, { base = path.join(dataDir(), 'local-serve
   if (a.type === 'npm') {
     if (!rt.npx) throw new Error('Node.js (npx) isn’t installed: get it from nodejs.org');
     command = rt.npx;
-    args = ['-y', pkg];
+    args = ['-y', ...argv];
     Object.assign(env, npmEnv);
   } else if (a.type === 'pypi') {
     if (!rt.uvx) throw new Error('uv isn’t installed: brew install uv');
     command = rt.uvx;
-    args = ['--no-build', pkg];
+    args = ['--no-build', ...argv];
     Object.assign(env, uvEnv);
   } else throw new Error(`MCP Browser can't start ${a.type} packages`);
   Object.assign(env, settingEnv);
   if (a.isolation === 'sandbox') {
     if (process.platform !== 'darwin') throw new Error('The built-in sandbox needs macOS');
+    // A Python in the home folder (conda, pyenv) can't be read in the sandbox: uv uses its own, in the server's folder.
+    if (a.type === 'pypi') env.UV_PYTHON_PREFERENCE = 'only-managed';
     return { command: '/usr/bin/sandbox-exec', args: ['-p', sandboxProfile(dir), command, ...args], env, cwd: path.join(dir, 'work'), isolation: 'sandbox' };
   }
   return { command, args, env, cwd: path.join(dir, 'work'), isolation: 'none' };
@@ -340,10 +345,10 @@ export class LocalServers {
   servers() {
     return this.approved
       .filter((a) => !this.missing(a).length)
-      .map((a) => ({ id: a.id, title: a.title, description: a.description, url: `local://${a.key}`, kind: 'local', source: 'local', trust: 'community', tags: [], transport: 'stdio', idleMs: IDLE_MS, connectTimeoutMs: 120000 }));
+      .map((a) => ({ id: a.id, title: a.title, description: a.description, url: `local://${a.key}`, kind: 'local', source: 'local', trust: 'community', tags: [], transport: 'stdio', idleMs: IDLE_MS, connectTimeoutMs: 300000 }));
   }
 
-  approve({ id, title, description, type, name, version, isolation, settings = [], values = {}, secrets = {}, trusted = false }) {
+  approve({ id, title, description, type, name, version, isolation, settings = [], values = {}, secrets = {}, trusted = false, argv }) {
     if (!['npm', 'pypi', 'oci'].includes(type)) throw new Error(`MCP Browser can't start ${type} packages`);
     if (!VERSION_RE.test(String(version || ''))) throw new Error('no version to pin');
     if (!['sandbox', 'docker', 'none'].includes(isolation)) throw new Error('choose how to run it');
@@ -362,6 +367,7 @@ export class LocalServers {
       settings: settings.map((s) => ({ name: s.name, secret: Boolean(s.secret), header: Boolean(s.header), description: String(s.description || '').slice(0, 200) })),
       values: clean(values, (k) => settings.some((s) => s.name === k) && !secretNames.has(k)),
       approvedAt: new Date().toISOString(),
+      ...(Array.isArray(argv) && argv.length && argv.length <= 40 && argv.every((x) => typeof x === 'string' && x.length <= 300 && !/[\u0000-\u001f]/.test(x)) ? { argv } : {}),
     };
     this.approved = [...this.approved.filter((a) => a.id !== id), rec];
     this.keys.set(id, clean(secrets, (k) => secretNames.has(k)));

@@ -61,6 +61,9 @@
     }
     function installCmd(r) {
       const t = r[F.pkgType];
+      // With the startup arguments from the registry (e.g. "uvx --with edgartools[ai] edgartools mcp").
+      const l = window.MCPGuide?.launchOf(r, F);
+      if (l && l.kind === 'local') return [l.command, ...l.args].map((x) => (/^[\w@%+=:,./[\]-]+$/.test(x) ? x : `'${String(x).replace(/'/g, `'\\''`)}'`)).join(' ');
       if (t && PKG[t]) return PKG[t].cmd(r[F.pkgId]);
       const u = r[F.remoteUrl];
       return u ? `claude mcp add --transport ${r[F.remoteType] === 'sse' ? 'sse' : 'http'} ${shortName(r)} ${u}` : '';

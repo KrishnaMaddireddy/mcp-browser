@@ -309,7 +309,7 @@ export class SearchAgent {
       emit('route_add', { server: { id: c.server.id, title: c.server.title, trust: c.server.trust, source: c.server.source, reason: `found for "${topic}"` } });
       emit('server', { id: c.server.id, status: 'connecting' });
       try {
-        const { tools } = await withTimeout(this.pool.get(c.server), c.server.kind === 'local' ? 125000 : (settings.connectTimeoutMs ?? 10000) + 1000, 'connect');
+        const { tools } = await withTimeout(this.pool.get(c.server), c.server.kind === 'local' ? 305000 : (settings.connectTimeoutMs ?? 10000) + 1000, 'connect');
         const allowed = tools.filter((t) => classifyTool(t, { trust: c.server.trust }).allowed);
         emit('server', { id: c.server.id, status: 'ready', tools: allowed.length, blocked: [] });
         if (!allowed.length) continue;

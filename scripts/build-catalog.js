@@ -133,10 +133,11 @@ for (const s of latest) {
   let downloads = -1;
   let env = 0;
   let envs = [];
+  let pkgArgs = 0;
   for (const p of s.packages || []) {
     const n = p.type === 'npm' ? dl.npm[p.id] : p.type === 'pypi' ? dl.pypi[(p.id || '').toLowerCase()] : p.type === 'cargo' ? dl.cargo[p.id] : p.type === 'oci' ? dl.docker[dockerKey(p.id)] : undefined;
     const v = typeof n === 'number' ? n : -1;
-    if (!pkgType || v > downloads) (pkgType = p.type), (pkgId = p.id), (downloads = v), (env = p.env || 0), (envs = (p.envNames || []).map((e) => [e.n, e.s ? 1 : 0, clean(e.d).slice(0, 100)]));
+    if (!pkgType || v > downloads) (pkgType = p.type), (pkgId = p.id), (downloads = v), (env = p.env || 0), (envs = (p.envNames || []).map((e) => [e.n, e.s ? 1 : 0, clean(e.d).slice(0, 100)])), (pkgArgs = p.rargs?.length || p.pargs?.length ? [(p.rargs || []).map((a) => [a.t, a.n, a.v, a.r, clean(a.d).slice(0, 100)]), (p.pargs || []).map((a) => [a.t, a.n, a.v, a.r, clean(a.d).slice(0, 100)])] : 0);
   }
   const remote = (s.remotes || [])[0];
   if (remote && !pkgType) (env = remote.headers || 0), (envs = (remote.headerNames || []).map((e) => [e.n, e.s ? 1 : 0, clean(e.d).slice(0, 100), 'h']));
@@ -148,14 +149,14 @@ for (const s of latest) {
     st?.p || '', st?.a ? 1 : 0, pubCount[s.name.split('/')[0]] || 1, guessed, s.status === 'deprecated' ? 1 : 0,
     day(versions[s.name]?.first || s.published || s.updated), versions[s.name]?.versions || 1,
     promptsFor(s, cat), (tools[s.name]?.tools || []).filter((t) => !t.w).map((t) => t.n).slice(0, 12), tools[s.name]?.tools?.length ? 1 : 0,
-    envs, (tools[s.name]?.tools || []).filter((t) => t.w).length,
+    envs, (tools[s.name]?.tools || []).filter((t) => t.w).length, pkgArgs,
   ]);
 }
 const out = {
   generatedAt: new Date().toISOString(),
   sources: { registry: 'registry.modelcontextprotocol.io', stars: 'ecosyste.ms and ungh open indexes', downloads: dl.fetchedAt || '' },
   cats: [...CATEGORIES.map((c) => [c[0], c[1]]), ['other', 'Other']],
-  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed', 'envs', 'writeTools'],
+  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed', 'envs', 'writeTools', 'args'],
   rows,
 };
 const gz = zlib.gzipSync(JSON.stringify(out).replace(/�/g, ''), { level: 9 });

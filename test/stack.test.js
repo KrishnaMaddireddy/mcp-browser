@@ -63,7 +63,8 @@ test('the setup script configures Claude Desktop, Cursor and VS Code without pro
   const edgar = desk.mcpServers['edgartools'];
   assert.equal(edgar.command, 'uvx');
   assert.deepEqual(edgar.env, { EDGAR_IDENTITY: 'Jane Doe jane@example.com' });
-  assert.ok(/^edgartools$/.test(edgar.args.join(' ')) || /^--no-build edgartools@\d[\w.]*$/.test(edgar.args.join(' ')), edgar.args.join(' '));
+  // With the registry's startup arguments: the [ai] extra and the mcp subcommand.
+  assert.ok(/^--with edgartools\[ai\]==[\d.]+ edgartools mcp$/.test(edgar.args.join(' ')) || /^--no-build --with edgartools\[ai\]==([\d.]+) edgartools@\1 mcp$/.test(edgar.args.join(' ')), edgar.args.join(' '));
   const c7 = desk.mcpServers.context7;
   if (/@\d/.test(c7.args.join(' '))) assert.equal(c7.env.npm_config_ignore_scripts, 'true', 'npm install scripts are off');
   assert.equal(desk.mcpServers['sentry-mcp'].env.SENTRY_ACCESS_TOKEN, 'sntrys_from_env_123456');

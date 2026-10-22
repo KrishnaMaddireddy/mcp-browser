@@ -92,6 +92,11 @@
     const p = c.package;
     const update = c.approved && c.approved.version !== p.version;
     const avail = Object.entries(c.how).filter(([, v]) => v.available).map(([k]) => k);
+    if (c.args?.needs?.length) {
+      box.innerHTML = `<h4>Run ${esc(c.title)} on this Mac</h4><p class="lr-fail">It needs startup arguments only you can fill in: ${c.args.needs.map((x) => `<code>${esc(x)}</code>`).join(', ')}. Its README says what to use; MCP Browser can’t start it yet.</p>${c.github ? `<p><a href="${esc(c.github)}" target="_blank" rel="noopener noreferrer">Open its README on GitHub</a></p>` : ''}<p><button type="button" class="link-btn" data-lr-cancel>Close</button></p>`;
+      box.querySelector('[data-lr-cancel]').onclick = () => ((host.innerHTML = ''), onCancel?.());
+      return;
+    }
     if (p.error || !avail.length) {
       box.innerHTML = `<h4>Run ${esc(c.title)} on this Mac</h4><p class="lr-fail">${esc(p.error ? `Couldn’t look up the package: ${p.error}` : `MCP Browser can’t run it here: ${Object.values(c.how).map((v) => v.reason).filter(Boolean)[0] || 'nothing to run it with'}.`)}</p><p><button type="button" class="link-btn" data-lr-cancel>Close</button></p>`;
       box.querySelector('[data-lr-cancel]').onclick = () => ((host.innerHTML = ''), onCancel?.());
@@ -104,6 +109,7 @@
       p.type === 'npm' ? (p.installScripts?.length ? `It has install scripts (${p.installScripts.join(', ')}). They are blocked, so it may not work.` : 'No install scripts.') : '',
       p.type === 'pypi' ? (p.wheel ? 'Installs from a prebuilt package: no code runs during install.' : 'Must be built from source, so it only runs in Docker.') : '',
       p.deprecated ? `Its publisher says: ${p.deprecated}` : '',
+      c.args?.note && !c.args.needs?.length ? c.args.note : '',
     ].filter(Boolean);
     box.innerHTML = `
       <h4>${update ? `Update ${esc(c.title)} to ${esc(p.version)}` : `Run ${esc(c.title)} on this Mac`}</h4>

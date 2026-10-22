@@ -137,26 +137,23 @@ export function scriptServers(rows, values = {}, pins = {}) {
   const g = guideLib();
   const used = new Set();
   return rows.map((r) => {
-    const l = g.launchOf(r, F);
+    const pin = pins[r[F.name]];
+    const okPin = pin?.version && /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(pin.version);
+    const l = g.launchOf(r, F, okPin ? { pin } : {});
+    // Startup arguments only you can fill in (a path, a region): set it up by hand.
+    if (l.needsArgs) (l.kind = 'none'), (l.note = l.note || 'Fill in its arguments first (see its README).');
     let key = l.name;
     for (let i = 2; used.has(key); i++) key = `${l.name}-${i}`;
     used.add(key);
     const v = values[r[F.name]] || {};
-    const pin = pins[r[F.name]];
-    let fixedEnv;
-    if (l.kind === 'local' && pin?.version && /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(pin.version)) {
-      if (r[F.pkgType] === 'npm') {
-        l.args = ['-y', `${r[F.pkgId].replace(/(?<=.)@[^/@]*$/, '')}@${pin.version}`];
-        fixedEnv = { npm_config_ignore_scripts: 'true' };
-      } else if (r[F.pkgType] === 'pypi') l.args = [...(pin.wheel ? ['--no-build'] : []), `${r[F.pkgId].replace(/[=<>!~@].*$/, '')}@${pin.version}`];
-    }
+    const fixedEnv = l.kind === 'local' && okPin && r[F.pkgType] === 'npm' ? { npm_config_ignore_scripts: 'true' } : undefined;
     const settings = ((F.envs != null && r[F.envs]) || []).map(([name, secret, d, kind]) => ({ name, secret: Boolean(secret), description: g.explain(name, d).slice(0, 200), header: kind === 'h', ...(!secret && v[name] ? { value: v[name] } : {}) }));
     return {
       key,
       id: r[F.name],
       title: r[F.title] || r[F.name].split('/').pop(),
       kind: l.kind,
-      ...(l.kind === 'local' ? { command: l.command, args: l.args, ...(fixedEnv ? { fixedEnv } : {}), ...(pin?.version ? { version: pin.version } : {}) } : {}),
+      ...(l.kind === 'local' ? { command: l.command, args: l.args, ...(fixedEnv ? { fixedEnv } : {}), ...(okPin ? { version: pin.version } : {}) } : {}),
       ...(l.kind === 'remote' ? { url: l.url, transport: l.transport } : {}),
       settings: l.kind === 'none' ? [] : settings,
       ...(l.note ? { note: l.note } : {}),

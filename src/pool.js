@@ -109,8 +109,9 @@ export class McpPool {
     const hide = (m) => redactAll(m, spec.secrets);
     const timeout = server.connectTimeoutMs || 120000;
     try {
-      await withTimeout(client.connect(transport), timeout, `start ${server.title || server.id}`);
-      const tools = await withTimeout(listAllTools(client), this.connectTimeoutMs * 2, `tools/list ${server.id}`);
+      // The first start may download a lot (pandas, pyarrow…): give the handshake the same time.
+      await withTimeout(client.connect(transport, { timeout }), timeout, `start ${server.title || server.id}`);
+      const tools = await withTimeout(listAllTools(client, { timeout: Math.max(this.connectTimeoutMs * 2, 60000) }), Math.max(this.connectTimeoutMs * 2, 60000), `tools/list ${server.id}`);
       this.health?.recordOk(server.id, { latencyMs: Date.now() - t0, tools, serverName: cleanText(client.getServerVersion()?.name || '').slice(0, 80) });
       const entry = { client, tools, log: () => hide(tail), pid: transport.pid };
       transport.stderr?.on('data', () => {}); // keep draining
@@ -260,11 +261,11 @@ export class McpPool {
   }
 }
 
-async function listAllTools(client) {
+async function listAllTools(client, opts) {
   const tools = [];
   let cursor;
   for (let page = 0; page < 5; page++) {
-    const r = await client.listTools(cursor ? { cursor } : undefined);
+    const r = await client.listTools(cursor ? { cursor } : undefined, opts);
     tools.push(...(r.tools || []));
     cursor = r.nextCursor;
     if (!cursor || tools.length >= MAX_TOOLS_PER_SERVER) break;

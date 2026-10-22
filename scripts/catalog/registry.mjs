@@ -6,6 +6,9 @@ const GH = 'abcdefghijklmnopqrstuvwxyz'.split('').map((c) => 'io.github.' + c);
 const STARTS = [...new Set(['', 'ai.', 'ai.m', 'app', 'b', 'c', 'com.', 'com.c', 'com.g', 'com.m', 'com.p', 'com.s', 'com.v', 'd', 'dev.', 'e', 'f', 'g', 'h', 'i', 'io.', 'io.c', 'io.f', ...GH, 'io.h', 'io.m', 'io.p', 'io.s', 'io.w', 'j', 'k', 'l', 'm', 'n', 'net.', 'o', 'org.', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'])].sort();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** One command-line argument from the registry: t n(amed)/p(ositional), name, value, required, description. */
+const argOf = (a) => ({ t: a?.type === 'named' ? 'n' : 'p', n: String(a?.name || '').slice(0, 80), v: a?.value != null ? String(a.value).slice(0, 300) : a?.default != null ? String(a.default).slice(0, 300) : '', r: a?.isRequired ? 1 : 0, d: String(a?.description || a?.valueHint || '').slice(0, 140) });
+
 /** Compact record of one registry entry (latest version). */
 function compact(e) {
   const s = e.server || {};
@@ -18,6 +21,9 @@ function compact(e) {
       return {
         type: p.registryType || p.registry_type || '', id: p.identifier || p.name || '', version: p.version || '', hint: p.runtimeHint || '',
         transport: p.transport?.type || '', env: req.length,
+        // How to start it: arguments before the package (to npx/uvx/docker) and after it (to the server).
+        rargs: (p.runtimeArguments || []).slice(0, 12).map(argOf),
+        pargs: (p.packageArguments || []).slice(0, 12).map(argOf),
         envNames: req.slice(0, 6).map((v) => ({ n: String(v.name || '').slice(0, 60), d: String(v.description || '').slice(0, 140), s: v.isSecret ? 1 : 0 })),
       };
     }),
