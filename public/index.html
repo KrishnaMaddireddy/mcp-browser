@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MCP Browser</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="search" type="application/opensearchdescription+xml" title="MCP Browser" href="/opensearch.xml">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -67,6 +68,7 @@
           <button type="submit">Search</button>
         </form>
         <div class="suggest" data-suggest></div>
+        <div class="recent" data-recent hidden><span class="recent-l">Recent</span><div class="recent-list" data-recent-list></div><button type="button" class="link-btn" data-recent-clear>Clear</button></div>
         <section class="setup" data-setup hidden>
           <div class="setup-head">
             <h2>Get one written answer with citations</h2>
@@ -105,6 +107,33 @@
           </div>
           </div>
         </section>
+        <section class="discover" data-discover hidden>
+          <div class="dc-col">
+            <h2>Ask a server directly</h2>
+            <p class="dc-lede">Well-known servers that answer without a key. Click a question to run it.</p>
+            <ul class="dc-list" data-dc-try></ul>
+          </div>
+          <div class="dc-col">
+            <h2>New this week</h2>
+            <ul class="dc-list" data-dc-fresh></ul>
+            <h2>Most downloaded this month</h2>
+            <ul class="dc-list dc-plain" data-dc-popular></ul>
+          </div>
+          <nav class="dc-more" aria-label="Explore">
+            <button type="button" data-go="mcp://catalog" data-dc-n="servers">Server catalog</button>
+            <button type="button" data-go="mcp://pipelines">Pipelines</button>
+            <button type="button" data-go="mcp://webmcp" data-dc-n="sites">Websites with AI tools</button>
+            <button type="button" data-go="mcp://stack">My MCP stack</button>
+          </nav>
+        </section>
+        <section class="se-card" data-se hidden>
+          <div class="se-head"><h2>Make it your search engine</h2><button type="button" class="setup-close" data-se-close aria-label="Hide">×</button></div>
+          <p>Searches from your browser’s address bar come here first. Add a search engine in your browser with this address:</p>
+          <div class="copyline"><code data-se-url></code><button type="button" data-se-copy>Copy</button></div>
+          <p class="hint">Chrome, Edge, Brave and Arc: Settings → Search engine → Manage search engines → Add (or “Site search” → Add), then make it the default. Firefox: right-click the address bar on this page → Add “MCP Browser”. Type <code>!g</code>, <code>!w</code>, <code>!yt</code>, <code>!maps</code> and more in any search to jump to that site.</p>
+        </section>
+        <details class="templates-wrap">
+          <summary>Research templates</summary>
         <section class="templates" data-templates hidden>
           <h2>Templates</h2>
           <div class="tpl-groups" data-tpl-list></div>
@@ -116,6 +145,7 @@
             <div class="tpl-actions"><button type="submit">Run template</button> <button type="button" data-tpl-cancel>Cancel</button></div>
           </form>
         </section>
+        </details>
       </div>
     </section>
   </template>
@@ -149,6 +179,7 @@
           <span class="watch-done" data-watch-done hidden></span>
         </form>
       </div>
+      <p class="elsewhere" data-elsewhere></p>
       <p class="advice-note" data-advice-note hidden></p>
       <p class="board-summary" data-board-summary hidden></p>
       <div class="switchboard" data-switchboard aria-label="Servers consulted"></div>
@@ -447,6 +478,7 @@
   <script src="audit.js"></script>
   <script src="local-run.js"></script>
   <script src="stack.js"></script>
+  <script src="bangs.js"></script>
   <script src="page-tools.js"></script>
   <script src="webmcp-sites.js"></script>
   <script src="link-actions.js"></script>

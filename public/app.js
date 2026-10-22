@@ -20,7 +20,56 @@
   };
 
   // One per kind of user: developer, researcher, everyday, marketer.
-  const SUGGESTIONS = ['Max timeout for an AWS Lambda function', 'Latest research on solid-state batteries', 'Weather in Seattle this weekend', 'What people say about Notion on Reddit'];
+  // Everyday questions that get a good answer in free mode (checked with scripts/e2e.js).
+  const SUGGESTIONS = ['Weather in Lisbon tomorrow', 'Nvidia stock price today', 'USD to JPY exchange rate', 'Convert 5 miles to km', 'How do I cancel a fetch request in JavaScript?', 'How to file a small claims case in California', 'Who won the 2022 World Cup', '!w Ada Lovelace'];
+
+  // ---------- search history (this browser only) ----------
+  const HIST = 'mcpb.history';
+  const history = {
+    list() {
+      try {
+        return JSON.parse(localStorage.getItem(HIST) || '[]').filter((x) => typeof x === 'string');
+      } catch {
+        return [];
+      }
+    },
+    add(q) {
+      const s = String(q || '').trim().slice(0, 200);
+      if (!s || /^mcp:\/\//i.test(s)) return;
+      try {
+        localStorage.setItem(HIST, JSON.stringify([s, ...history.list().filter((x) => x.toLowerCase() !== s.toLowerCase())].slice(0, 30)));
+      } catch {
+        /* storage blocked */
+      }
+    },
+    clear() {
+      try {
+        localStorage.removeItem(HIST);
+      } catch {
+        /* storage blocked */
+      }
+    },
+  };
+
+  // Suggestions while typing: your recent searches, then questions from the catalog.
+  let suggestSeq = 0;
+  function attachSuggest(input) {
+    const dl = document.createElement('datalist');
+    dl.id = `sg-${++suggestSeq}`;
+    input.setAttribute('list', dl.id);
+    input.after(dl);
+    let t;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      const q = input.value.trim();
+      t = setTimeout(async () => {
+        const mine = history.list().filter((x) => q && x.toLowerCase().includes(q.toLowerCase())).slice(0, 4);
+        let more = [];
+        if (q.length >= 2 && !/^!|^mcp:|^https?:/i.test(q)) more = (await api.get('/api/suggest?q=' + encodeURIComponent(q)).catch(() => [q, []]))[1] || [];
+        dl.replaceChildren(...[...new Set([...mine, ...more])].slice(0, 8).map((v) => Object.assign(document.createElement('option'), { value: v })));
+      }, 150);
+    });
+  }
 
   // ---------- tabs ----------
   const tabs = [];
@@ -143,7 +192,7 @@
       case 'webmcp': {
         entry.title = 'Websites with AI tools';
         const el = $('#tpl-webmcp').content.firstElementChild.cloneNode(true);
-        window.MCPWebSites?.mount(el, { desktop: Boolean(desktop), openWeb: (url) => (desktop ? newTab({ kind: 'web', url }) : window.open(url, '_blank', 'noopener,noreferrer')) });
+        window.MCPWebSites?.mount(el, { q: entry.q, desktop: Boolean(desktop), openWeb: (url) => (desktop ? newTab({ kind: 'web', url }) : window.open(url, '_blank', 'noopener,noreferrer')) });
         return el;
       }
       case 'stack': {
@@ -255,6 +304,13 @@
   function open(input, tab = active) {
     const s = String(input || '').trim();
     if (!s) return;
+    // !g, !w, !yt…: straight to that site (or a page of the app: !mcp, !sites).
+    const bang = window.MCPBangs?.parse(s);
+    if (bang) {
+      if (bang.entry) return navigate(tab, bang.entry);
+      if (desktop) return navigate(tab, { kind: 'web', url: bang.url });
+      return window.open(bang.url, '_blank', 'noopener,noreferrer');
+    }
     if (/^mcp:\/\/(home|newtab)\/?$/i.test(s)) return navigate(tab, { kind: 'home' });
     if (/^mcp:\/\/servers/i.test(s)) return navigate(tab, { kind: 'servers' });
     if (/^mcp:\/\/settings/i.test(s)) return navigate(tab, { kind: 'settings' });
@@ -268,6 +324,7 @@
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
     }
+    history.add(s);
     navigate(tab, { kind: 'search', query: s });
   }
 
@@ -290,6 +347,7 @@
     omni.blur();
   });
   omni.addEventListener('focus', () => omni.select());
+  attachSuggest(omni);
   $('#newTab').addEventListener('click', () => newTab());
   $('#back').addEventListener('click', () => go(-1));
   $('#home').addEventListener('click', () => navigate(active, { kind: 'home' }));
@@ -402,10 +460,90 @@
       b.addEventListener('click', () => open(s, tab));
       sug.appendChild(b);
     }
+    attachSuggest(input);
+    renderRecent(tab, el);
+    renderDiscover(tab, el);
+    renderSearchEngine(el);
     renderSetup(el);
     renderTemplates(tab, el);
     setTimeout(() => tab === active && input.focus(), 0);
     return el;
+  }
+
+  // ---------- start page: recent searches, things to discover ----------
+  function renderRecent(tab, el) {
+    const box = $('[data-recent]', el);
+    const list = history.list().slice(0, 6);
+    box.hidden = !list.length;
+    $('[data-recent-list]', box).replaceChildren(
+      ...list.map((q) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = q;
+        b.addEventListener('click', () => open(q, tab));
+        return b;
+      })
+    );
+    $('[data-recent-clear]', box).onclick = () => (history.clear(), (box.hidden = true));
+  }
+  async function renderDiscover(tab, el) {
+    let d;
+    try {
+      d = await api.get('/api/discover');
+    } catch {
+      return;
+    }
+    if (!d?.tryNow) return;
+    const box = $('[data-discover]', el);
+    const item = (x, withPrompt) =>
+      `<li><div class="dc-t"><b>${esc(x.title)}</b> <span class="dc-c">${esc(x.category)}</span></div>${withPrompt && x.prompt ? `<button type="button" class="dc-q" data-dc-ask="${esc(x.id)}" data-dc-prompt="${esc(x.prompt)}">${esc(x.prompt)}</button>` : `<button type="button" class="link-btn dc-show" data-dc-show="${esc(x.id)}">${esc(x.desc)}</button>`}</li>`;
+    $('[data-dc-try]', box).innerHTML = d.tryNow.map((x) => item(x, true)).join('');
+    $('[data-dc-fresh]', box).innerHTML = (d.fresh || []).map((x) => item(x, true)).join('');
+    $('[data-dc-popular]', box).innerHTML = d.popular.map((x) => item(x, false)).join('');
+    const n = { servers: d.counts?.servers, sites: d.sites?.count };
+    for (const b of box.querySelectorAll('[data-dc-n]')) if (n[b.dataset.dcN]) b.insertAdjacentHTML('beforeend', ` <span class="dc-n">${Number(n[b.dataset.dcN]).toLocaleString()}</span>`);
+    const all = [...d.tryNow, ...(d.fresh || [])];
+    box.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-dc-ask]');
+      if (a) {
+        const x = all.find((y) => y.id === a.dataset.dcAsk);
+        history.add(a.dataset.dcPrompt);
+        return navigate(tab, { kind: 'search', query: a.dataset.dcPrompt, servers: [a.dataset.dcAsk], adhoc: x?.adhoc ? [x.adhoc] : undefined, label: a.dataset.dcPrompt });
+      }
+      const s = e.target.closest('[data-dc-show]');
+      if (s) return navigate(tab, { kind: 'catalog', view: 'all', show: s.dataset.dcShow });
+      const g = e.target.closest('[data-go]');
+      if (g) return open(g.dataset.go, tab);
+    });
+    box.hidden = false;
+  }
+  function renderSearchEngine(el) {
+    const box = $('[data-se]', el);
+    try {
+      if (localStorage.getItem('mcpb.se.hidden') === '1') return;
+    } catch {
+      /* storage blocked */
+    }
+    if (desktop) return; // the desktop app has its own window; this is for your everyday browser
+    const url = `${location.origin}/?q=%s`;
+    $('[data-se-url]', box).textContent = url;
+    $('[data-se-copy]', box).onclick = async (e) => {
+      try {
+        await navigator.clipboard.writeText(url);
+        e.target.textContent = 'Copied';
+      } catch {
+        getSelection().selectAllChildren($('[data-se-url]', box));
+      }
+    };
+    $('[data-se-close]', box).onclick = () => {
+      box.hidden = true;
+      try {
+        localStorage.setItem('mcpb.se.hidden', '1');
+      } catch {
+        /* storage blocked */
+      }
+    };
+    box.hidden = false;
   }
 
   // ---------- first-run setup ----------
@@ -846,6 +984,9 @@
     const turn = $('#tpl-turn').content.firstElementChild.cloneNode(true);
     thread.appendChild(turn);
     $('[data-q]', turn).textContent = query;
+    // Not what you wanted? The same question elsewhere, one click away.
+    const ew = $('[data-elsewhere]', turn);
+    if (ew && window.MCPBangs) ew.innerHTML = `<span>Also search</span> ${window.MCPBangs.elsewhere(query).map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a>`).join('')}`;
     if (opts.wide) $('[data-q]', turn).insertAdjacentHTML('beforeend', ' <small class="wide-tag">wider search</small>');
     // Money, health and legal questions: a quiet reminder that results are sources, not advice.
     const advice = adviceTopic(query);
@@ -1824,6 +1965,10 @@
     }, 2000);
   });
   setInterval(refreshStatus, 30000);
+  // /?q=… : MCP Browser as the browser's search engine. A !bang goes straight to that site.
   const initial = new URLSearchParams(location.search).get('q');
-  newTab(initial ? { kind: 'search', query: initial } : { kind: 'home' });
+  const initialBang = initial && window.MCPBangs?.parse(initial);
+  if (initialBang?.url && !desktop) location.replace(initialBang.url);
+  else if (initialBang?.entry) newTab(initialBang.entry);
+  else newTab(initial ? { kind: 'search', query: initial } : { kind: 'home' });
 })();

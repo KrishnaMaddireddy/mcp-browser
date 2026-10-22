@@ -472,6 +472,7 @@
         uses = window.MCPUseCases.create($('[data-cat-uses]'), ctx);
         uses.render();
       }
+      if (entry.q) $('[data-cat-q]').value = entry.q; // "!mcp weather"
       setView(entry.view || (window.MCPUseCases ? 'uses' : 'all'));
       render();
       if (entry.show) showServer(entry.show);

@@ -82,6 +82,7 @@
       if (o) hooks.openWeb?.(o.dataset.wmOpen);
     });
     if (!hooks.desktop) $('[data-wm-desk]').hidden = false;
+    if (hooks.q) ($('[data-wm-q]').value = hooks.q), (q = hooks.q); // "!sites recipes"
     load();
   }
 

@@ -324,7 +324,104 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     return { id: a.id, title: a.title, type: a.type, name: a.name, version: a.version, isolation: a.isolation, approvedAt: a.approvedAt, trusted: a.trusted, settings: a.settings, values: a.values, missing: engine.local.missing(a), state: st, lastError: h?.status === 'fail' ? h.error : null, command: commandText(a.type, a.name, a.version, a.isolation, a.argv) };
   }
 
+  // Suggestions while typing (browser address bar via OpenSearch, and the app's own boxes):
+  // sample prompts from the catalog that start with, or contain, what was typed.
+  let promptList = null;
+  function suggest(q, n = 8) {
+    const c = loadCatalog();
+    if (!c) return [];
+    if (!promptList) {
+      const seen = new Set();
+      promptList = [];
+      // Questions people would type, not prompts about MCP itself ("find a paid weather API my agent can call").
+      const META = /\b(apis?|mcp|agents?|x402|tools?|servers?|endpoints?|sdk|llm|prompt|bazaar|uptime|paid|call)\b/i;
+      for (const r of c.rows) for (const [p] of (c.F.prompts != null && r[c.F.prompts]) || []) if (p.length <= 80 && !META.test(p) && !seen.has(p.toLowerCase())) (seen.add(p.toLowerCase()), promptList.push([p, p.toLowerCase(), r._pop || 0]));
+      promptList.sort((a, b) => b[2] - a[2]);
+    }
+    const t = String(q || '').toLowerCase().trim();
+    if (t.length < 2) return [];
+    const words = t.split(/\s+/);
+    const starts = [];
+    const has = [];
+    for (const [p, low] of promptList) {
+      if (low.startsWith(t)) starts.push(p);
+      else if (words.every((w) => low.includes(w))) has.push(p);
+      if (starts.length >= n) break;
+    }
+    return [...starts, ...has].slice(0, n);
+  }
+
+  // What the start page offers to discover: servers you can ask right now (newest
+  // first), popular servers, and how many of each. Cached per catalog file.
+  let discoverCache = null;
+  function discover() {
+    const c = loadCatalog();
+    if (!c) return null;
+    if (discoverCache?.at === c.mtime) return discoverCache.data;
+    const { F, rows, D } = c;
+    const ok = (r) => !r[F.deprecated] && !r[F.archived] && r[F.pubCount] < 100 && r[F.desc] && (r[F.title] || '').length < 60;
+    const cat = (r) => D.cats[r[F.cat]]?.[1] || '';
+    const brief = (r) => ({ id: r[F.name], title: r[F.title] || r[F.name].split('/').pop(), desc: String(r[F.desc]).slice(0, 140), category: cat(r), stars: r[F.stars], downloads: r[F.downloads], added: r[F.added] });
+    const day = 864e5;
+    const now = Date.now();
+    const askable = rows
+      .filter((r) => ok(r) && catalogRunnable(r, F) && r[F.reach] === 1 && ((F.prompts != null && r[F.prompts]) || []).length)
+      .sort((a, b) => (b._pop || 0) - (a._pop || 0));
+    // The best-known servers that answer without a key, one per category so the list isn't six of a kind.
+    const seenCat = new Set();
+    const tryNow = [];
+    for (const r of askable) {
+      if (seenCat.has(r[F.cat]) || D.cats[r[F.cat]]?.[0] === 'other') continue;
+      seenCat.add(r[F.cat]);
+      tryNow.push({ ...brief(r), prompt: r[F.prompts][0][0], adhoc: adhocFor(r) });
+      if (tryNow.length >= 8) break;
+    }
+    // New in the last two weeks, with a little adoption already.
+    const fresh = askable
+      .filter((r) => r[F.added] && now - Date.parse(r[F.added]) < 14 * day && (r[F.stars] >= 5 || r[F.rank] > 0 || r[F.downloads] >= 100))
+      .sort((a, b) => String(b[F.added]).localeCompare(String(a[F.added])))
+      .slice(0, 6)
+      .map((r) => ({ ...brief(r), prompt: r[F.prompts][0][0], adhoc: adhocFor(r) }));
+    const popular = rows
+      .filter((r) => ok(r) && r[F.downloads] > 0 && r[F.updated] && now - Date.parse(r[F.updated]) < 60 * day)
+      .sort((a, b) => b[F.downloads] - a[F.downloads])
+      .slice(0, 6)
+      .map(brief);
+    const newest = rows
+      .filter((r) => ok(r) && (r[F.stars] >= 20 || r[F.downloads] >= 500))
+      .sort((a, b) => String(b[F.added]).localeCompare(String(a[F.added])))
+      .slice(0, 6)
+      .map(brief);
+    const data = { tryNow, fresh, popular, newest, counts: { servers: rows.length, askable: rows.filter((r) => catalogRunnable(r, F)).length } };
+    discoverCache = { at: c.mtime, data };
+    return data;
+  }
+
   const routes = {
+    'GET /api/discover': async (req, res) => {
+      const d = discover();
+      const w = webmcpDir?.data ? webmcp().info() : null;
+      json(res, 200, { ...(d || {}), sites: w ? { count: w.sites, tools: w.tools } : null });
+    },
+    'GET /api/suggest': async (req, res, url) => {
+      const q = url.searchParams.get('q') || '';
+      // OpenSearch format: [query, [suggestions]]
+      json(res, 200, [q, suggest(q)]);
+    },
+    // Lets a browser add MCP Browser as a search engine (address bar searches go to /?q=…).
+    'GET /opensearch.xml': async (req, res) => {
+      const origin = `http://${String(req.headers.host)}`;
+      res.writeHead(200, { 'content-type': 'application/opensearchdescription+xml; charset=utf-8', 'cache-control': 'no-cache' });
+      res.end(`<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>MCP Browser</ShortName>
+  <Description>Answers from the MCP servers that know</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image width="16" height="16" type="image/svg+xml">${origin}/icon.svg</Image>
+  <Url type="text/html" method="get" template="${origin}/?q={searchTerms}"/>
+  <Url type="application/x-suggestions+json" method="get" template="${origin}/api/suggest?q={searchTerms}"/>
+</OpenSearchDescription>`);
+    },
     // The result of a page tool the agent asked for (see pageServer).
     'POST /api/page-tool-result': async (req, res) => {
       const b = await readJson(req, 1024 * 1024);
