@@ -983,3 +983,6 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .pl-ed-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .pl-ed-step { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
 .watch-met { margin: 4px 0; padding: 6px 10px; border-radius: 8px; background: var(--signal-soft); font-size: 14px; overflow-wrap: anywhere; }
+.deeper { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 16px 0 0; font-size: 13px; }
+.deeper > span { color: var(--muted); font-weight: 600; margin-right: 4px; }
+.deeper .la-btn { padding: 4px 11px; font-size: 13px; }

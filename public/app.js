@@ -192,7 +192,7 @@
       case 'pipelines': {
         entry.title = 'Pipelines';
         const el = $('#tpl-pipelines').content.firstElementChild.cloneNode(true);
-        window.MCPPipelines?.mount(el, { open: (u) => open(u) });
+        window.MCPPipelines?.mount(el, { open: (u) => open(u), run: entry.run });
         return el;
       }
       case 'webmcp': {
@@ -408,6 +408,11 @@
     } else if (mod && e.key.toLowerCase() === 'l') {
       e.preventDefault();
       omni.focus();
+    } else if (e.key === '/' && !mod && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && !document.activeElement?.isContentEditable) {
+      // "/" jumps to the search box (the page's own box on the start page).
+      e.preventDefault();
+      const homeBox = [...document.querySelectorAll('[data-home-input]')].find((x) => x.offsetParent !== null);
+      (homeBox || omni).focus();
     } else if (e.altKey && e.key === 'ArrowLeft') go(-1);
     else if (e.altKey && e.key === 'ArrowRight') go(1);
   });
@@ -1064,6 +1069,23 @@
       tab.btn.classList.remove('busy');
       for (const [, n] of ui.nodes) if (n.dataset.state === 'connecting' || n.dataset.state === 'working') n.dataset.state = 'idle';
       entry.turns.push({ q: query, a: ui.text || summarizeDirect(ui) });
+      // Go deeper: run a step over each result (a pipeline built on the spot).
+      const deeper = $('[data-deeper]', turn);
+      if (deeper && !entry.inline && !ac.signal.aborted && (ui.direct?.querySelectorAll('a[href]').length || 0) + turn.querySelectorAll('[data-sources] li').length >= 3) {
+        const GO = [
+          ['More coverage of each', '{title}'],
+          ['Code for each', '{title} github code'],
+          ['Discussion of each', '{title} reddit OR hacker news discussion'],
+        ];
+        deeper.innerHTML = `<span>Go deeper</span>${GO.map(([l], k) => `<button type="button" class="la-btn" data-deeper-k="${k}">${esc(l)}</button>`).join('')}`;
+        deeper.hidden = false;
+        deeper.onclick = (e) => {
+          const b = e.target.closest('[data-deeper-k]');
+          if (!b) return;
+          const [label, ask] = GO[Number(b.dataset.deeperK)];
+          newTab({ kind: 'pipelines', run: { input: query, pipeline: { id: 'go-deeper', title: `${label}: ${query}`, input: { label: 'Question', example: query }, steps: [{ ask: '{input}', max: 4 }, { ask, each: true }] } } });
+        };
+      }
       if (ui.answer.querySelector('.placeholder')) ui.answer.innerHTML = '';
     }
   }

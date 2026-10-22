@@ -8,7 +8,7 @@ import { resultBlocks } from './format.js';
 
 const NO_RESULT = [
   /\bno (?:results?|matches|matching|listed|items?|records?|data|stocks?|companies|entries|hits|articles|papers|documents)\b/i,
-  /\bno (?:[\w/-]+ ){0,2}(?:were |was )?(?:found|matched|available)\b/i,
+  /\bno (?:[\w/-]+ ){0,3}(?:were |was )?(?:found|match|matches|matched|available)\b/i, // "No stored diagrams match …"
   /\bno match(?:es)?\b|\b(?:not[_ ]found|nothing found|did not match|could not (?:resolve|find)|couldn'?t find|unable to find|0 results|zero results)\b/i,
   /일치하는 .{0,12}없습니다|결과가 없습니다|찾을 수 없습니다/,
   /見つかりませんでした|該当(?:する)?.{0,6}ありません|結果はありません/,
@@ -299,6 +299,8 @@ export function quickAnswer(results, query) {
     /首都|とは|誰|いつ|どこ|수도|누구|언제|어디|무엇|^(?:qué|que|quién|quien|cuándo|cuando|dónde|donde|cuál|cual|qui|quand|où|quel|quelle|wer|wann|wo|was|welche[rs]?)\b|capital de|hauptstadt/i.test(String(query).trim());
   // Opinions, roundups and explainers are better read as results than as one quote.
   if (!factual || /\b(?:people (?:are )?saying|opinions?|thoughts on|reviews?|explained|ideas|tips|recommend\w*|best\b|top\b)/i.test(query)) return null;
+  // News roundups ("what happened in tech news yesterday") are a list of headlines, not one quote.
+  if (/\b(?:news|headlines?|what happened)\b/i.test(query)) return null;
   // 1. Candidate sentences, each with its page and heading (context).
   const cands = [];
   for (const r of results) {
@@ -314,9 +316,11 @@ export function quickAnswer(results, query) {
       // A title that is itself a full statement ("Nvidia (NVDA) traded at $219.49 on Oct 21") counts too.
       const titleLine = wantsNumber && /\d/.test(b.title || '') && String(b.title).length >= 40 && String(b.title).length <= 220 ? [String(b.title)] : [];
       // Sentence ends: ". " before a capital, a digit or non-Latin text; or 。！？ (no space in CJK).
-      for (const raw of [...titleLine, ...String(b.text || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+(?=[\p{Lu}0-9"“(¿¡]|[^\p{Script=Latin}\s\p{P}])|(?<=[。！？])/u)]) {
+      for (let raw of [...titleLine, ...String(b.text || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+(?=[\p{Lu}0-9"“(¿¡]|[^\p{Script=Latin}\s\p{P}])|(?<=[。！？])/u)]) {
         // Headings glued to the sentence: "Where is Canberra Canberra is …" → "Canberra is …".
         // Pronunciation asides ("( / ˈkænbrə / ⓘ KAN-brə )") go.
+        // Site navigation glued to the front ("Students Britannica Kids Homework Help The capital of …").
+        raw = raw.replace(/^(?:[\p{Lu}][\p{L}'’&-]*\s+){4,}(?=(?:The|A|An|It|In|This|There|Its)\s+\p{Ll})/u, '');
         const s = raw.replace(/\s*\([^()]{0,120}(?:ⓘ|ˈ|ˌ|\/[^/()]{1,40}\/)[^()]{0,120}\)/g, '').trim().replace(/^[#>*\-\s]+/, '').replace(/^(?:where|what|who|when|how|why)\s+(?:is|are|was|were|did|does)\s+([\p{Lu}][\p{L}'’-]+)\s+(?=\1\b)/iu, '');
         const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(s);
         if (s.length < (cjk ? 12 : 30) || s.length > 260) continue;

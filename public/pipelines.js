@@ -176,7 +176,18 @@
         card.querySelector('[data-pl-sched-msg]').innerHTML = r.error ? esc(r.error) : 'Scheduled. Results and changes show up in <button type="button" class="link-btn" data-go="mcp://watches">Watches</button>.';
       }
     });
-    load().catch((e) => ($('[data-pl-starters]').innerHTML = `<li class="lr-fail">${esc(e.message)}</li>`));
+    load()
+      .then(() => {
+        // "Go deeper" from a results page: run that pipeline right away (save it with Change it).
+        if (!hooks.run?.pipeline) return;
+        const p = { ...hooks.run.pipeline, steps: hooks.run.pipeline.steps.map((s) => ({ ...s })) };
+        data.starters = [p, ...data.starters.filter((x) => x.id !== p.id)];
+        $('[data-pl-temp]').innerHTML = cardHtml(p, false);
+        const card = $('[data-pl-temp] [data-pl]');
+        card.querySelector('[data-pl-input]').value = hooks.run.input || '';
+        run(card, p, hooks.run.input || '');
+      })
+      .catch((e) => ($('[data-pl-starters]').innerHTML = `<li class="lr-fail">${esc(e.message)}</li>`));
   }
 
   window.MCPPipelines = { mount };
