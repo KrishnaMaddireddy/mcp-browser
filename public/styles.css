@@ -864,3 +864,51 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .lr-list li { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); min-width: 0; }
 .lr-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .lr-warn p { margin: 0; }
+/* WebMCP: tools a web page offers */
+.pt-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--signal-soft); font-size: 13px; }
+.pt-bar .la-btn { padding: 3px 10px; font-size: 13px; }
+.pt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
+.pt-row { flex: 1; display: flex; min-height: 0; }
+.pt-row webview { flex: 1; height: auto; min-width: 0; }
+.pt-panel { width: min(400px, 45vw); border-left: 1px solid var(--line); background: var(--paper); overflow: auto; padding: 14px 16px; display: grid; gap: 12px; align-content: start; }
+.pt-panel h2 { margin: 0; font-size: 18px; }
+.pt-panel p { margin: 0; }
+.pt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pt-note { font-size: 13.5px; color: var(--muted); }
+.pt-ask { display: flex; gap: 6px; }
+.pt-ask input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; }
+.pt-answer:empty { display: none; }
+.pt-tools { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pt-tool { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+.pt-tool-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pt-name { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.pt-desc { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.pt-use { display: grid; gap: 8px; }
+.pt-fields { display: grid; gap: 8px; }
+.pt-confirm { font-size: 13.5px; color: var(--warn); }
+.pt-out { background: var(--chrome); border-radius: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; margin: 0; }
+.pt-out.bad { outline: 1px solid var(--warn); }
+.pt-pages { margin: 0; padding-left: 18px; }
+@media (max-width: 700px) { .pt-row.pt-open webview { display: none; } .pt-panel { width: 100%; border-left: 0; } }
+.la-webmcp { background: var(--signal-soft); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.wm-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px auto 0; }
+.wm-filters input[type="search"] { flex: 1 1 280px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; }
+.wm-filters select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; max-width: 100%; }
+.wm-kinds-f { display: flex; flex-wrap: wrap; gap: 6px; }
+.wm-list { list-style: none; margin: 12px auto; padding: 0; display: grid; gap: 12px; }
+.wm-site { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; min-width: 0; }
+.wm-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wm-head h3 { margin: 0 6px 0 0; font-size: 17px; overflow-wrap: anywhere; }
+.wm-desc { margin: 0; }
+.wm-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; font-size: 12.5px; }
+.wm-tools summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.wm-tools ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.wm-tools li p { margin: 2px 0 0; color: var(--muted); }
+.wm-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+/* Answers inside the narrow "Tools on this page" panel: one column, no watch */
+.pt-answer .page.inline-run { padding: 0; }
+.pt-answer .turn-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.pt-answer .sources { display: none; }
+.pt-answer [data-watch-toggle], .pt-answer [data-watch-pick] { display: none; }
+.pt-answer .q { font-size: 16px; }
+.pt-answer .wider-line, .pt-answer [data-wider], .pt-answer [data-servers] { display: none; }

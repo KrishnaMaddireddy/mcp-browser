@@ -30,6 +30,7 @@
         <button type="button" data-go="mcp://servers">MCP servers</button>
         <button type="button" data-go="mcp://catalog">Server catalog</button>
         <button type="button" data-go="mcp://stack">My MCP stack</button>
+        <button type="button" data-go="mcp://webmcp">Websites with AI tools</button>
         <button type="button" data-go="mcp://audit">My installed servers</button>
         <button type="button" data-go="mcp://settings">Settings</button>
       </nav>
@@ -335,6 +336,29 @@
     </section>
   </template>
 
+  <template id="tpl-webmcp">
+    <section class="page panel webmcp">
+      <header class="panel-head">
+        <h1>Websites with AI tools</h1>
+        <p class="panel-lede">Sites whose pages offer tools that AI agents can call directly, through the new WebMCP web standard: search a shop, check availability, fill in a booking. From the webmcp.com directory, run by nekuda.ai. Open a site in a tab and MCP Browser picks up its tools from the page.</p>
+        <p class="wm-desk hint" data-wm-desk hidden>Using a page’s tools needs the MCP Browser desktop app (<code>npm run desktop</code>). Here, Open takes you to the site in your browser.</p>
+      </header>
+      <div class="wm-filters">
+        <input type="search" data-wm-q placeholder="Search sites and tools, e.g. flights, recipes, support" aria-label="Search sites and tools">
+        <div class="wm-kinds-f cat-chips" role="group" aria-label="What the tools do">
+          <button type="button" data-wm-kind="" aria-pressed="true">All</button>
+          <button type="button" data-wm-kind="answer" aria-pressed="false">Answer questions</button>
+          <button type="button" data-wm-kind="act" aria-pressed="false">Act on the page</button>
+          <button type="button" data-wm-kind="transact" aria-pressed="false">Buy or book</button>
+        </div>
+        <select data-wm-cat aria-label="Category"><option value="">All categories</option></select>
+      </div>
+      <p class="a-sum" data-wm-sum></p>
+      <ul class="wm-list" data-wm-list></ul>
+      <p><button type="button" class="la-btn" data-wm-more hidden>Show more</button></p>
+    </section>
+  </template>
+
   <template id="tpl-stack">
     <section class="page panel stack">
       <header class="panel-head">
@@ -423,6 +447,8 @@
   <script src="audit.js"></script>
   <script src="local-run.js"></script>
   <script src="stack.js"></script>
+  <script src="page-tools.js"></script>
+  <script src="webmcp-sites.js"></script>
   <script src="link-actions.js"></script>
   <script src="app.js"></script>
 </body>

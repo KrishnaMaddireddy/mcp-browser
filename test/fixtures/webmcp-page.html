@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Recipe test shop</title></head>
+<body>
+<h1>Recipe test shop</h1>
+<script>
+  // Current draft: document.modelContext
+  document.modelContext.registerTool({
+    name: 'search_recipes',
+    description: 'Search recipes by keyword',
+    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'What to cook' } }, required: ['query'] },
+    annotations: { readOnlyHint: true },
+    async execute({ query }) {
+      return { content: [{ type: 'text', text: JSON.stringify({ results: [{ title: 'Tomato soup recipe', url: 'https://example.com/soup', snippet: 'A simple ' + query + ' soup with basil' }] }) }] };
+    },
+  });
+  // Earlier drafts: navigator.modelContext
+  navigator.modelContext.registerTool({
+    name: 'add_to_cart',
+    description: 'Add an item to the cart',
+    inputSchema: { type: 'object', properties: { item: { type: 'string' } } },
+    async execute({ item }) { window.cart = (window.cart || []).concat(item); return 'added ' + item; },
+  });
+  // Unregistered through an AbortSignal: must disappear.
+  const ac = new AbortController();
+  document.modelContext.registerTool({ name: 'temp_tool', description: 'gone', execute() {} }, { signal: ac.signal });
+  ac.abort();
+</script>
+<form toolname="book_table" tooldescription="Book a table" toolautosubmit>
+  <label>People <input name="people" type="number" required></label>
+  <select name="time"><option value="18">6pm</option><option value="20">8pm</option></select>
+  <button>Book</button>
+</form>
+<script>
+  document.querySelector('form').addEventListener('submit', (e) => {
+    if (e.agentInvoked) { e.preventDefault(); e.respondWith(Promise.resolve('Booked a table for ' + e.target.people.value)); }
+  });
+</script>
+</body></html>

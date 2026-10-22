@@ -140,6 +140,12 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'webmcp': {
+        entry.title = 'Websites with AI tools';
+        const el = $('#tpl-webmcp').content.firstElementChild.cloneNode(true);
+        window.MCPWebSites?.mount(el, { desktop: Boolean(desktop), openWeb: (url) => (desktop ? newTab({ kind: 'web', url }) : window.open(url, '_blank', 'noopener,noreferrer')) });
+        return el;
+      }
       case 'stack': {
         entry.title = 'My MCP stack';
         const el = $('#tpl-stack').content.firstElementChild.cloneNode(true);
@@ -177,9 +183,10 @@
 
   // Run a question inside another page (catalog, link actions): the same answer
   // view as a search tab, embedded, with follow-ups. ids/adhoc pin the servers.
-  function runInline(box, query, ids, adhoc) {
+  // page: a web tab's WebMCP tools ("Ask this page"), see page-tools.js.
+  function runInline(box, query, ids, adhoc, pageCtx) {
     box.__entry?.abort?.abort();
-    const inlineEntry = { kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query, inline: true };
+    const inlineEntry = { kind: 'search', query, servers: ids?.length ? [].concat(ids) : undefined, adhoc: adhoc?.length ? adhoc : undefined, label: query, inline: true, page: pageCtx };
     const fakeTab = { btn: Object.assign(document.createElement('div'), { innerHTML: '<span class="tab-title"></span>' }), history: [inlineEntry], idx: 0 };
     const page = buildSearch(fakeTab, inlineEntry);
     page.classList.add('inline-run');
@@ -215,7 +222,18 @@
     if (entry.autorun) setTimeout(() => el.querySelector(`[data-la="${entry.autorun}"]`)?.click(), 0);
     el.innerHTML = `<header class="panel-head"><h1>Open with…</h1><p class="la-url"><code>${esc(info.url)}</code></p>
       <p class="la-open"><button type="button" class="la-open-btn" data-la-open>Open the page</button> <span class="hint">or let MCP servers work on it:</span></p></header>
+      <p class="la-webmcp" data-la-webmcp hidden></p>
       <div class="la-list">${linkActionsHtml(info)}</div><p class="hint" data-la-note></p><div class="la-run" data-la-run></div>`;
+    // The site in the WebMCP directory (checked locally): its pages offer tools to agents.
+    fetch('/api/webmcp/lookup?url=' + encodeURIComponent(info.url))
+      .then((r) => r.json())
+      .then(({ site }) => {
+        if (!site) return;
+        const p = $('[data-la-webmcp]', el);
+        p.hidden = false;
+        p.innerHTML = `<b>${esc(site.host)}</b> offers ${site.toolCount} tool${site.toolCount === 1 ? '' : 's'} for AI agents (WebMCP, listed on webmcp.com)${site.sample.length ? `: ${site.sample.map((n) => `<code>${esc(n)}</code>`).join(', ')}` : ''}. ${desktop ? 'Open the page and use them from the bar above it.' : 'Open it in the MCP Browser desktop app to use them.'}`;
+      })
+      .catch(() => {});
     el.addEventListener('click', (e) => {
       if (e.target.closest('[data-la-open]')) return desktop ? navigate(active, { kind: 'web', url: info.url }) : window.open(info.url, '_blank', 'noopener,noreferrer');
       const b = e.target.closest('[data-la]');
@@ -245,6 +263,7 @@
     if (/^mcp:\/\/catalog/i.test(s)) return navigate(tab, { kind: 'catalog' });
     if (/^mcp:\/\/audit/i.test(s)) return navigate(tab, { kind: 'audit' });
     if (/^mcp:\/\/stack/i.test(s)) return navigate(tab, { kind: 'stack' });
+    if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -799,6 +818,8 @@
     el.appendChild(bar);
     el.appendChild(wv);
     entry.webview = wv;
+    // WebMCP: tools the page offers (bar + "Tools on this page" panel).
+    window.MCPPageTools?.attach({ el, wv, entry, runInline });
     return el;
   }
 
@@ -881,11 +902,12 @@
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-mcpb': '1' },
         // A question asked from the catalog goes to that one server (first turn only).
-        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers, ...(entry.adhoc ? { adhoc: entry.adhoc } : {}) } : {}) }),
+        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers, ...(entry.adhoc ? { adhoc: entry.adhoc } : {}) } : {}), ...(entry.page ? { page: entry.page.info() } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      await readSSE(res.body, (type, data) => onEvent(ui, type, data));
+      // A page tool the agent asked for runs in the web tab; the result goes back to the server.
+      await readSSE(res.body, (type, data) => (type === 'page_tool_call' ? entry.page?.answer(data) : onEvent(ui, type, data)));
     } catch (e) {
       if (!ac.signal.aborted) showNotice(ui, `Search failed: ${e.message}. Check that the MCP Browser server is still running.`, 'error');
     } finally {

@@ -3,6 +3,21 @@
 const { app, BrowserWindow, shell, ipcMain, session } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const fs = require('node:fs');
+
+// WebMCP: tools that web pages offer to AI agents. The bridge must run in each
+// page before the page's own scripts, so it's a preload for the web tabs' session
+// that only pushes the bridge into the page (contextBridge.executeInMainWorld):
+// the page gets nothing else from it. Sandboxed preloads can't read files, so the
+// preload is written out with the bridge inside.
+const WEBMCP_BRIDGE = fs.readFileSync(path.join(__dirname, 'webmcp-bridge.js'), 'utf8');
+function addWebMcp(ses) {
+  const file = path.join(app.getPath('userData'), 'webmcp-preload.cjs');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `require('electron').contextBridge.executeInMainWorld({ func: function () {\n${WEBMCP_BRIDGE}\n} });\n`);
+  if (typeof ses.registerPreloadScript === 'function') ses.registerPreloadScript({ type: 'frame', id: 'mcpb-webmcp', filePath: file });
+  else ses.setPreloads([...ses.getPreloads(), file]);
+}
 
 let win = null;
 let serverApp = null;
@@ -81,6 +96,8 @@ function createWindow() {
     if (!/^https?:\/\//i.test(params.src || '')) e.preventDefault();
   });
   win.webContents.on('did-attach-webview', (e, wc) => {
+    // Fallback if the preload didn't run (the bridge returns early when it's there).
+    wc.on('dom-ready', () => wc.executeJavaScript(WEBMCP_BRIDGE).catch(() => {}));
     wc.setWindowOpenHandler(({ url }) => {
       if (/^https?:/i.test(url)) win.webContents.send('open-tab', url);
       return { action: 'deny' };
@@ -131,6 +148,7 @@ function watchForChanges() {
 
 app.whenReady().then(async () => {
   lockPermissions(session.fromPartition('persist:web'));
+  addWebMcp(session.fromPartition('persist:web'));
   lockPermissions(session.defaultSession);
   await startServer();
   if (process.env.MCPB_DEV === '1') watchForChanges();

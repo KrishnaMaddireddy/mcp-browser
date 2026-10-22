@@ -539,3 +539,12 @@ About 12,600 servers in the catalog need no key but ship as npm or Python packag
 - Servers start when a question needs them and stop after 10 minutes unused. **My MCP stack** lists them with Start, Stop and Remove from this Mac.
 
 **Set up now** and the downloadable setup script follow the same rules: packages are pinned to the current version, npm install scripts are off, and servers with warning signs are only set up after you confirm each one.
+
+## Websites with AI tools (WebMCP)
+
+[WebMCP](https://github.com/webmachinelearning/webmcp) is a draft web standard (Google and Microsoft, at the W3C) that lets a web page offer tools to AI agents: `document.modelContext.registerTool(...)`, the earlier `navigator.modelContext` API, or a `<form toolname="…" tooldescription="…">`. The tools run in the page, as you, with your sign-in on that site.
+
+- **Tools on this page** (desktop app): when a page in a tab offers tools, a bar says so. **Use them** opens a panel listing each tool (Reads, Fills a form, or May change things) with a form for its inputs. **Ask this page** answers a question with the page's tools: in free mode through a tool that takes the question as text, or with your AI model. The AI model only gets tools that read (and never form tools, or tools webmcp.com lists as acting or buying); anything that may change things runs only when you click it, after a warning. Results are treated as untrusted data.
+  - How it works: `electron/webmcp-bridge.js` runs in each page before the page's own scripts (a session preload that only injects it), provides the API where the browser doesn't (Electron's Chromium has no native WebMCP yet), or wraps the native one, and collects the tools. MCP Browser's window reads and calls them only when you ask.
+- **Websites with AI tools** (`mcp://webmcp`, in the menu): the [webmcp.com](https://webmcp.com) directory, run by nekuda.ai, of about 6,500 sites and 39,000 tools, searchable by what the tools do (answer questions, act on the page, buy or book) and by category. Open a site in a tab to use its tools.
+- The directory is downloaded about once a day and checked **on your computer**: the pages you visit are never sent to webmcp.com. **Open with** also says when a link's site offers tools.

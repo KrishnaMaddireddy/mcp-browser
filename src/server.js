@@ -18,6 +18,8 @@ import { catalogFile, catalogTools } from './catalog-data.js';
 import { auditInstalled } from './audit.js';
 import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib } from './catalog-index.js';
 import { packageInfo, runtimes, sandboxStatus } from './local-servers.js';
+import { WebMcpDirectory } from './webmcp-dir.js';
+import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
 import { setupScript } from './stack-script.js';
 import { applyStack, detectClients } from './stack-run.js';
@@ -115,14 +117,75 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     };
   }
 
+  // ---------- WebMCP: tools offered by the web page open in a tab ----------
+  let webmcpDir = null;
+  const webmcp = () => (webmcpDir ||= new WebMcpDirectory());
+  const pagePending = new Map(); // callId -> { resolve, reject, timer }
+  const TOOL_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+  /**
+   * The page's tools as the app window reported them. Only script tools go to the
+   * agent (forms act on the page); policy.js then hides any that look like they
+   * change something, and the directory's "act"/"transact" labels hide more.
+   */
+  function cleanPage(p) {
+    if (!p || typeof p !== 'object') return null;
+    let u;
+    try {
+      u = new URL(String(p.url || ''));
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/.test(u.protocol)) return null;
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const listed = webmcp().data ? webmcp().byHost.get(host) : null;
+    const kindOf = (n) => listed?.tools.find((t) => t.name === n)?.kind;
+    const tools = (Array.isArray(p.tools) ? p.tools : [])
+      .slice(0, 60)
+      .filter((t) => t && TOOL_NAME.test(String(t.name || '')) && t.kind !== 'form' && !['act', 'transact'].includes(kindOf(t.name)))
+      .map((t) => {
+        let schema = t.inputSchema && typeof t.inputSchema === 'object' ? t.inputSchema : { type: 'object', properties: {} };
+        if (JSON.stringify(schema).length > 20000) schema = { type: 'object', properties: {} };
+        return { name: String(t.name), description: String(t.description || '').slice(0, 1200), inputSchema: schema, readOnly: t.readOnly === true };
+      });
+    return { host, url: u.href, title: String(p.title || host).slice(0, 120), tools };
+  }
+  function pageServer(page, emit, signal) {
+    return {
+      id: `page:${page.host}`,
+      title: `${page.title} (this page)`,
+      description: 'Tools this web page offers through WebMCP',
+      url: `page://${page.host}`,
+      kind: 'page',
+      source: 'page',
+      trust: 'community',
+      tags: [],
+      pageTools: page.tools,
+      // The app window runs the tool in the page and posts the result back.
+      callPage: (name, args) =>
+        new Promise((resolve, reject) => {
+          const callId = randomBytes(16).toString('hex');
+          const done = (fn, v) => {
+            const p = pagePending.get(callId);
+            if (!p) return;
+            clearTimeout(p.timer);
+            pagePending.delete(callId);
+            fn(v);
+          };
+          pagePending.set(callId, { resolve: (v) => done(resolve, v), timer: setTimeout(() => done(reject, new Error('the page didn’t answer within 60 seconds')), 60000) });
+          signal?.addEventListener('abort', () => done(reject, new Error('stopped')), { once: true });
+          emit('page_tool_call', { callId, name, args });
+        }),
+    };
+  }
+
   async function handleSearch(req, res) {
-    const body = await readJson(req);
+    const body = await readJson(req, 512 * 1024);
     const query = String(body.query || '').trim();
     if (!query) return json(res, 400, { error: 'query required' });
     const history = Array.isArray(body.history)
       ? body.history.slice(-3).map((h) => ({ q: String(h?.q || '').slice(0, 2000), a: String(h?.a || '').slice(0, 6000) }))
       : [];
-    const servers = Array.isArray(body.servers) ? body.servers.slice(0, 10).map(String) : undefined;
+    let servers = Array.isArray(body.servers) ? body.servers.slice(0, 10).map(String) : undefined;
     // Catalog servers this browser hasn't synced: allow them for this one question,
     // only as hosted HTTPS servers with no key (the pool's network guard still applies).
     const adhoc = (Array.isArray(body.adhoc) ? body.adhoc : body.adhoc ? [body.adhoc] : [])
@@ -131,6 +194,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       .map((a) => ({ id: String(a.id).slice(0, 200), title: String(a.title || a.id).slice(0, 120), description: String(a.description || '').slice(0, 400), url: String(a.url), transport: a.transport === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] }));
     const discovery = body.discovery === true;
     const wide = body.wide === true; // "Search wider": one search with a bigger net
+    const page = cleanPage(body.page);
     res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
     const ac = new AbortController();
     res.on('close', () => ac.abort());
@@ -139,6 +203,25 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
     };
     const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
+    // "Ask this page": the page's own tools answer (asked through the app window).
+    if (page) {
+      if (!page.tools.length) {
+        emit('error', { message: 'This page has no tools that only read, so there is nothing to ask. Its other tools are under Tools on this page.' });
+        emit('done', { mode: 'none' });
+        clearInterval(ping);
+        return res.end();
+      }
+      // Free mode can only use a tool that takes the question as text.
+      if (engine.providerInfo().provider === 'none' && !pickQueryTool(page.tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })), query)) {
+        emit('error', { message: 'This page’s tools need an AI model to fill in their inputs (none of them takes a plain question). Add a model in Settings, or run a tool yourself under Tools on this page.' });
+        emit('done', { mode: 'none' });
+        clearInterval(ping);
+        return res.end();
+      }
+      const ps = pageServer(page, emit, ac.signal);
+      adhoc.push(ps);
+      servers = [ps.id];
+    }
     try {
       emit('provider', engine.providerInfo());
       await engine.agent.search(query, { emit, signal: ac.signal, history, servers, discovery, wide, adhoc });
@@ -205,6 +288,38 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   }
 
   const routes = {
+    // The result of a page tool the agent asked for (see pageServer).
+    'POST /api/page-tool-result': async (req, res) => {
+      const b = await readJson(req, 1024 * 1024);
+      const p = pagePending.get(String(b.callId || ''));
+      if (!p) return json(res, 404, { error: 'no such call' });
+      p.resolve({ ok: b.ok === true, text: String(b.text ?? '').slice(0, 100000) });
+      json(res, 200, { ok: true });
+    },
+    // The WebMCP directory (webmcp.com), checked locally.
+    'GET /api/webmcp/lookup': async (req, res, url) => {
+      const d = webmcp();
+      d.ready().catch(() => {});
+      json(res, 200, { site: d.lookup(url.searchParams.get('url') || ''), info: d.info() });
+    },
+    'GET /api/webmcp/sites': async (req, res, url) => {
+      const d = webmcp();
+      await d.ready();
+      const q = url.searchParams;
+      json(res, 200, { ...d.search({ q: q.get('q') || '', kind: q.get('kind') || '', category: q.get('category') || '', offset: Number(q.get('offset')) || 0, limit: Number(q.get('limit')) || 30 }), info: d.info() });
+    },
+    'GET /api/webmcp/site': async (req, res, url) => {
+      try {
+        json(res, 200, { site: await webmcp().site(url.searchParams.get('host')) });
+      } catch (e) {
+        json(res, 502, { error: errMsg(e) });
+      }
+    },
+    'POST /api/webmcp/refresh': async (req, res) => {
+      const d = webmcp();
+      await d.ready({ refresh: true });
+      json(res, 200, d.info());
+    },
     // Package servers approved to run here, and what this computer can run them with.
     'GET /api/local': async (req, res) => {
       const rt = runtimes();

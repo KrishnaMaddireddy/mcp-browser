@@ -34,6 +34,18 @@ export class McpPool {
 
   /** Connect (or reuse) and return { client, tools }. */
   async get(server) {
+    // A web page's own tools (WebMCP), called through the app window: nothing to connect.
+    if (server.kind === 'page') {
+      const tools = server.pageTools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: { readOnlyHint: t.readOnly } }));
+      const client = {
+        callTool: async ({ name, arguments: args }) => {
+          const r = await server.callPage(name, args || {});
+          return { content: [{ type: 'text', text: r.text }], isError: !r.ok };
+        },
+        close: async () => {},
+      };
+      return { client, tools, entry: { inflight: 0, lastUsed: Date.now() } };
+    }
     let c = this.conns.get(server.id);
     const authKey = JSON.stringify(this.authFor(server) || null);
     if (c && (c.server.url !== server.url || c.authKey !== authKey)) {
