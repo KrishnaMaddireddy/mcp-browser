@@ -104,6 +104,12 @@ export class SearchAgent {
       const tick = tickerFor(query);
       const routeQuery = pair ? `${query} currency exchange rate ${pair.join(' ')}` : tick ? `${query} stock quote ${tick}` : query;
       routed = await this.catalog.routeAsync(routeQuery, { ...settings, freeMode: direct || !this.getProvider() });
+      // Answered here already (a sum, a conversion, the time somewhere): web search for
+      // context is enough; specialists matched on a word like "time" only add noise.
+      if (instantAnswer(query)) {
+        const web = routed.filter((r) => r.server.general);
+        if (web.length) routed = web;
+      }
       // A quote or rate question: make sure one server known to have that kind of tool is asked.
       const want = tick ? /instrument[_ ]?info|stock[_ ]?quote|get[_ ]?quote|(?:^|_)quote$|price[_ ]?snapshot|get[_ ]?price\b/i : pair ? /exchange[_ ]?rates?|fx[_ ]?(?:get[_ ]?)?rates?|get[_ ]?(?:latest[_ ]?)?rates?\b|currency|convert[_ ]?currency/i : null;
       if (want) {
