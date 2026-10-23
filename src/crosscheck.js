@@ -804,6 +804,9 @@ export async function judgeWithModel(provider, claim, evidence, signal) {
     // Only more cautious: a model "supports" counts when the matching also found support.
     if (stance === 'supports' && e.stance !== 'supports') stance = e.stance;
     if (stance === 'supports' && (e.uncited || FORUM.test(sourceKey(e.source)))) stance = 'mentions';
+    // …and "differs" only where the quote itself gives another figure or name, or a denial:
+    // one planted quote can't turn every other one against a true claim.
+    if (stance === 'differs' && e.stance !== 'differs' && !e.figure && !e.other && !NEGATION.test(e.sentence) && !MYTH.test(e.sentence)) stance = 'mentions';
     return stance === e.stance ? e : { ...e, stance, by: 'ai' };
   });
   return [...out, ...evidence.slice(16)].sort((a, b) => RANK[b.stance] - RANK[a.stance]);

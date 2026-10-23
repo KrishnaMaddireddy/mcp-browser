@@ -48,7 +48,7 @@ test('with an AI model, it can only make the reading more cautious, and bad repl
   let sent = '';
   const provider = { chat: async (q) => ((sent = q.messages[0].content), { text: 'Here: [{"n":1,"stance":"differs"},{"n":2,"stance":"supports"}]' }) };
   const out = await judgeWithModel(provider, 'claim', ev);
-  assert.deepEqual(out.map((x) => [x.source, x.stance]), [['a', 'differs'], ['b', 'mentions']]);
+  assert.deepEqual(out.map((x) => [x.source, x.stance]), [['a', 'mentions'], ['b', 'mentions']]); // (differs only with a rival figure, name or denial in the quote)
   assert.ok(sent.includes('["one   (nasa.gov) confirmed","two"]'));
   // a reply that doesn't cover every quote: the word matching stands
   await assert.rejects(judgeWithModel({ chat: async () => ({ text: '[{"n":1,"stance":"differs"}]' }) }, 'claim', ev));
