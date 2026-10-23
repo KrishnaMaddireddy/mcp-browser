@@ -181,3 +181,17 @@ test('Applebot follows Googlebot\'s group when it has none of its own', () => {
   assert.equal(robotsAllows(g, 'Applebot', '/', { fallback: 'Googlebot' }).allowed, false);
   assert.equal(robotsAllows(g, 'Applebot', '/').allowed, true);
 });
+
+test('with an AI model set, the model writes the headlines from the brief; research notes go in as data', async () => {
+  const log = [];
+  const calls = [];
+  const asked = [];
+  const agent = { ...stubAgent(log), getProvider: () => ({ chat: async (req) => (asked.push(req), { text: '1. Find Federal Contracts Fast [benefit]\n2. Who Won It Last Time? [question]\n3. Official Federal Bid Portal [proof]\n4. Bids Close Soon: Search Now [urgency]' }) }) };
+  const events = [];
+  await runPipeline(agent, AD, { input: '10 Google ad headlines for SpendQuery, a free federal contract search for small businesses', emit: (t, d) => events.push([t, d]), callTool: stubTools(calls) });
+  assert.equal(calls.filter((c) => c.tool === 'generate_ad_headlines').length, 0);
+  assert.match(asked[0].system, /at most 30 characters/);
+  assert.match(asked[0].messages[0].content, /"product":"SpendQuery"/);
+  const fin = events.find(([t]) => t === 'pipe_final')[1];
+  assert.deepEqual(fin.table.rows.map((r) => r[0]), ['Find Federal Contracts Fast', 'Who Won It Last Time?', 'Bids Close Soon: Search Now']);
+});

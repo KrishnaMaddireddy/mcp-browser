@@ -325,11 +325,20 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           } else {
             // (a JSON reply with a list of results reads as facts: "GPTBot: allow")
             let facts = null;
+            let title = '';
             try {
               const j = JSON.parse(text);
-              if (Array.isArray(j?.results)) facts = j.results.slice(0, 40).map((x) => ({ label: String(x.robots_token || x.name || x.id || '').slice(0, 60), value: String(x.decision ?? x.value ?? x.status ?? '').slice(0, 120) })).filter((f) => f.label);
+              if (Array.isArray(j?.results)) {
+                const all = j.results.map((x) => ({ label: String(x.robots_token || x.name || x.id || '').slice(0, 60), value: String(x.decision ?? x.value ?? x.status ?? '').slice(0, 120) })).filter((f) => f.label);
+                // (a long list of allow/disallow: the disallowed ones, and a count)
+                const no = all.filter((f) => /^disallow/i.test(f.value));
+                if (all.length > 12 && all.some((f) => /^(?:dis)?allow/i.test(f.value))) {
+                  title = `${all.length} checked: ${no.length} disallowed`;
+                  facts = no.slice(0, 20);
+                } else facts = all.slice(0, 40);
+              }
             } catch {}
-            run.details = [{ server: st.call.server, title: '', ...(facts?.length ? { facts } : { text: text.slice(0, 600) }) }];
+            run.details = [{ server: st.call.server, title, ...(facts?.length ? { facts } : title ? {} : { text: text.slice(0, 600) }) }];
           }
         } catch (e) {
           if (signal?.aborted) throw e;
@@ -535,7 +544,7 @@ function finalResult(p, ctx, out) {
       text: lead,
       table: {
         columns: ['Crawler', 'Owner', 'Kind', 'Says it follows robots.txt', `${brief.domain}, home page`, 'Source'],
-        rows: rows.map(({ c, a, differs }) => [c.token, c.owner, KIND[c.kind] || c.kind, c.follows, `${a.allowed ? 'allowed' : 'blocked'}${a.rule ? ` (${a.rule}${a.group === 'own' ? `, its own group` : ''})` : ''}${differs ? ' — Botcard reads it differently' : ''}`, `${c.source ? `[${cite(c.source, `${c.owner}: ${c.token}`)}]` : '—'}${c.report ? ` report: [${cite(c.report, `Report on ${c.token}`)}]` : ''}`]),
+        rows: rows.map(({ c, a, differs }) => [c.token, c.owner, KIND[c.kind] || c.kind, c.follows, `${a.allowed ? 'allowed' : 'blocked'}${a.rule ? ` (${a.rule}${a.group === 'own' ? `, its own group` : ''})` : ''}${differs ? ' — Botcard reads it differently' : ''}`, `${c.source ? `[${cite(c.source, `${c.owner}'s crawler documentation`)}]` : '—'}${c.report ? ` report: [${cite(c.report, `Report on ${c.token}`)}]` : ''}`]),
       },
       notes: [FETCHER_NOTE.text.replace(/\[(\w+)\]/g, (m, k) => (FETCHER_NOTE.sources[k] ? `[${cite(FETCHER_NOTE.sources[k].url, FETCHER_NOTE.sources[k].title)}]` : m))],
       citations,
