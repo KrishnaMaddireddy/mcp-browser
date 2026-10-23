@@ -471,3 +471,15 @@ test('sunrise and sunset come from the forecast reply, in local time', async () 
   assert.equal(sunAnswer(r, 'sunrise and sunset in Paris').text, 'Paris, Île-de-France Region, France, Friday, October 23: sunrise 8:23 AM, sunset 6:47 PM (local time)');
   assert.equal(sunAnswer(r, 'weather in Paris'), null);
 });
+
+test('official, primary and own-site sources are labelled and come first', async () => {
+  const { sourceKind, orderItems } = await import('../src/quality.js');
+  assert.equal(sourceKind('https://www.cdc.gov/measles/symptoms'), 'official');
+  assert.equal(sourceKind('https://www.gov.uk/visas'), 'official');
+  assert.equal(sourceKind('https://pubmed.ncbi.nlm.nih.gov/123/'), 'primary');
+  assert.equal(sourceKind('https://www.nvidia.com/', 'Nvidia stock'), 'own');
+  assert.equal(sourceKind('https://www.nvidia.com/', 'best gpu'), null);
+  assert.equal(sourceKind('https://measles-facts.example.com/'), null);
+  const v = orderItems({ kind: 'items', items: [{ title: 'Measles symptoms explained', url: 'https://blog.example.com/m', text: 'measles symptoms' }, { title: 'Measles symptoms', url: 'https://www.cdc.gov/measles', text: 'measles symptoms and complications' }] }, 'symptoms of measles');
+  assert.equal(v.items[0].kind, 'official');
+});

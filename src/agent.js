@@ -612,10 +612,12 @@ export class SearchAgent {
       // Routing learns from this: off-topic answers count against the server like empty ones.
       this.health?.recordOutcome?.(p.server.id, offTopic ? 'off' : quality.kind);
       this.health?.recordAnswer?.(p.server.id, query, offTopic ? 'off' : quality.kind);
-      const score = resultScore({ kind: quality.kind, text: full, query, sources: found.length, server: p.server, rank: this.catalog.rankScores?.get(p.server.id) ?? null, view: preView });
+      let score = resultScore({ kind: quality.kind, text: full, query, sources: found.length, server: p.server, rank: this.catalog.rankScores?.get(p.server.id) ?? null, view: preView });
       if (!reported) emit('tool_result', { callId, ok: true, ms, chars: text.length, preview: truncate(text, 600), flags, sources: nums, kind: quality.kind });
       // A readable view (items / table / record / text); the raw text stays for "Show raw".
       const view = orderItems(preView, query);
+      // A reply led by a government body's page (CDC, NHS, gov.uk) comes before others of its kind.
+      if (quality.kind === 'ok' && view?.kind === 'items' && view.items[0]?.kind === 'official') score += 4;
       if (quality.kind === 'ok' && !offTopic) useful.push({ text, view, score, serverTitle: p.server.title, serverId: p.server.id, general: Boolean(p.server.general) });
       emit('results', { serverId: p.server.id, serverTitle: p.server.title, serverTrust: p.server.trust, serverSource: p.server.source, tool: p.tool.name, text, view, flags, sources: nums, isError: false, kind: quality.kind, reason: quality.reason, score, offTopic });
       if (quality.kind === 'ok' && !offTopic) tryAnswer(false);

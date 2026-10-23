@@ -1821,7 +1821,8 @@
           const title = it.url
             ? `<a class="rt" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title || it.site)}</a>`
             : `<span class="rt-plain">${esc(it.title)}</span>`;
-          const meta = [it.site ? `<span class="site">${esc(it.site)}</span>` : '', it.date ? `<span>${esc(niceDate(it.date))}</span>` : ''].join('');
+          const kind = { official: ['Official', 'A government or international body'], primary: ['Primary source', 'The registry of record: the paper, filing or package itself'], own: ['Official site', 'The company’s own website'] }[it.kind];
+          const meta = [it.site ? `<span class="site">${esc(it.site)}</span>` : '', kind ? `<span class="src-kind" data-kind="${esc(it.kind)}" title="${esc(kind[1])}">${esc(kind[0])}</span>` : '', it.date ? `<span>${esc(niceDate(it.date))}</span>` : ''].join('');
           return `<li class="ritem">${title}${meta ? `<div class="rmeta">${meta}</div>` : ''}${it.text ? `<p class="rtext">${esc(it.text)}</p>` : ''}${factsHtml(it.facts)}</li>`;
         })
         .join('')}</ol>`;

@@ -472,8 +472,41 @@ const WANTS_NEW = /\b(?:latest|newest|recent(?:ly)?|new|today|this (?:week|month
  * original order kept), off-topic ones after; newest first when the question
  * asks for the latest and most items carry a date. Returns a new view.
  */
+// ---------- official sources ----------
+
+// Governments, intergovernmental bodies, standards bodies and primary registries.
+const OFFICIAL = /(?:^|\.)(?:gov|mil|gouv\.fr|gc\.ca|canada\.ca|gov\.uk|gov\.au|govt\.nz|gov\.in|gov\.sg|go\.jp|go\.kr|gob\.mx|gov\.br|bund\.de|admin\.ch|europa\.eu|who\.int|un\.org|unesco\.org|worldbank\.org|imf\.org|oecd\.org|wto\.org|ietf\.org|w3\.org|iso\.org|cve\.org|nist\.gov|ecb\.europa\.eu|federalreserve\.gov|bankofengland\.co\.uk|nhs\.uk|parliament\.uk|legislation\.gov\.uk|congress\.gov|supremecourt\.gov|courts\.gov)$/;
+// Registries of record for papers and code.
+const PRIMARY = /(?:^|\.)(?:pubmed\.ncbi\.nlm\.nih\.gov|ncbi\.nlm\.nih\.gov|clinicaltrials\.gov|doi\.org|arxiv\.org|nature\.com|science\.org|thelancet\.com|nejm\.org|bmj\.com|cochranelibrary\.com|sec\.gov|npmjs\.com|pypi\.org|crates\.io)$/;
+
+/**
+ * What kind of source a link is: 'official' (a government or international body),
+ * 'primary' (a registry of record: PubMed, SEC filings, DOI, arXiv, npm), 'own' (the
+ * company's own site, when the question names a company), or null.
+ */
+export function sourceKind(url, query = '') {
+  let h;
+  try {
+    h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+  if (PRIMARY.test(h)) return 'primary';
+  if (OFFICIAL.test(h)) return 'official';
+  // "Nvidia …" → nvidia.com is the company's own site.
+  const low = String(query).toLowerCase();
+  const sld = h.split('.').slice(-2, -1)[0] || '';
+  if (sld.length >= 3 && /\.(?:com|co|io|ai|net|org|dev|app)$/.test(h)) {
+    for (const name of Object.keys(COMPANY_TICKERS)) if (name.replace(/[^a-z]/g, '') === sld && new RegExp(`\\b${name}\\b`).test(low)) return 'own';
+  }
+  return null;
+}
+
 export function orderItems(view, query) {
-  if (view?.kind !== 'items' || view.items.length < 2) return view;
+  if (view?.kind !== 'items' || view.items.length < 2) {
+    if (view?.kind === 'items') for (const it of view.items) if (it.url && sourceKind(it.url, query)) it.kind = sourceKind(it.url, query);
+    return view;
+  }
   // The same page twice (same link, or same site saying the same thing) shows once.
   const seen = new Set();
   const items = view.items.filter((it) => {
@@ -494,8 +527,14 @@ export function orderItems(view, query) {
   // English pages before a Chinese or Turkish one (they stay, lower down).
   const lang = langOf(String(query));
   for (const x of scored) x.lang = !lang || langOf(`${x.it.title} ${x.it.text || ''}`.slice(0, 300)) === lang ? 1 : 0;
+  // Official and primary sources first among the on-topic ones (shown with a label).
+  for (const x of scored) {
+    const k = x.it.url ? sourceKind(x.it.url, query) : null;
+    if (k) x.it.kind = k;
+    x.off = k ? 1 : 0;
+  }
   const byDate = WANTS_NEW.test(String(query)) && dated >= view.items.length / 2;
-  scored.sort((a, b) => (b.on - a.on) || (b.lang - a.lang) || (b.when - a.when) || (byDate ? String(b.it.date || '').localeCompare(String(a.it.date || '')) : 0) || a.i - b.i);
+  scored.sort((a, b) => (b.on - a.on) || (b.lang - a.lang) || (b.when - a.when) || (byDate ? 0 : b.off - a.off) || (byDate ? String(b.it.date || '').localeCompare(String(a.it.date || '')) : 0) || a.i - b.i);
   return { ...view, items: scored.map((x) => x.it), offTopicItems: scored.filter((x) => !x.on).length };
 }
 

@@ -4,7 +4,7 @@
 // someone else, or just mention the topic? Nothing is generated: every verdict points
 // at quoted sentences, so you can see why.
 import { tokenize } from './util.js';
-import { entityOf, unitOf } from './quality.js';
+import { entityOf, unitOf, sourceKind } from './quality.js';
 
 const SENTENCE = /(?<=[.!?])\s+(?=[A-Z0-9"“(])|\n+/;
 const NUM = /(?<![\w.])(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?)(?:\s*(%|percent|per cent|[a-zA-Z°/²³]+(?:\s(?:per|an|a)\s[a-z]+)?))?/g;
@@ -327,7 +327,7 @@ export function evidenceFrom(parts, results) {
         const site = it.site || '';
         if (!site) continue;
         const j = judgeText(parts, `${it.title}. ${it.text || ''} ${(it.facts || []).map((f) => `${f.label}: ${f.value}.`).join(' ')}`);
-        if (j) add(site, { source: site, url: it.url || null, title: it.title || '', via: r.serverTitle, ...j });
+        if (j) add(site, { source: site, url: it.url || null, title: it.title || '', via: r.serverTitle, ...(it.url && sourceKind(it.url) ? { kind: sourceKind(it.url) } : {}), ...j });
       }
     } else {
       const j = judgeText(parts, r.view?.kind === 'record' ? `${r.view.title || ''}. ${(r.view.facts || []).map((f) => `${f.label}: ${f.value}.`).join(' ')}` : r.text);
@@ -351,7 +351,10 @@ export function verdictOf(evidence) {
   else if (differs >= 2 && supports === 0) [verdict, label] = ['contradicted', `${differs} sources say something different`];
   else if (supports <= 2 && supports >= 1 && differs === 0) [verdict, label] = ['weak', supports === 1 ? 'Only one source states it' : 'Only two sources state it'];
   else [verdict, label] = ['unclear', mentions ? 'Sources mention this, but none states it' : 'Not enough evidence found'];
-  return { verdict, label, supports, differs, mentions };
+  // "including 2 official sources": a government body or a registry of record among those agreeing.
+  const official = evidence.filter((e) => e.stance === 'supports' && (e.kind === 'official' || e.kind === 'primary')).length;
+  if (official && supports) label += `, including ${official} official or primary source${official === 1 ? '' : 's'}`;
+  return { verdict, label, supports, differs, mentions, official };
 }
 
 /**

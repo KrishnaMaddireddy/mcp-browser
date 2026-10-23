@@ -40,7 +40,7 @@
           const list = ev.filter((e) => e.stance === k);
           if (!list.length) return '';
           const items = list
-            .map((e) => `<li class="ck-src"><blockquote>${mark(e.sentence, e.figure || e.other)}</blockquote><p class="ck-cite">${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source)}</a>` : esc(e.source)}${e.via && e.via !== e.source ? ` <span>via ${esc(e.via)}</span>` : ''}${e.other ? ` <span>names ${esc(e.other)}</span>` : ''}</p></li>`)
+            .map((e) => `<li class="ck-src"><blockquote>${mark(e.sentence, e.figure || e.other)}</blockquote><p class="ck-cite">${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source)}</a>` : esc(e.source)}${e.kind ? ` <span class="src-kind" data-kind="${esc(e.kind)}">${e.kind === 'primary' ? 'Primary source' : 'Official'}</span>` : ''}${e.via && e.via !== e.source ? ` <span>via ${esc(e.via)}</span>` : ''}${e.other ? ` <span>names ${esc(e.other)}</span>` : ''}</p></li>`)
             .join('');
           const body = `<ul class="ck-list">${items}</ul>`;
           return k === 'mentions'
