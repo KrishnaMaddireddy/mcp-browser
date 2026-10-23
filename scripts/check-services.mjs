@@ -123,21 +123,30 @@ for (const [feature, q] of CARDS) {
 await app.close?.();
 await engine.close?.();
 
-const failed = rows.filter((r) => !r.ok);
+// A rate limit is "busy", not down: the shared runners hit free tiers often, and a busy server
+// answers again later (it's listed, but doesn't count as a failure).
+const BUSY = /\b429\b|rate.?limit|too many requests|quota/i;
+for (const r of rows) if (!r.ok && BUSY.test(r.note)) r.busy = true;
+const failed = rows.filter((r) => !r.ok && !r.busy);
+const busy = rows.filter((r) => r.busy);
+// Server text goes in a code span: it can't add links, images or mentions, or break the table.
+const code = (x) => {
+  const t = String(x).replace(/[`\u0000-\u001f]/g, "'").replace(/\|/g, '/').trim();
+  return t ? `\`${t}\`` : '';
+};
 const cell = (x) => String(x).replace(/\|/g, '\\|').replace(/[<>]/g, '');
 const md = [
-  `## Server check: ${failed.length ? `${failed.length} of ${rows.length} not answering` : `all ${rows.length} answering`}`,
+  `## Server check: ${failed.length ? `${failed.length} of ${rows.length} not answering` : `all ${rows.length - busy.length} answering`}${busy.length ? `; ${busy.length} busy (rate limited)` : ''}`,
   '',
   `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC, free mode, one real question each.`,
   '',
   '| Feature | Part | Server | Answered | What came back | Time |',
   '|---|---|---|---|---|---|',
-  ...rows.map((r) => `| ${cell(r.feature)} | ${cell(r.part)} | ${cell(r.servers)} | ${r.ok ? 'yes' : '**no**'} | ${cell(r.note)} | ${(r.ms / 1000).toFixed(1)}s |`),
+  ...rows.map((r) => `| ${cell(r.feature)} | ${cell(r.part)} | ${cell(r.servers)} | ${r.ok ? 'yes' : r.busy ? 'busy' : '**no**'} | ${code(r.note)} | ${(r.ms / 1000).toFixed(1)}s |`),
 ].join('\n');
 console.log(md);
 if (opt('--md')) fs.writeFileSync(opt('--md'), md + '\n');
-if (opt('--json')) fs.writeFileSync(opt('--json'), JSON.stringify({ failed: failed.length, rows }, null, 1));
-// (for an issue: what isn't answering, with server text that can't mention anyone or add links)
-const safe = (x) => cell(x).replace(/[\\`*_[\]!#]/g, '\\$&').replace(/@/g, '@\u2060').replace(/:\/\//g, ':\u2060//');
-if (opt('--issue') && failed.length) fs.writeFileSync(opt('--issue'), `**Not answering:**\n\n${failed.map((r) => `- ${safe(r.feature)}: ${safe(r.part)} (${safe(r.servers)}): ${safe(r.note)}`).join('\n')}\n`);
+if (opt('--json')) fs.writeFileSync(opt('--json'), JSON.stringify({ failed: failed.length, busy: busy.length, rows }, null, 1));
+// (for the issue: what isn't answering; names are ours, server text is in code spans)
+if (opt('--issue') && failed.length) fs.writeFileSync(opt('--issue'), `**Not answering:**\n\n${failed.map((r) => `- ${cell(r.feature)}: ${cell(r.part)} (${code(r.servers)}): ${code(r.note)}`).join('\n')}\n`);
 process.exit(failed.length ? 1 : 0);

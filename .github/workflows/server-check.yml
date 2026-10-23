@@ -44,21 +44,27 @@ jobs:
       - name: Servers behind cards, Dependency check, watches and Cross-check
         id: services
         env:
-          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb
+          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb-services
         run: |
           set +e
-          node scripts/check-services.mjs --md "$RUNNER_TEMP/services.md" --json "$RUNNER_TEMP/services.json" --issue "$RUNNER_TEMP/not-answering.md" > /dev/null
-          echo "code=$?" >> "$GITHUB_OUTPUT"
+          timeout 10m node scripts/check-services.mjs --md "$RUNNER_TEMP/services.md" --json "$RUNNER_TEMP/services.json" --issue "$RUNNER_TEMP/not-answering.md" > "$RUNNER_TEMP/services.log" 2>&1
+          code=$?
+          # (a crash or a timeout is a failure too, with what it printed)
+          if [ ! -f "$RUNNER_TEMP/services.md" ]; then code=2; printf '**The server check itself failed** (exit %s):\n\n```\n%s\n```\n' "$code" "$(tail -20 "$RUNNER_TEMP/services.log")" > "$RUNNER_TEMP/not-answering.md"; cp "$RUNNER_TEMP/not-answering.md" "$RUNNER_TEMP/services.md"; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/services.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Pipeline library
         id: pipelines
         env:
-          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb
+          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb-pipelines # (its own: a server resting after the check above still gets tried)
         run: |
           set +e
-          node scripts/test-pipelines.mjs > "$RUNNER_TEMP/pipelines.txt" 2>&1
+          timeout 25m node scripts/test-pipelines.mjs > "$RUNNER_TEMP/pipelines.txt" 2>&1
+          code=$?
           failed="$(grep -c '^FAIL' "$RUNNER_TEMP/pipelines.txt")"
+          # (a crash or a timeout before the totals counts as a failure, not as "0 failed")
+          if [ "$code" != "0" ] || ! grep -q 'passed, [0-9]* failed' "$RUNNER_TEMP/pipelines.txt"; then failed="$((failed + 1))"; echo "crashed=1" >> "$GITHUB_OUTPUT"; fi
           echo "failed=$failed" >> "$GITHUB_OUTPUT"
           {
             echo
@@ -79,17 +85,19 @@ jobs:
           if-no-files-found: ignore
 
       - name: Keep one issue up to date
-        if: github.event_name == 'schedule' || inputs.issue
+        if: always() && (github.event_name == 'schedule' || inputs.issue)
         env:
           GH_TOKEN: ${{ github.token }}
           SERVICES_CODE: ${{ steps.services.outputs.code }}
           PIPES_FAILED: ${{ steps.pipelines.outputs.failed }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -o pipefail
           title="Server check: some servers stopped answering"
           export TITLE="$title"
-          id="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq '.[] | select(.title == env.TITLE and .user.login == "github-actions[bot]" and (.pull_request | not)) | .number' | head -1)"
-          if [ "$SERVICES_CODE" = "0" ] && [ "${PIPES_FAILED:-0}" = "0" ]; then
+          # (if the lookup itself fails, stop: never open a second issue by mistake)
+          id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq '.[] | select(.title == env.TITLE and .user.login == "github-actions[bot]" and (.pull_request | not)) | .number' | sed -n 1p)" || { echo "::warning::Couldn't look up the issue"; exit 0; }
+          if [ "$SERVICES_CODE" = "0" ] && [ "${PIPES_FAILED:-1}" = "0" ]; then
             if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$id" -f state=closed -f state_reason=completed > /dev/null; echo "All answering again: closed #$id"; fi
             exit 0
           fi
@@ -98,7 +106,7 @@ jobs:
             echo "Weekly check, $(date -u +%Y-%m-%d). Full results: $RUN_URL"
             echo
             if [ "$SERVICES_CODE" != "0" ] && [ -f "$RUNNER_TEMP/not-answering.md" ]; then cat "$RUNNER_TEMP/not-answering.md"; echo; fi
-            if [ "${PIPES_FAILED:-0}" != "0" ]; then echo "**Pipelines that failed:** $PIPES_FAILED (see the run summary)."; fi
+            if [ "${PIPES_FAILED:-1}" != "0" ]; then echo "**Pipelines that failed:** ${PIPES_FAILED:-the run stopped before them} (see the run summary)."; fi
             echo
             echo "A server can be down for a day; two weeks in a row is a reason to replace it."
           } > "$body"

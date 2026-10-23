@@ -1196,7 +1196,7 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .fact-mark:hover, .fact-mark:focus-visible { border-color: currentColor; }
 .fact-mark[data-v="pending"] { border-style: dashed; }
 .fact-mark[data-v="supported"], .fact-mark[data-v="mostly"] { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 45%, transparent); }
-.fact-mark[data-v="disputed"], .fact-mark[data-v="weak"] { color: #a26f08; border-color: #e2c27a; }
+.fact-mark[data-v="disputed"], .fact-mark[data-v="weak"] { color: var(--warn); border-color: #e2c27a; }
 .fact-mark[data-v="contradicted"] { color: #c2410c; border-color: #f0b393; }
 .fm-sum { display: block; margin-top: 4px; }
 @media (prefers-color-scheme: dark) {
