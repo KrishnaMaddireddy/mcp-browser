@@ -7,6 +7,14 @@ import { tokenize, parseJsonLenient } from './util.js';
 import { resultBlocks } from './format.js';
 
 // Replies that only report a failure (checked on short replies only).
+// A reply that is the server describing itself, or an empty search dressed as JSON,
+// rather than an answer ("Here are the available commands and their input schema…",
+// {"total_matches": 0, …}). Checked on the first ~200 characters.
+export const HELP_REPLY = /available commands and their input schema|run again with the "learn=true"|^\W{0,3}"?error"?\s*:\s*"|"(?:total_matches|returned|total_results|totalResults|result_count|num_results)"\s*:\s*0\s*[,}]/i;
+// Tools that list or route to a server's own other tools: what they return is a menu, not an answer.
+// (search_tools is left out: on directory servers the tools it finds are the answer.)
+export const META_TOOL = /^(?:menu|learn|help|get_help|route|list_tools|get_tools|list_methods|list_commands|describe_tools)$/i;
+
 export const ERROR_REPLY = /^\W{0,4}(?:error|exception|traceback)\b|^\W{0,4}(?:failed|failure)(?: to\b|:)|\b(?:failed to (?:connect|resolve|fetch|load|reach|authenticate|open)|connection (?:refused|reset|timed out)|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|not connected|no active session|unable to connect|could not connect|is not running|is not reachable|errno \d+|internal server error|service unavailable|bad gateway)\b/i;
 
 const NO_RESULT = [
@@ -113,11 +121,12 @@ export function classifyResult(text, query = '', { general = false } = {}) {
     const fd = bare && flag('(?:found|matched|success|ok)');
     if (fd && top[fd] === false) return { kind: 'empty', reason: 'no results' };
     const er = flag('errors?');
-    const others = Object.keys(top).filter((k) => !/^(?:errors?|message|code|status|query|q|request_id|requestid|details?|hint|docs?|help)$/i.test(k));
+    const others = Object.keys(top).filter((k) => !/^(?:errors?|message|code|status|query|q|request_id|requestid|details?|hint|docs?|help|remedy|fix|suggestions?|next_?steps?)$/i.test(k));
     if (er && top[er] && others.length === 0) return { kind: 'empty', reason: 'error reply' };
     const w = flag('warnings?');
     if (bare && w && /unknown (?:ticker|symbol|token|entity|company|place|location)|not in (?:canonical )?registry/i.test(JSON.stringify(top[w])) && json.facts <= 3) return { kind: 'empty', reason: 'no results' };
   }
+  if (HELP_REPLY.test(s.slice(0, 200)) && !(json && json.filled)) return { kind: 'empty', reason: /schema|learn=/.test(s.slice(0, 200)) ? 'help text, not an answer' : 'no results' };
   const record = json && json.facts >= 3 && json.textFacts >= 1;
   // A short reply that is only a failure: the server couldn't reach what it fronts, or needs
   // a session or device first ("Failed to connect to MikroTik device", "No active session").

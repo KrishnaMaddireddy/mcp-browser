@@ -23,7 +23,7 @@ import { CATEGORIES, categorize } from './catalog/categories.mjs';
 import { classifyNeighbours } from './catalog/neighbours.mjs';
 import { probeTools, listable } from './catalog/tools.mjs';
 import { samplePrompts } from './catalog/prompts.mjs';
-import { ERROR_REPLY } from '../src/quality.js';
+import { ERROR_REPLY, HELP_REPLY, META_TOOL } from '../src/quality.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -138,6 +138,8 @@ for (const probeFile of probeFiles) {
       if (!PROBE_CODE[r.status]) continue;
       // Graded again with today's rules: a reply that only reports a failure isn't an answer.
       if (r.status === 'answers' && ERROR_REPLY.test(String(r.call?.preview || '').slice(0, 200))) Object.assign(r, { status: 'starts', note: 'replied with an error for the sample question' });
+      else if (r.status === 'answers' && HELP_REPLY.test(String(r.call?.preview || '').slice(0, 200))) Object.assign(r, { status: 'starts', note: 'replied with its own help text or an empty search, not an answer' });
+      else if (r.status === 'answers' && META_TOOL.test(r.call?.tool || '')) Object.assign(r, { status: 'starts', note: 'only listed its own tools; a real question needs an AI model to pick one' });
       // A failed AI-inputs try only counts when it shows a key is needed (the registry didn't say).
       if (r.status === 'fails-ai') {
         if (!/api[ _-]?key|token|not authenticated|unauthori[sz]ed|bearer|sign[ -]?in|credentials/i.test(r.error || '')) continue;
