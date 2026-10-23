@@ -176,7 +176,12 @@ function itemFromObject(o) {
     if (t.length < 3 || /\d/.test(t)) return false;
     return new RegExp(`(?:^|[^\\p{L}\\p{N}])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^\\p{L}\\p{N}])`, 'u').test(said);
   };
-  const facts = factsOf(o, used).filter((f) => !repeats(f.value));
+  // A search hit's rank and its own domain (already shown as the site) aren't facts about it.
+  const site = url ? siteOf(url) : '';
+  const facts = factsOf(o, used)
+    .filter((f) => !repeats(f.value))
+    .filter((f) => !(url && /^(?:position|rank|ranking|index|result (?:rank|position)|domain|host|hostname|display link|displayed link|score|relevance(?: score)?)$/i.test(f.label)))
+    .filter((f) => !(site && String(f.value).replace(/^www\./, '') === site.replace(/^www\./, '')));
   return { title: clip(title, 160), url, site: url ? siteOf(url) : '', date: date ? shortDate(date) : '', text: text ? cutMark(clip(text, 320)) : '', facts };
 }
 
