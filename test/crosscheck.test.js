@@ -290,3 +290,12 @@ test('a rival country for "X is in <country>"; a year put first; a region inside
   assert.equal(st('The Golden Gate Bridge opened in 1950', 'On May 27, 1937, the Golden Gate Bridge opened to pedestrian traffic.')?.stance, 'differs');
   assert.notEqual(st('The Golden Gate Bridge opened in 1937', 'After the 1906 earthquake, San Francisco grew, and the Golden Gate Bridge opened to traffic.')?.stance, 'differs');
 });
+
+test('replay: a describing word before the doer, where the subject is, and "All were built"', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.equal(st('Google was founded by Larry Page and Sergey Brin', 'Google was founded in 1998 by American computer scientists Larry Page and Sergey Brin.'), 'supports');
+  assert.equal(st('Google was founded by Bill Gates', 'Google was founded in 1998 by American computer scientists Larry Page and Sergey Brin.'), 'differs');
+  assert.notEqual(st('Lake Baikal is the deepest lake in the world', "Lake Baikal in southern Russia is the world's deepest lake."), 'differs');
+  assert.notEqual(st('Lake Tanganyika is the deepest lake in the world', "Lake Baikal in southern Russia is the world's deepest lake."), 'supports');
+  assert.notEqual(st('The Great Pyramid of Giza is in Egypt', 'All were built during the Fourth Dynasty of the Old Kingdom of ancient Egypt.'), 'differs');
+});

@@ -537,9 +537,11 @@ function judgeCore(parts, sentence) {
       const lead = wordsAt(sentence.slice(Math.max(0, other.index - 60), other.index)).slice(-6);
       const at = lead.findIndex((w) => subj.some((n) => matches(n, w)));
       if (at >= 0 && lead.slice(at + 1).some((w) => /^(?:and|with)$/.test(w))) return null;
+      // ("Lake Baikal in southern Russia is …": where the subject is, not a rival)
+      if (at >= 0 && lead.slice(at + 1).some((w) => /^(?:in|of|at|near|on|from)$/.test(w))) return null;
     }
     // (a name from the claim itself isn't someone else: "…the capital of Australia is…")
-    if (other && !wordsAt(other[1]).some((w) => subj.some((n) => matches(n, w)) || parts.words.some((n) => matches(n, w))) && !/^(?:The|This|It|He|She|They|We|His|Her|Their|In|On|At)$/.test(other[1].trim())) return { stance: 'differs', sentence, other: other[1].trim() };
+    if (other && !wordsAt(other[1]).some((w) => subj.some((n) => matches(n, w)) || parts.words.some((n) => matches(n, w))) && !/^(?:The|This|It|He|She|They|We|His|Her|Their|In|On|At|All|Both|Some|Many|Most|Each|These|Those|There|Its|Our|One|Two|Three|Several|Few|Such|Other|Others|Today|Now)$/.test(other[1].trim())) return { stance: 'differs', sentence, other: other[1].trim() };
     return null;
   };
 
@@ -700,7 +702,14 @@ function judgeCore(parts, sentence) {
   const byName = () => {
     if (verbAt < 0) return '';
     const m = new RegExp(`^\\S*\\s+(?:(?![\\p{L}]+(?:ed|en)\\s)[\\p{L}\\d,]+\\s+){0,6}?[Bb]y\\s+(?:the\\s+(?:\\p{Lu}\\p{L}+\\s+)?(?:[a-z]+\\s+){1,2})?((?:\\p{Lu}[\\p{L}'’.-]*\\s?)(?:(?:\\p{Lu}[\\p{L}'’.-]*|da|de|van|von|del|la|le)\\s?){0,3})`, 'u').exec(sentence.slice(verbChar));
-    return m ? m[1].trim() : '';
+    if (!m) return '';
+    // ("by American computer scientists Larry Page and Sergey Brin": "American" describes them; the name follows)
+    const rest = sentence.slice(verbChar + m.index + m[0].length);
+    if (!/\s/.test(m[1].trim())) {
+      const later = /^\s*(?:[a-z][\p{L}-]*\s+){1,3}((?:\p{Lu}[\p{L}'’.-]*\s?)(?:(?:\p{Lu}[\p{L}'’.-]*|da|de|van|von|del|la|le)\s?){0,3})/u.exec(rest);
+      if (/^\s*[a-z]/.test(rest) && later) return later[1].trim();
+    }
+    return m[1].trim();
   };
   // "a play based on Don Quixote, written by Shakespeare": made from the thing, not the thing.
   const derived = (i) => /\b(?:based on|inspired by|adapted from|adaptation of|version of|sequel to|prequel to|parody of|translation of|translated|about)\s*$/.test(ws.slice(Math.max(0, i - 3), i).join(' '));
