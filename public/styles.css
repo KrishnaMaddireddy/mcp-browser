@@ -1185,3 +1185,8 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .watch-diff li[data-sign="+"] { color: var(--signal); }
 .watch-diff li[data-sign="−"] { color: #c2410c; }
 .today-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+/* one pipeline in its own tab: just its card, and a way back to the library */
+.pipelines.pl-solo .panel-head, .pipelines.pl-solo [data-pl-mine-h], .pipelines.pl-solo [data-pl-mine], .pipelines.pl-solo [data-pl-lib-h], .pipelines.pl-solo .pl-filter, .pipelines.pl-solo [data-pl-starters], .pipelines.pl-solo [data-pl-more] { display: none !important; }
+.pl-back { margin-bottom: 12px; font-size: 14px; }
+.pipelines.pl-solo [data-pl-tab] { display: none; }
+.pipelines.pl-solo [data-pl-temp] { display: block; }

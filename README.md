@@ -250,6 +250,10 @@ before found (`{input}`, `{answer}`, `{titles}`, or once per result with `{title
 `{host}`). When a server answers with a record instead of links (a quote, a rating, a CVE
 score), the step shows what it said.
 
+**A pipeline in its own tab:** press **Open in new tab** on its card (or Ctrl/⌘-click or
+middle-click **Run**). The tab shows just that pipeline, runs it, and has an address you can
+bookmark or share, e.g. `mcp://pipelines/fx-three-sources?input=USD%20to%20JPY`.
+
 **The library** (`src/data/pipeline-library.json`): 100 pipelines in 8 topics, plus the 6
 starters, browsable by topic and searchable on the page. They were designed against
 servers that passed our tests, run end to end in free mode with their example input, read

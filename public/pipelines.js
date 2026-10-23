@@ -20,7 +20,7 @@
       <div class="pl-head"><h3>${esc(p.title)}</h3>${mine ? '<button type="button" class="link-btn" data-pl-del>Delete</button>' : p.tested?.on ? `<span class="pl-tested" title="Every step returned results when we ran it with the example">Tested ${esc(niceDay(p.tested.on))}</span>` : ''}</div>
       ${p.description ? `<p class="pl-desc">${esc(p.description)}</p>` : ''}
       ${stepsHtml(p)}
-      <form class="pl-run" data-pl-run><label><span>${esc(p.input?.label || 'Input')}</span><input type="text" value="${esc(p.input?.example || '')}" data-pl-input></label><button type="submit" class="st-dl-btn">Run</button><button type="button" class="link-btn" data-pl-edit>Change it</button><button type="button" class="link-btn" data-pl-sched>On a schedule</button></form>
+      <form class="pl-run" data-pl-run><label><span>${esc(p.input?.label || 'Input')}</span><input type="text" value="${esc(p.input?.example || '')}" data-pl-input></label><button type="submit" class="st-dl-btn">Run</button><button type="button" class="link-btn" data-pl-edit>Change it</button><button type="button" class="link-btn" data-pl-sched>On a schedule</button><button type="button" class="link-btn" data-pl-tab title="Run it in a tab of its own (Ctrl- or ⌘-click Run does the same)">Open in new tab</button></form>
       <div class="pl-sched" data-pl-schedbox hidden>
         <label>Run it <select data-pl-every><option value="hourly">every hour</option><option value="daily" selected>every day</option><option value="weekly">every week</option></select></label>
         <label>and stop when the result mentions <input type="text" data-pl-until placeholder="optional, e.g. “released” or “$199”"></label>
@@ -181,6 +181,26 @@
       });
     }
 
+    // A pipeline in a tab of its own: "Open in new tab", or Ctrl/⌘-click (or middle-click) on Run.
+    const toTab = (card) => {
+      const p = all().find((x) => x.id === card.dataset.pl);
+      if (!p || !hooks.openInTab) return false;
+      const input = card.querySelector('[data-pl-input]').value.trim();
+      const saved = !p.temp && p.id !== 'go-deeper' && all().some((x) => x.id === p.id);
+      hooks.openInTab(saved ? { id: p.id, input, title: p.title } : { pipeline: p, input });
+      return true;
+    };
+    el.addEventListener('auxclick', (e) => {
+      const b = e.target.closest('[data-pl-run] button[type=submit]');
+      if (b && e.button === 1 && toTab(b.closest('[data-pl]'))) e.preventDefault();
+    });
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pl-run] button[type=submit]');
+      if (b && (e.metaKey || e.ctrlKey) && toTab(b.closest('[data-pl]'))) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
     el.addEventListener('submit', (e) => {
       const f = e.target.closest('[data-pl-run]');
       if (!f) return;
@@ -202,9 +222,11 @@
         return renderLibrary();
       }
       if (e.target.closest('[data-go]')) return hooks.open?.(e.target.closest('[data-go]').dataset.go);
+      if (e.target.closest('[data-pl-show-all]')) return hooks.showAll?.();
       const card = e.target.closest('[data-pl]');
       if (!card) return;
       const p = all().find((x) => x.id === card.dataset.pl);
+      if (e.target.closest('[data-pl-tab]')) return toTab(card);
       if (e.target.closest('[data-pl-edit]')) return openEditor(p);
       if (e.target.closest('[data-pl-del]')) return post('/api/pipelines/delete', { id: p.id }).then(load);
       if (e.target.closest('[data-pl-sched]')) return (card.querySelector('[data-pl-schedbox]').hidden = !card.querySelector('[data-pl-schedbox]').hidden);
@@ -215,14 +237,24 @@
     });
     load()
       .then(() => {
-        // "Go deeper" from a results page: run that pipeline right away (save it with Change it).
-        if (!hooks.run?.pipeline) return;
-        const p = { ...hooks.run.pipeline, steps: hooks.run.pipeline.steps.map((s) => ({ ...s })) };
+        // One pipeline in this tab ("Go deeper", "Open in new tab", mcp://pipelines/<id>): just that
+        // card, run right away; the rest of the library is a click away.
+        const found = hooks.run?.pipeline || (hooks.run?.id && all().find((x) => x.id === hooks.run.id));
+        if (hooks.run && !found) {
+          $('[data-pl-temp]').innerHTML = `<li class="lr-fail">No pipeline called “${esc(hooks.run.id)}”. <button type="button" class="link-btn" data-pl-show-all>See all pipelines</button></li>`;
+          return;
+        }
+        if (!found) return;
+        el.classList.add('pl-solo');
+        hooks.titled?.(found.title);
+        $('[data-pl-edhost]').insertAdjacentHTML('beforebegin', '<p class="pl-back"><button type="button" class="link-btn" data-pl-show-all>All pipelines</button></p>');
+        const p = { ...found, steps: found.steps.map((s) => ({ ...s })) };
         data.starters = [p, ...data.starters.filter((x) => x.id !== p.id)];
         $('[data-pl-temp]').innerHTML = cardHtml(p, false);
         const card = $('[data-pl-temp] [data-pl]');
-        card.querySelector('[data-pl-input]').value = hooks.run.input || '';
-        run(card, p, hooks.run.input || '');
+        const input = hooks.run.input || p.input?.example || '';
+        card.querySelector('[data-pl-input]').value = input;
+        run(card, p, input);
       })
       .catch((e) => ($('[data-pl-starters]').innerHTML = `<li class="lr-fail">${esc(e.message)}</li>`));
   }

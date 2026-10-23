@@ -130,7 +130,7 @@
     const e = current();
     if (!e) return;
     // (a cross-check shows its claim, so the address can be copied, re-entered or reloaded)
-    omni.value = e.kind === 'search' ? e.query : e.kind === 'web' ? e.url : e.kind === 'home' ? '' : e.kind === 'check' && e.claim ? `check: ${e.claim}` : `mcp://${e.kind}`;
+    omni.value = e.kind === 'search' ? e.query : e.kind === 'web' ? e.url : e.kind === 'home' ? '' : e.kind === 'check' && e.claim ? `check: ${e.claim}` : e.kind === 'pipelines' && (e.run?.id || e.run?.pipeline?.id) && (e.run?.id || e.run.pipeline.id) !== 'go-deeper' ? `mcp://pipelines/${e.run.id || e.run.pipeline.id}${e.run.input ? `?input=${encodeURIComponent(e.run.input)}` : ''}` : `mcp://${e.kind}`;
     $('#back').disabled = !active || active.idx <= 0;
     $('#fwd').disabled = !active || active.idx >= active.history.length - 1;
     document.title = `${e.title || 'New tab'} – MCP Browser`;
@@ -213,9 +213,20 @@
         return el;
       }
       case 'pipelines': {
-        entry.title = 'Pipelines';
+        // (one pipeline in its own tab: its title on the tab)
+        entry.title = entry.run?.pipeline?.title || entry.run?.title || 'Pipelines';
         const el = $('#tpl-pipelines').content.firstElementChild.cloneNode(true);
-        window.MCPPipelines?.mount(el, { open: (u) => open(u), run: entry.run });
+        window.MCPPipelines?.mount(el, {
+          open: (u) => open(u),
+          run: entry.run,
+          openInTab: (run) => newTab({ kind: 'pipelines', run }),
+          titled: (t) => {
+            entry.title = t;
+            const tb = tabs.find((x) => x.history.includes(entry));
+            if (tb) setTitle(tb, entry, t);
+          },
+          showAll: () => navigate(tabs.find((x) => x.history.includes(entry)) || active, { kind: 'pipelines' }),
+        });
         return el;
       }
       case 'webmcp': {
@@ -349,6 +360,15 @@
     if (/^mcp:\/\/audit/i.test(s)) return navigate(tab, { kind: 'audit' });
     if (/^mcp:\/\/stack/i.test(s)) return navigate(tab, { kind: 'stack' });
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
+    // mcp://pipelines/<id>?input=… : that pipeline alone, run with that input
+    const pl = /^mcp:\/\/pipelines\/([\w-]{1,80})(?:\?input=(.*))?$/i.exec(s);
+    if (pl) {
+      let input = '';
+      try {
+        input = decodeURIComponent((pl[2] || '').replace(/\+/g, ' ')).slice(0, 200);
+      } catch {}
+      return navigate(tab, { kind: 'pipelines', run: { id: pl[1], input } });
+    }
     if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
     if (/^mcp:\/\/check/i.test(s)) return navigate(tab, { kind: 'check' });
     if (/^mcp:\/\/deps/i.test(s)) return navigate(tab, { kind: 'deps' });
