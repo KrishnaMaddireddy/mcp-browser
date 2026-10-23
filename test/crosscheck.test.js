@@ -170,3 +170,9 @@ test('near a border, since a year, conceived of: none of them says it', () => {
   assert.notEqual(stance('Windows 11 was released in 2015', 'Windows 11, the first major Windows release since 2015, arrived for PCs.'), 'supports');
   assert.notEqual(stance('The Earth is flat', 'Ancient cultures in China, India and the Americas also conceived of Earth as flat.'), 'supports');
 });
+
+test('the capital of a state is not the capital of its country; "no animal has five"', () => {
+  assert.equal(stance('Melbourne is the capital of Australia', 'Melbourne, the capital of Victoria, Australia, is known for its rich culture.'), 'differs');
+  assert.equal(stance('Canberra is the capital of Australia', 'Canberra, the capital of Australia, is a planned city.'), 'supports');
+  assert.notEqual(stance('An octopus has five hearts', 'In reality, no animal has five hearts, but some have multiple circulatory systems.'), 'supports');
+});

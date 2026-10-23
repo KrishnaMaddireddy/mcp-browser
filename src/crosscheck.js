@@ -313,7 +313,7 @@ function judgeCore(parts, sentence) {
       const g = figs.find((x) => same(match, x));
       const lead = sentence.slice(Math.max(0, g.at - 40), g.at).toLowerCase();
       // "is not 300 metres tall": a denial; "was 300 metres tall" (a past value) for an "is" claim.
-      if (/\b(?:not|never|no longer|isn['’]t|wasn['’]t|aren['’]t|weren['’]t|nor|rather than|instead of)\b/.test(lead)) return { stance: 'differs', sentence, figure: g.raw };
+      if (/\b(?:not|never|no longer|isn['’]t|wasn['’]t|aren['’]t|weren['’]t|nor|rather than|instead of|no|none)\b/.test(lead)) return { stance: 'differs', sentence, figure: g.raw };
       if (parts.present && /\b(?:was|were|had been|used to be|formerly|previously|once|until|originally)\b/.test(lead) && !/\b(?:is|are|now|today|currently)\b/.test(lead)) return { stance: 'mentions', sentence };
       // "nearly 9,000 m" doesn't say 9,000 m
       if (!parts.approx && !match.cmp && /\b(?:nearly|almost|about|around|approximately|roughly|over|under|more than|less than|short of|close to|up to)\s*\$?$/.test(lead.slice(-24))) return { stance: 'mentions', sentence };
@@ -486,9 +486,10 @@ function judgeCore(parts, sentence) {
       // "Lisbon is the capital of Portugal" for "… of Spain"
       if (parts.ofHead) {
         const rest = sentence.slice(orig[p].at);
-        const m = new RegExp(`^(?:[\\p{L}'’.-]+\\s+){0,3}?(?:is|was|are|were|remains)\\s+(?:the\\s+|an?\\s+)?(?:[\\p{L}-]+\\s+){0,3}?${parts.ofHead.replace(/[^\p{L}-]/gu, '')}\\w*(?:\\s+[\\p{L}-]+){0,3}?\\s+${parts.ofPrep}\\s+(?:the\\s+)?(\\p{Lu}[\\p{L}'’.-]*(?:\\s+\\p{Lu}[\\p{L}'’.-]*){0,3})`, 'u').exec(rest);
+        const m = new RegExp(`^(?:[\\p{L}'’.-]+\\s+){0,3}?(?:(?:is|was|are|were|remains)\\s+|[\\p{L}'’.-]+\\s*,\\s*)(?:the\\s+|an?\\s+)?(?:[\\p{L}-]+\\s+){0,3}?${parts.ofHead.replace(/[^\p{L}-]/gu, '')}\\w*(?:\\s+[\\p{L}-]+){0,3}?\\s+${parts.ofPrep}\\s+(?:the\\s+)?(\\p{Lu}[\\p{L}'’.-]*(?:\\s+\\p{Lu}[\\p{L}'’.-]*){0,3})`, 'u').exec(rest);
         // ("born in Ulm, Germany": the place, then the country the claim names)
-        const then = m ? wordsAt(rest.slice(m.index + m[0].length, m.index + m[0].length + 40)).slice(0, 4) : [];
+        // (only for "in"/"at": "the capital of Victoria, Australia" is Victoria's capital, not Australia's)
+        const then = m && parts.ofPrep !== 'of' ? wordsAt(rest.slice(m.index + m[0].length, m.index + m[0].length + 40)).slice(0, 4) : [];
         if (m && !tokenize(m[1]).map(fold).some((w) => tokenize(parts.ofWhat).map(fold).includes(w)) && !tokenize(parts.ofWhat).map(fold).every((w) => then.includes(w))) {
           // ("the Canadian province of Ontario": the place is Ontario)
           const more = /^\s+[\p{L} ]{0,30}?\bof\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})/u.exec(rest.slice(m.index + m[0].length));
