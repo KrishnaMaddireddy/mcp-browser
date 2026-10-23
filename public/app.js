@@ -1775,8 +1775,10 @@
           if ((plain.match(/[.!?](?:\s|$)/g) || []).length >= 2) {
             const p = document.createElement('p');
             p.className = 'ck-acts';
-            p.innerHTML = '<button type="button" class="link-btn ck-btn ck-para-btn">Check each fact in this answer</button>';
-            $('button', p).addEventListener('click', () => newTab({ kind: 'check', paragraph: plain.slice(0, 4000) }));
+            p.innerHTML = '<button type="button" class="link-btn ck-btn ck-para-btn" data-mark-facts>Check each fact in this answer</button> <button type="button" class="link-btn" data-facts-tab>in a new tab</button> <span class="fm-sum" role="status"></span>';
+            // (in place: each fact gets a mark right after its sentence in the answer)
+            $('[data-mark-facts]', p).addEventListener('click', (e) => markFacts(ui, plain.slice(0, 4000), p, e.currentTarget));
+            $('[data-facts-tab]', p).addEventListener('click', () => newTab({ kind: 'check', paragraph: plain.slice(0, 4000) }));
             // (after the answer, not in it: a late re-render of the answer would drop it)
             ui.paraBtn = p;
             ui.answer.after(p);
@@ -1785,6 +1787,135 @@
         if (d.ms) ui.activityCount.textContent = `· ${ui.activity.children.length} steps · ${(d.ms / 1000).toFixed(1)}s`;
         break;
     }
+  }
+
+  // ---------- facts in a written answer, marked where they are ----------
+  const FACT_WORD = { supported: 'backed', mostly: 'mostly backed', disputed: 'sources disagree', contradicted: 'sources differ', weak: 'one or two sources', unclear: 'not settled', error: 'couldn’t check' };
+  /** Where a sentence ends in the answer's text: the text node and offset just after it, or null. */
+  function sentenceEnd(root, sentence) {
+    const nodes = [];
+    let all = '';
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (n.parentElement?.closest('.fact-mark, sup, .cite')) continue; // (citations and marks aren't the sentence)
+      nodes.push([n, all.length]);
+      all += n.nodeValue;
+    }
+    // the sentence's last few words, spaces and punctuation loose ("[1]" markers are skipped above)
+    const words = String(sentence).replace(/[.!?…"”’)\]]+\s*$/, '').match(/[\p{L}\p{N}][\p{L}\p{N}'’.,%$-]*/gu) || [];
+    const tail = words.slice(-5);
+    if (!tail.length) return null;
+    const re = new RegExp(tail.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\S]{1,4}?') + '[.!?…"”’)]*', 'u');
+    const m = re.exec(all);
+    if (!m) return null;
+    const at = m.index + m[0].length;
+    const hit = nodes.filter(([, start]) => start <= at).pop();
+    if (!hit) return null;
+    const [node, start] = hit;
+    return { node, offset: Math.min(at - start, node.nodeValue.length) };
+  }
+  async function markFacts(ui, text, bar, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Checking each fact…';
+    const sum = $('.fm-sum', bar);
+    ui.answer.querySelectorAll('.fact-mark').forEach((m) => m.remove());
+    const marks = new Map(); // claim index → its mark
+    let claims = [];
+    const verdicts = {};
+    const place = () => {
+      claims.forEach((c, n) => {
+        if (!c.claim || marks.has(n)) return;
+        const mk = document.createElement('button');
+        mk.type = 'button';
+        mk.className = 'fact-mark';
+        mk.dataset.v = 'pending';
+        mk.textContent = 'checking…';
+        mk.title = c.claim;
+        mk.addEventListener('click', () => newTab({ kind: 'check', claim: c.claim }));
+        marks.set(n, mk);
+        // (the same sentence split into two facts: the marks sit side by side)
+        const twin = claims.findIndex((x, k) => k < n && x.i === c.i && marks.has(k));
+        if (twin >= 0) return marks.get(twin).after(mk);
+        const end = sentenceEnd(ui.answer, c.sentence);
+        if (!end) return bar.before(mk); // (not found in the rendered text: under the answer instead)
+        const r = document.createRange();
+        r.setStart(end.node, end.offset);
+        r.collapse(true);
+        r.insertNode(mk);
+        // (after the sentence's citation numbers and its full stop: "Fair [1]. ●")
+        for (let guard = 0; guard < 6; guard++) {
+          const nx = mk.nextSibling;
+          if (nx?.nodeType === 1 && nx.matches('.cite, sup')) {
+            nx.after(mk);
+            continue;
+          }
+          if (nx?.nodeType === 3) {
+            // (" [1]." as plain text, or the space before a citation link)
+            const m = /^(?:\s*\[\d+(?:[,\s]+\d+)*\])*\s*[.!?,;:)"”’]*/.exec(nx.nodeValue) || [''];
+            if (/^\s+$/.test(m[0]) && !(nx.nextSibling?.nodeType === 1 && nx.nextSibling.matches('.cite, sup'))) m[0] = '';
+            if (m[0].length) {
+              nx.splitText(m[0].length).before(mk);
+              continue;
+            }
+          }
+          break;
+        }
+      });
+    };
+    const update = () => {
+      for (const [n, mk] of marks) {
+        const v = verdicts[n];
+        if (!v) continue;
+        mk.dataset.v = v.verdict;
+        mk.textContent = FACT_WORD[v.verdict] || v.verdict;
+        mk.title = `${claims[n].claim}\n${v.label || ''}\nClick for every source.`;
+        mk.setAttribute('aria-label', `${claims[n].claim}: ${v.label || FACT_WORD[v.verdict] || v.verdict}. Open every source`);
+      }
+      const todo = claims.filter((c) => c.claim).length;
+      const done = Object.keys(verdicts).length;
+      const n = (vs) => Object.values(verdicts).filter((v) => vs.includes(v.verdict)).length;
+      const skipped = claims.filter((c) => !c.claim).length;
+      sum.textContent = done < todo
+        ? `${done} of ${todo} facts checked…`
+        : `${todo} fact${todo === 1 ? '' : 's'}: ${[n(['supported', 'mostly']) && `${n(['supported', 'mostly'])} backed`, n(['contradicted']) && `${n(['contradicted'])} where sources say something different`, n(['disputed', 'weak']) && `${n(['disputed', 'weak'])} mixed or thin`, n(['unclear', 'error']) && `${n(['unclear', 'error'])} not settled`].filter(Boolean).join(', ')}${skipped ? `; ${skipped} sentence${skipped === 1 ? '' : 's'} not checked (opinions, advice, questions)` : ''}. Click a mark for its sources.`;
+    };
+    try {
+      const res = await fetch('/api/crosscheck/text', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ text }) });
+      if (!res.ok || !/event-stream/.test(res.headers.get('content-type') || '')) {
+        let msg = `the check failed (${res.status})`;
+        try {
+          msg = (await res.json()).error || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let k;
+        while ((k = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, k);
+          buf = buf.slice(k + 2);
+          const type = /^event: (.*)$/m.exec(block)?.[1];
+          const raw = /^data: (.*)$/m.exec(block)?.[1];
+          if (!type || !raw) continue;
+          const d = JSON.parse(raw);
+          if (type === 'para_claims') (claims = d.claims), place();
+          else if (type === 'para_verdict') verdicts[d.n] = d;
+          else if (type === 'error') throw new Error(d.message);
+          update();
+        }
+      }
+      if (!claims.some((c) => c.claim)) sum.textContent = 'No plain facts to check in this answer.';
+      btn.textContent = 'Check again';
+    } catch (e) {
+      sum.textContent = /^No plain facts/.test(e.message) ? e.message : `Couldn’t check: ${e.message}`;
+      btn.textContent = 'Try again';
+    }
+    btn.disabled = false;
   }
 
   function setPlaceholder(ui, text) {

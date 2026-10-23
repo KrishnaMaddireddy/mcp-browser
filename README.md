@@ -336,10 +336,18 @@ it is checked on its own, two at a time, up to 8. "It", "He" and "She" are read 
 name before them, "… is 330 meters tall and was designed by Gustave Eiffel" becomes two
 facts, and opinions, advice, questions and hedged or reported sentences are listed as not
 checked, with why. **Copy as Markdown** gives each fact with its reading and clearest quotes.
-Each check also sends the claim to every curated web search engine and Wikipedia, and the
-subject alone ("Panama Canal") to find the pages about it, so more independent sources get read
-(engines resting after rate limits, and any you switched off, are skipped; a paragraph check
-skips the subject search). On 30 claims written after this was built and never tuned on, true
+
+**Under a written AI answer**, **Check each fact in this answer** marks each fact right where it
+is in the answer, as the checks come in: *backed*, *sources differ*, *sources disagree*, *one or
+two sources* or *not settled*. A mark opens that fact's full check in a tab; **in a new tab**
+opens the whole list.
+
+Each check also sends the claim to every curated web search engine, and the subject alone
+("Panama Canal") to them and Wikipedia to find the pages about it, so more independent sources
+get read (engines resting after rate limits, and any you switched off, are skipped; a paragraph
+check skips the subject search). A sentence that starts with "It" counts when the sentence
+before is plainly about the claim's subject ("The Thames is a river in England. It flows through
+London."), never after another name, a "but", or in "It was Bell who …". On 30 claims written after this was built and never tuned on, true
 claims backed by three or more sources went from 4 of 17 to 9 of 17, and no false claim was
 backed, before or after; on the 206 earlier claims, still none.
 
@@ -684,6 +692,13 @@ first set. `node scripts/e2e-mcp.js out.json` asks the same questions through
 `quick_search` the way Claude does and records whether each reply carries on-topic
 results with a citable sources list. `node scripts/try-mcp.js "question"` shows one
 such reply in full (`FULL=1` for all of it).
+
+**Weekly server check** ([.github/workflows/server-check.yml](.github/workflows/server-check.yml)):
+every Monday, `node scripts/check-services.mjs` asks one real question of each server the app
+relies on by name (each part of the answer cards, the Dependency check services, the page
+reader behind page and repo watches, the Cross-check search engines), then the pipeline
+library runs. Results go to the run's summary, and one issue stays open, updated weekly, while
+anything isn't answering.
 
 ## Tests
 

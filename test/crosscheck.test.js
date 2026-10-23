@@ -307,7 +307,7 @@ test('a figure in brackets belongs to the name just before them', () => {
   assert.equal(st('The Eiffel Tower is 330 meters tall', 'The Eiffel Tower (330 m) is the tallest structure in Paris.'), 'supports');
 });
 
-test('the claim (and its subject alone) goes to every web search engine and Wikipedia, never a switched-off one', async () => {
+test('the claim goes to every web search engine, its subject alone also to Wikipedia, never a switched-off one', async () => {
   const { crossCheck } = await import('../src/crosscheck.js');
   const calls = [];
   const agent = {
@@ -323,8 +323,9 @@ test('the claim (and its subject alone) goes to every web search engine and Wiki
   agent.search = (orig => async (q, o) => (asked.push([q, o.servers || 'routed']), orig(q, o)))(agent.search);
   const r = await crossCheck(agent, 'The Eiffel Tower is 330 meters tall');
   assert.ok(calls.every((c) => c === 'routed' || !c.includes('exa')), JSON.stringify(calls));
-  assert.ok(asked.some(([q, s]) => q === 'The Eiffel Tower is 330 meters tall' && Array.isArray(s) && ['keenable', 'agentsearch', 'tanod-web', 'wikexa'].every((id) => s.includes(id))), JSON.stringify(asked));
-  assert.ok(asked.some(([q, s]) => q === 'Eiffel Tower' && Array.isArray(s)), JSON.stringify(asked));
+  assert.ok(asked.some(([q, s]) => q === 'The Eiffel Tower is 330 meters tall' && Array.isArray(s) && ['keenable', 'agentsearch', 'tanod-web'].every((id) => s.includes(id)) && !s.includes('wikexa')), JSON.stringify(asked));
+  // (Wikipedia once, for the subject's own page)
+  assert.ok(asked.some(([q, s]) => q === 'Eiffel Tower' && Array.isArray(s) && s.includes('wikexa')), JSON.stringify(asked));
   assert.ok(r.evidence.length >= 1);
 });
 

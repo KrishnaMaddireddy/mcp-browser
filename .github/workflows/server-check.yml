@@ -1,0 +1,98 @@
+name: Server check
+
+# Every Monday: are the servers the app relies on by name still answering? One real question
+# to each part of the answer cards, the Dependency check services, the page reader and the
+# Cross-check search engines, then the whole pipeline library. The results go to the run's
+# summary; when something stopped answering, one open issue says what (updated each week,
+# closed when everything answers again).
+on:
+  schedule:
+    - cron: '17 14 * * 1' # Mondays, 14:17 UTC
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Open or update the issue when something isn't answering
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write # (the one "Server check" issue)
+
+concurrency:
+  group: server-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        # (only what the checks need: no desktop app, no on-device model, no install scripts)
+        run: npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund --loglevel=error
+
+      - name: Servers behind cards, Dependency check, watches and Cross-check
+        id: services
+        env:
+          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb
+        run: |
+          set +e
+          node scripts/check-services.mjs --md "$RUNNER_TEMP/services.md" --json "$RUNNER_TEMP/services.json" --issue "$RUNNER_TEMP/not-answering.md" > /dev/null
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/services.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pipeline library
+        id: pipelines
+        env:
+          MCPB_DATA_DIR: ${{ runner.temp }}/mcpb
+        run: |
+          set +e
+          node scripts/test-pipelines.mjs > "$RUNNER_TEMP/pipelines.txt" 2>&1
+          failed="$(grep -c '^FAIL' "$RUNNER_TEMP/pipelines.txt")"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          {
+            echo
+            echo "## Pipeline library: $(tail -1 "$RUNNER_TEMP/pipelines.txt" | grep -o '[0-9]* passed, [0-9]* failed' || echo 'did not finish')"
+            echo
+            if [ "$failed" != "0" ]; then echo '```'; grep '^FAIL' "$RUNNER_TEMP/pipelines.txt" | cut -c1-120; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep one issue up to date
+        if: github.event_name == 'schedule' || inputs.issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICES_CODE: ${{ steps.services.outputs.code }}
+          PIPES_FAILED: ${{ steps.pipelines.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Server check: some servers stopped answering"
+          export TITLE="$title"
+          id="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq '.[] | select(.title == env.TITLE and .user.login == "github-actions[bot]" and (.pull_request | not)) | .number' | head -1)"
+          if [ "$SERVICES_CODE" = "0" ] && [ "${PIPES_FAILED:-0}" = "0" ]; then
+            if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$id" -f state=closed -f state_reason=completed > /dev/null; echo "All answering again: closed #$id"; fi
+            exit 0
+          fi
+          body="$RUNNER_TEMP/issue.md"
+          {
+            echo "Weekly check, $(date -u +%Y-%m-%d). Full results: $RUN_URL"
+            echo
+            if [ "$SERVICES_CODE" != "0" ] && [ -f "$RUNNER_TEMP/not-answering.md" ]; then cat "$RUNNER_TEMP/not-answering.md"; echo; fi
+            if [ "${PIPES_FAILED:-0}" != "0" ]; then echo "**Pipelines that failed:** $PIPES_FAILED (see the run summary)."; fi
+            echo
+            echo "A server can be down for a day; two weeks in a row is a reason to replace it."
+          } > "$body"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$id" -F "body=@$body" > /dev/null && echo "Updated #$id"
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -F "body=@$body" > /dev/null && echo "Opened an issue"
+          fi

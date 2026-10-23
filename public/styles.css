@@ -1190,3 +1190,18 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .pl-back { margin-bottom: 12px; font-size: 14px; }
 .pipelines.pl-solo [data-pl-tab] { display: none; }
 .pipelines.pl-solo [data-pl-temp] { display: block; }
+
+/* Facts in a written answer, marked where they are (Check each fact in this answer) */
+.fact-mark { display: inline-block; margin: 0 2px 0 4px; padding: 0 6px; border: 1px solid var(--line, #d8dcd9); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; line-height: 1.6; vertical-align: 1px; cursor: pointer; white-space: nowrap; }
+.fact-mark:hover, .fact-mark:focus-visible { border-color: currentColor; }
+.fact-mark[data-v="pending"] { border-style: dashed; }
+.fact-mark[data-v="supported"], .fact-mark[data-v="mostly"] { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 45%, transparent); }
+.fact-mark[data-v="disputed"], .fact-mark[data-v="weak"] { color: #a26f08; border-color: #e2c27a; }
+.fact-mark[data-v="contradicted"] { color: #c2410c; border-color: #f0b393; }
+.fm-sum { display: block; margin-top: 4px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fact-mark[data-v="disputed"], :root:not([data-theme="light"]) .fact-mark[data-v="weak"] { color: #f0c46a; border-color: #8a6a1f; }
+  :root:not([data-theme="light"]) .fact-mark[data-v="contradicted"] { color: #ff8a5c; border-color: #8a3f1f; }
+}
+:root[data-theme="dark"] .fact-mark[data-v="disputed"], :root[data-theme="dark"] .fact-mark[data-v="weak"] { color: #f0c46a; border-color: #8a6a1f; }
+:root[data-theme="dark"] .fact-mark[data-v="contradicted"] { color: #ff8a5c; border-color: #8a3f1f; }

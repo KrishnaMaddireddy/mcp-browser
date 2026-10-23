@@ -1046,19 +1046,20 @@ export async function crossCheck(agent, claim, { emit = () => {}, signal, deep =
     queries.push(`${parts.subject.replace(/^the\s+/i, '')} ${dim || parts.objectWords.slice(0, 3).join(' ')}`.trim());
   }
   const unique = queries.filter((q) => !seenQ.has(q.toLowerCase()) && seenQ.add(q.toLowerCase()));
-  // More independent sources: the claim also goes to every web search engine and Wikipedia
-  // (not only the ones routing picked), and the subject alone ("Panama Canal") finds the pages
-  // about it, which state its facts. Never a server you switched off in Settings.
+  // More independent sources: the claim also goes to every web search engine (not only the ones
+  // routing picked), and the subject alone ("Panama Canal") to them and Wikipedia finds the
+  // pages about it, which state its facts. Never a server you switched off in Settings.
   // (one resting after rate limits or failures isn't asked again here: the checks would keep it down)
   const on = (id) => agent.catalog?.settings?.serverOverrides?.[id] !== false && agent.health?.isAvailable?.(id) !== false;
-  const engines = [...WEB_SEARCH, 'wikexa'].filter(on);
+  // (Wikipedia, which allows 50 anonymous requests an hour and also serves the answer cards,
+  // is asked once: for the subject's own page)
+  const engines = WEB_SEARCH.filter(on);
   const extra = [];
-  if (engines.length) {
-    extra.push(runQuery(parts.text, engines));
-    // (a paragraph check runs several facts at once: there, the claim alone, to spare the engines)
-    const subject = String(parts.subject || '').replace(/^the\s+/i, '');
-    if (deep && subject && subject.toLowerCase() !== parts.text.toLowerCase() && subject.split(/\s+/).length <= 6) extra.push(runQuery(subject, engines));
-  }
+  if (engines.length) extra.push(runQuery(parts.text, engines));
+  // (a paragraph check runs several facts at once: there, the claim alone, to spare the engines)
+  const subject = String(parts.subject || '').replace(/^the\s+/i, '');
+  const withWiki = [...engines, ...(on('wikexa') ? ['wikexa'] : [])];
+  if (deep && withWiki.length && subject && subject.toLowerCase() !== parts.text.toLowerCase() && subject.split(/\s+/).length <= 6) extra.push(runQuery(subject, withWiki));
   // (asked side by side, so the second question costs no extra time)
   await Promise.all([...unique.map((q) => runQuery(q)), ...extra.map((p) => p.catch(() => {}))]);
   // Independent sources need more than one search engine: when only one answered (another
