@@ -300,3 +300,9 @@ test('replay: a describing word before the doer, where the subject is, and "All 
   assert.notEqual(st('Lake Tanganyika is the deepest lake in the world', "Lake Baikal in southern Russia is the world's deepest lake."), 'supports');
   assert.notEqual(st('The Great Pyramid of Giza is in Egypt', 'All were built during the Fourth Dynasty of the Old Kingdom of ancient Egypt.'), 'differs');
 });
+
+test('a figure in brackets belongs to the name just before them', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.notEqual(st('The Nile is about 6,650 km long', 'Although falling short of the length of the Mississippi-Missouri (4194 m. according to the estimate of General Tillo), the Nile is at the head of all rivers.'), 'differs');
+  assert.equal(st('The Eiffel Tower is 330 meters tall', 'The Eiffel Tower (330 m) is the tallest structure in Paris.'), 'supports');
+});

@@ -320,6 +320,14 @@ function judgeCore(parts, sentence) {
       return inClause(cl, parts.words) >= Math.ceil(parts.words.length * 0.5);
     };
     figs = figs.filter((g) => comparable(g) && aboutIt(g));
+    // ("the Mississippi-Missouri (4194 m. …), the Nile is …": a figure in brackets belongs to the
+    // name just before them)
+    figs = figs.filter((g) => {
+      const open = sentence.lastIndexOf('(', g.at);
+      if (open < 0 || open < g.at - 3 || sentence.lastIndexOf(')', g.at) > open) return true;
+      const owner = /([\p{Lu}][\p{L}'’.-]*(?:[\s-]+[\p{Lu}][\p{L}'’.-]*)*)\s*$/u.exec(sentence.slice(Math.max(0, open - 60), open));
+      return !owner || wordsAt(owner[1]).some((w) => (parts.subjectWords.length ? parts.subjectWords : parts.words).some((n) => matches(n, w)));
+    });
     // A table row ("Total length 8980 ft | Width 90 ft | … | 220 ft at high tide"): only the
     // cell that names what the claim measures; a row with no such cell says nothing about it.
     if ((sentence.match(/\|/g) || []).length >= 3) {
