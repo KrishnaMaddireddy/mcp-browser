@@ -420,7 +420,7 @@
   $('#reload').addEventListener('click', () => {
     const e = current();
     if (!e) return;
-    if (e.kind === 'search') navigate(active, { kind: 'search', query: e.query, discovery: e.discovery, label: e.label, servers: e.servers });
+    if (e.kind === 'search') navigate(active, { kind: 'search', query: e.query, discovery: e.discovery, label: e.label, servers: e.servers, route: e.route });
     else if (e.kind === 'web' && e.webview) e.webview.reload();
     else navigate(active, { kind: e.kind, url: e.url });
   });
@@ -997,7 +997,7 @@
       try {
         // A follow-up re-runs on its own (without the earlier turns), so it gets its own label.
         const firstTurn = entry.turns.length === 0 || entry.query === query;
-        await api.post('/api/watches', { query, every, discovery: Boolean(entry.discovery), label: firstTurn ? entry.label || '' : '', ...(firstTurn && entry.servers ? { servers: entry.servers, adhoc: entry.adhoc } : {}) });
+        await api.post('/api/watches', { query, every, discovery: Boolean(entry.discovery), label: firstTurn ? entry.label || '' : '', ...(firstTurn && entry.route ? { route: entry.route } : {}), ...(firstTurn && entry.servers ? { servers: entry.servers, adhoc: entry.adhoc } : {}) });
         askNotify();
         pick.hidden = true;
         toggle.hidden = true;
@@ -1258,7 +1258,9 @@
       const vals = Object.fromEntries([...form.querySelectorAll('[data-tpl-fields] input')].map((i) => [i.name, i.value.trim()]));
       const query = current.prompt.replace(/\{(\w+)\}/g, (_, k) => vals[k] || `[${k}]`);
       const label = `${current.title}: ${Object.values(vals).filter(Boolean).join(', ')}`;
-      navigate(tab, { kind: 'search', query, discovery: current.discovery, label });
+      // (what you typed plus the template's fixed words pick the servers; the AI gets the whole prompt)
+      const route = current.route ? current.route.replace(/\{(\w+)\}/g, (_, k) => vals[k] || '').replace(/\s+/g, ' ').trim() : undefined;
+      navigate(tab, { kind: 'search', query, discovery: current.discovery, label, route });
     });
   }
 
@@ -1518,7 +1520,7 @@
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-mcpb': '1' },
         // A question asked from the catalog goes to that one server (first turn only).
-        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.servers && !history.length ? { servers: entry.servers, ...(entry.adhoc ? { adhoc: entry.adhoc } : {}) } : {}), ...(entry.page ? { page: entry.page.info() } : {}) }),
+        body: JSON.stringify({ query, history, discovery: Boolean(entry.discovery), wide: Boolean(opts?.wide), ...(entry.route && !history.length ? { route: entry.route } : {}), ...(entry.servers && !history.length ? { servers: entry.servers, ...(entry.adhoc ? { adhoc: entry.adhoc } : {}) } : {}), ...(entry.page ? { page: entry.page.info() } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);

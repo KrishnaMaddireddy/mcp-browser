@@ -1,7 +1,9 @@
 // Ready-made research prompts. Shown on the browser's home page and offered to
 // Claude Desktop / Claude Code as MCP prompts. `discovery: true` lets one search
 // use community servers from the registry (ad libraries, social, SEO tools)
-// even when Discovery is off globally.
+// even when Discovery is off globally. `route` is what picks the servers (and, with no
+// AI model, what the tools are asked): what the person typed plus a few fixed words, so
+// the instructions in `prompt` ("Cite sources", "United States") don't pull in servers.
 
 export const TEMPLATES = [
   {
@@ -15,6 +17,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Find the current advertising of {competitor} in {market}: which ad platforms and public ad libraries show their ads, the main messages, offers and calls to action, and the landing pages they send people to. Summarize the patterns, then list example ads with links.',
+    route: '{competitor} ads in the ad libraries: messages and offers',
     discovery: true,
   },
   {
@@ -28,6 +31,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Create an SEO content brief for the search "{keyword}" aimed at {audience}: who ranks on the first page now and why, the questions people ask, related keywords, a suggested outline (H2/H3), and gaps the current top pages miss. Cite sources.',
+    route: '{keyword} SEO keyword rankings search results',
     discovery: true,
   },
   {
@@ -41,6 +45,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'What are people saying about {topic} on social platforms and forums (Reddit, Hacker News, Bluesky, X, LinkedIn) in the {timeframe}? Group by sentiment and theme, quote short representative posts with links, and flag emerging complaints or praise.',
+    route: '{topic} social media posts Reddit Hacker News Bluesky',
     discovery: true,
   },
   {
@@ -54,6 +59,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'When people ask AI assistants or search engines for the best {category}, does {brand} appear? Find which brands are recommended most often, where {brand} shows up or is missing, and which sources (reviews, listicles, forums) drive those recommendations.',
+    route: 'which {category} do AI assistants recommend, and is {brand} one',
     discovery: true,
   },
   {
@@ -67,6 +73,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Compare the positioning of {brand} against {competitors}: taglines, pricing, target customers, key features they claim, and recent launches. Present a table, then a short summary of where {brand} is differentiated. Cite sources.',
+    route: '{brand} vs {competitors} pricing features',
     discovery: false,
   },
   {
@@ -77,6 +84,7 @@ export const TEMPLATES = [
     fields: [{ name: 'product', label: 'Product', placeholder: 'e.g. Calendly' }],
     prompt:
       'Collect what customers say in reviews of {product} (app stores, G2, Capterra, Trustpilot, Reddit): the most praised features, the most common complaints, and exact phrases customers use. Link the sources.',
+    route: '{product} customer reviews: G2, Capterra, Trustpilot, app store, Reddit',
     discovery: true,
   },
   {
@@ -90,6 +98,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Research what is working right now in marketing for products like {product} aimed at {audience}: recent successful campaigns, channels, hooks and formats. Then suggest 5 campaign angles, each grounded in an example you found.',
+    route: 'marketing campaign examples for {product} aimed at {audience}',
     discovery: false,
   },
   {
@@ -103,6 +112,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Write a short literature review on {topic} covering work since {since}: the most cited and the most recent papers (with authors, year and links), what they found, where they disagree, and open questions. Prefer papers you actually found in the paper search tools.',
+    route: '{topic} research papers and reviews since {since}',
     discovery: false,
   },
   {
@@ -113,6 +123,7 @@ export const TEMPLATES = [
     fields: [{ name: 'claim', label: 'Claim', placeholder: 'e.g. Honey never spoils' }],
     prompt:
       'Fact-check this claim: "{claim}". Search at least two independent kinds of sources (web, encyclopedia, papers). Say whether it is true, false, or partly true, show the evidence for each side with links, and note anything you could not verify.',
+    route: '{claim} fact check web encyclopedia sources',
     discovery: false,
   },
   {
@@ -125,6 +136,7 @@ export const TEMPLATES = [
       { name: 'question', label: 'Question', placeholder: 'e.g. how are requests scheduled?' },
     ],
     prompt: 'For the GitHub repository {repo}: {question} Explain the relevant modules and files, the flow step by step, and link the files or docs you used.',
+    route: 'GitHub repository {repo} {question}',
     discovery: false,
   },
   {
@@ -139,6 +151,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Using the official documentation, list what changes when upgrading {library} from {from} to {to}: breaking changes, deprecated APIs and their replacements, and a short step-by-step upgrade checklist with code examples. Link the docs pages.',
+    route: '{library} {to} official documentation upgrade migration guide',
     discovery: false,
   },
   {
@@ -153,6 +166,7 @@ export const TEMPLATES = [
     ],
     prompt:
       'Plan a trip from {from} to {to} for {when}: the cheapest reasonable flights you can find (with prices and booking links), what the weather is usually like then, and five things worth doing there. Keep it to one page.',
+    route: 'cheapest flight prices {from} to {to} {when} trip booking weather',
     discovery: true,
   },
 ];

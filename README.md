@@ -252,6 +252,15 @@ appear in Claude Desktop / Claude Code as prompts (slash commands) in MCP server
 Marketing templates switch on Discovery for that one search, so community servers
 (ad libraries, social, SEO tools) can be used. Add your own in `src/templates.js`.
 
+The servers are picked from what you typed plus a short `route` phrase, not from the whole
+prompt, so instructions like "Cite sources" or a market name ("United States" matched a US
+weather server) don't pull in servers that can't help. The AI model still gets the whole
+prompt; with no model, the tools are asked the route phrase. On a real run of all 12
+templates in free mode, routing on the phrase removed the unrelated servers (weather,
+dental, laundry) and gave on-topic first results for the ad scan, SEO brief, AI
+visibility, review mining and literature review; the two 40-question suites stayed at
+40/40 answered.
+
 ## Pipelines (`mcp://pipelines`)
 
 Servers working together: each step asks a server something and can use what the step

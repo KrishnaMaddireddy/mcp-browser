@@ -85,7 +85,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page, repo }) {
+  add({ query, every = 'daily', discovery = false, label = '', route = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page, repo }) {
     // A public GitHub repo: its lockfile is read again each time, so a bump shows too.
     const repoInfo = repo ? repoOf(String(repo)) : null;
     if (repo && !repoInfo) throw new Error('only a public GitHub repo link can be watched');
@@ -119,6 +119,8 @@ export class WatchStore {
       label: String(label || '').trim().slice(0, 200),
       every,
       discovery: Boolean(discovery),
+      // (a template's routing words: they pick the servers each time)
+      ...(typeof route === 'string' && route.trim() ? { route: route.replace(/\s+/g, ' ').trim().slice(0, 300) } : {}),
       // Ask these servers (ids) instead of routing; adhoc = catalog servers not synced yet.
       ...(Array.isArray(servers) && servers.length ? { servers: servers.slice(0, 10).map(String) } : {}),
       ...(Array.isArray(adhoc) && adhoc.length ? { adhoc: cleanAdhoc(adhoc, servers) } : {}),
@@ -368,7 +370,7 @@ export class WatchScheduler {
         this._until(w, text);
         return rec;
       }
-      const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal, servers: w.servers, adhoc: w.adhoc }), timeout]);
+      const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal, servers: w.servers, adhoc: w.adhoc, route: w.route }), timeout]);
       const rec = this.store.record(id, { mode: r.mode, answer: r.answer || '', results, sources: r.sources || [] });
       this._until(w, [r.answer || '', ...results.map((x) => x.text)].join('\n'));
       this._threshold(w, r.quickAnswer?.text || r.answer || '');

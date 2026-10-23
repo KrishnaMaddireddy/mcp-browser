@@ -70,7 +70,7 @@ export class SearchAgent {
    * @param {string} query
    * @param {{emit?: Function, signal?: AbortSignal, history?: {q:string,a:string}[], servers?: string[]}} opts
    */
-  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc, reason = 'chosen by you' } = {}) {
+  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc, reason = 'chosen by you', route } = {}) {
     const t0 = Date.now();
     // A template may turn on discovery for this one search; "Search wider" also
     // casts a bigger net (more servers, more time) just this once.
@@ -82,6 +82,9 @@ export class SearchAgent {
         : base;
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('empty query');
+    // A template's routing words (what the person typed plus a few fixed ones): they pick the
+    // servers and, with no AI model, are what the tools are asked; the model still gets the prompt.
+    const topic = String(route || '').replace(/\s+/g, ' ').trim().slice(0, 300) || query;
     // Free mode: "and AMD?" after "Nvidia stock price today" asks "AMD stock price today".
     if ((direct || !this.getProvider()) && history.length) {
       const full = followUpQuery(query, history);
@@ -101,13 +104,13 @@ export class SearchAgent {
     if (!forcedIds?.length) {
       // Say it the way specialist servers describe themselves: "dollars to yen" → currency
       // exchange rate USD JPY; "Nvidia stock price" → stock quote NVDA.
-      const pair = currencyPair(query);
-      const tick = tickerFor(query);
-      const routeQuery = pair ? `${query} currency exchange rate ${pair.join(' ')}` : tick ? `${query} stock quote ${tick}` : query;
+      const pair = currencyPair(topic);
+      const tick = tickerFor(topic);
+      const routeQuery = pair ? `${topic} currency exchange rate ${pair.join(' ')}` : tick ? `${topic} stock quote ${tick}` : topic;
       routed = await this.catalog.routeAsync(routeQuery, { ...settings, freeMode: direct || !this.getProvider() });
       // Answered here already (a sum, a conversion, the time somewhere): web search for
       // context is enough; specialists matched on a word like "time" only add noise.
-      if (instantAnswer(query)) {
+      if (instantAnswer(topic)) {
         const web = routed.filter((r) => r.server.general);
         if (web.length) routed = web;
       }
@@ -124,7 +127,7 @@ export class SearchAgent {
         if (known && !routed.some((r) => r.server.id === known.id)) routed.splice(Math.max(0, routed.length - 1), 0, { server: known, score: 0, terms: [], reason: tick ? 'has a stock quote tool' : 'has an exchange-rate tool' });
       }
     }
-    emit('route', { signIn: signInHints(this.catalog, query), servers: routed.map((r) => ({ id: r.server.id, title: r.server.title, trust: r.server.trust, source: r.server.source, reason: r.reason, rank: this.catalog.rankScores?.get(r.server.id) ?? null })) });
+    emit('route', { signIn: signInHints(this.catalog, topic), servers: routed.map((r) => ({ id: r.server.id, title: r.server.title, trust: r.server.trust, source: r.server.source, reason: r.reason, rank: this.catalog.rankScores?.get(r.server.id) ?? null })) });
     if (!routed.length) {
       emit('error', { message: 'No enabled MCP server matches this query. Turn on discovery or enable more servers.' });
       return { mode: 'none', answer: '', sources: [] };
@@ -145,9 +148,9 @@ export class SearchAgent {
 
     // 2. Connect in parallel. Free mode asks each server as soon as it connects.
     const book = new SourceBook();
-    book.query = query;
+    book.query = provider ? query : topic;
     // (a backup web engine may step in when the routed one fails; not when you picked the servers)
-    const session = provider ? null : this._directSession({ query, settings, emit, signal, book, deadline, backup: !forcedIds?.length, exclude: new Set(routed.map((r) => r.server.id)) });
+    const session = provider ? null : this._directSession({ query: topic, settings, emit, signal, book, deadline, backup: !forcedIds?.length, exclude: new Set(routed.map((r) => r.server.id)) });
     const asking = [];
     const ready = [];
     await mapLimit(routed, CONNECT_CONCURRENCY, async (r) => {
@@ -182,7 +185,7 @@ export class SearchAgent {
       emit('error', { message: 'None of the chosen MCP servers could be reached.' });
       result = { mode: provider ? 'llm' : 'direct', answer: '', sources: [] };
     } else if (provider) {
-      result = await this._llmLoop({ query, ready, provider, settings, emit, signal, book, history });
+      result = await this._llmLoop({ query, topic, ready, provider, settings, emit, signal, book, history });
     } else {
       result = session.finish();
     }
@@ -252,9 +255,9 @@ export class SearchAgent {
       .join('\n');
   }
 
-  async _llmLoop({ query, ready, provider, settings, emit, signal, book, history }) {
+  async _llmLoop({ query, topic = query, ready, provider, settings, emit, signal, book, history }) {
     const maxSteps = settings.maxSteps ?? 6;
-    const set = this._buildToolset(query, ready, settings.maxToolsPerQuery ?? 40);
+    const set = this._buildToolset(topic, ready, settings.maxToolsPerQuery ?? 40);
     const canDiscover = Boolean(settings.discovery);
     const maxDiscoveries = Math.max(2, settings.discoveryMax ?? 2);
     let discoveries = 0;

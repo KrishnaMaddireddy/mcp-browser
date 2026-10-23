@@ -230,7 +230,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     }
     try {
       emit('provider', engine.providerInfo());
-      await engine.agent.search(query, { emit, signal: ac.signal, history, servers, discovery, wide, adhoc });
+      await engine.agent.search(query, { emit, signal: ac.signal, history, servers, discovery, wide, adhoc, route: typeof body.route === 'string' ? body.route.slice(0, 300) : undefined });
     } catch (e) {
       if (!ac.signal.aborted) {
         log.warn('search failed:', errMsg(e));
@@ -1108,7 +1108,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const b = await readJson(req);
       try {
         // (the "it happened" pattern is built here from the word; a client's regex is never run)
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when, deps: b.deps, page: b.page, repo: b.repo });
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, route: b.route, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when, deps: b.deps, page: b.page, repo: b.repo });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {

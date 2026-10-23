@@ -595,3 +595,21 @@ test('weather intent is about weather, not forecasts of sales or weather API doc
   assert.equal(pickQueryTool(tools, 'how does the weather API search work').tool.name, 'search');
   assert.equal(pickQueryTool(tools, 'is it cold in Boston').tool.name, 'get_forecast');
 });
+
+test('a template routes (and, with no AI model, asks the tools) on its route words, not the whole prompt', async () => {
+  const { SearchAgent } = await import('../src/agent.js');
+  const { TEMPLATES } = await import('../src/templates.js');
+  const server = { id: 'ads', title: 'Ads', url: 'https://x', source: 'registry', trust: 'community' };
+  const routedOn = [];
+  const asked = [];
+  const pool = { get: async () => ({ tools: [{ name: 'search', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }] }), callTool: async (_s, _t, args) => (asked.push(args.query), { content: [{ type: 'text', text: 'Title: Notion ad\nURL: https://ads.example/1\nNotion runs search ads about AI notes for teams.' }] }) };
+  const catalog = { routeAsync: async (q) => (routedOn.push(q), [{ server, reason: 'test' }]), rankScores: null, all: () => [], isSignedIn: () => false, settings: {} };
+  const agent = new SearchAgent({ catalog, pool, health: null, getSettings: () => ({}), getProvider: () => null });
+  const t = TEMPLATES.find((x) => x.id === 'competitor-ads');
+  const prompt = t.prompt.replace('{competitor}', 'Notion').replace('{market}', 'United States');
+  await agent.search(prompt, { emit: () => {}, route: '  Notion ads ad library   advertising ' });
+  assert.deepEqual(routedOn, ['Notion ads ad library advertising']);
+  assert.ok(asked.length && asked.every((q) => !/United States|Summarize/.test(q)), JSON.stringify(asked));
+  // every template has route words, each naming at least one of its own fields
+  for (const x of TEMPLATES) assert.ok(x.fields.some((f) => x.route?.includes(`{${f.name}}`)), x.id);
+});
