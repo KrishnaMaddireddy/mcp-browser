@@ -362,7 +362,7 @@ export function explainFailure(log) {
   // "Missing required environment variables: JIRA_API_TOKEN, JIRA_HOST"
   const envList = /missing (?:required )?environment variables?:?\s*([A-Z][A-Z0-9_]{2,60}(?:,\s*[A-Z][A-Z0-9_]{2,60})*)/i.exec(t);
   if (envList) return { kind: 'needs-key', hint: `it needs ${envList[1].split(/,\s*/).slice(0, 3).join(', ')}, which the registry doesn’t list` };
-  if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured|no valid authori[sz]ation token|sign in to [\w .-]{2,40}(?:\(oauth\))? or (?:send|set|provide|use) (?:an? )?[\w .-]{0,30}(?:api key|token)/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
+  if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured|no valid authori[sz]ation token|no authentication method provided|authentication (?:is )?required|not authenticated\b|sign in to [\w .-]{2,40}(?:\(oauth\))? or (?:send|set|provide|use) (?:an? )?[\w .-]{0,30}(?:api key|token)/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
   // Built for another system: not a failure on that one.
   const osOnly = /\b(?:is |runs? )?(windows|macos|mac os|darwin|linux) only\b|only (?:runs|works) on (windows|macos|mac|linux)|unsupported platform for [^\n]{0,80}?wanted:?\s*\{?"?os"?:?\s*"?(darwin|win32|linux)|pywin32[^\n]{0,80}cannot be used|EBADPLATFORM[^\n]{0,200}?(darwin|win32)/i.exec(t);
   if (osOnly || /pywin32/i.test(t) && /cannot be used|no matching distribution/i.test(t)) {
