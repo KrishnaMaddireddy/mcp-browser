@@ -585,30 +585,35 @@ const REPO_FILES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'uv.lock
 /** github.com/owner/repo[/tree/ref/dir] → { owner, repo, ref, dir } (null if not a repo link). */
 export function repoOf(input) {
   const s = String(input || '').trim();
-  const m = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/([\w.-]{1,100}?)(?:\.git)?(?:\/(?:tree|blob)\/([\w.\/-]{1,200}))?\/?(?:[?#].*)?$/i.exec(s);
+  const m = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/([\w.-]{1,100}?)(?:\.git)?(?:\/(tree|blob)\/([\w.\/-]{1,200}))?\/?(?:[?#].*)?$/i.exec(s);
   if (!m || /^(?:settings|orgs|topics|marketplace|explore|features|about|login|sponsors|search|notifications|pulls|issues)$/i.test(m[1])) return null;
+  // (".." or a leading dot never names a repo, a branch or a folder: the page would name one repo and read another)
+  if (/^\./.test(m[2])) return null;
   let ref = 'HEAD';
   let dir = '';
-  if (m[3]) {
-    // ("tree/main/packages/web": the branch is the first part; a blob link points at a file's folder)
-    const parts = m[3].split('/').filter(Boolean);
+  if (m[4]) {
+    // ("tree/main/packages/web": the branch is the first part; a blob link points at a file, so its folder)
+    const parts = m[4].split('/').filter(Boolean);
     ref = parts.shift();
-    if (/\/blob\//i.test(s)) parts.pop();
-    dir = parts.filter((p) => p !== '..' && p !== '.').join('/');
+    if (!ref || ref.startsWith('.') || ref.includes('..') || ref.endsWith('.')) return null;
+    if (m[3].toLowerCase() === 'blob') parts.pop();
+    if (parts.some((p) => p.startsWith('.'))) return null;
+    dir = parts.join('/');
   }
   return { owner: m[1], repo: m[2], ref, dir };
 }
 
 /** Read the repo's dependency file through the page server: { text, file, url, truncated, tried }. */
 export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
-  const base = `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.ref}/${repo.dir ? `${repo.dir}/` : ''}`;
-  const rootBase = `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.ref}/`;
+  const enc = (p) => p.split('/').map(encodeURIComponent).join('/');
+  const base = `https://raw.githubusercontent.com/${enc(repo.owner)}/${enc(repo.repo)}/${enc(repo.ref)}/${repo.dir ? `${enc(repo.dir)}/` : ''}`;
+  const rootBase = `https://raw.githubusercontent.com/${enc(repo.owner)}/${enc(repo.repo)}/${enc(repo.ref)}/`;
   const read = async (file) => {
     // ("/uv.lock": a workspace's lockfile at the repo root, for a package in a sub-folder)
     const atRoot = file.startsWith('/');
     const url = atRoot ? rootBase + file.slice(1) : base + file;
     try {
-      const r = await callTool(PAGE_FETCH, 'fetch_page', { url, max_chars: 400000 });
+      const r = await callTool(PAGE_FETCH, 'fetch_page', { url, max_chars: 100000 });
       const sc = r?.structuredContent;
       if (!sc || sc.status !== 'ok' || !sc.markdown || /^\s*404: Not Found\s*$/.test(sc.markdown)) return null;
       // (the page server indents raw text two spaces under "markdown:" in its text form; structured is as-is)

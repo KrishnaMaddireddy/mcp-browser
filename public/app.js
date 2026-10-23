@@ -195,6 +195,7 @@
         const el = $('#tpl-check').content.firstElementChild.cloneNode(true);
         window.MCPCheck?.mount(el, {
           claim: entry.claim,
+          paragraph: entry.paragraph,
           open: (u) => open(u),
           checkInNewTab: (c) => newTab({ kind: 'check', claim: c }),
           onClaim: (c) => {
@@ -1737,6 +1738,19 @@
         }
         summarizeBoard(ui);
         if (ui.answer.querySelector('.placeholder')) ui.answer.innerHTML = '';
+        // A written answer: one click checks each fact in it against independent sources.
+        if (d.mode !== 'direct' && ui.text && !ui.paraBtn) {
+          const plain = ui.answer.textContent.replace(/\[\d+(?:,\s*\d+)*\]/g, '').replace(/\s+/g, ' ').trim();
+          if ((plain.match(/[.!?](?:\s|$)/g) || []).length >= 2) {
+            const p = document.createElement('p');
+            p.className = 'ck-acts';
+            p.innerHTML = '<button type="button" class="link-btn ck-btn ck-para-btn">Check each fact in this answer</button>';
+            $('button', p).addEventListener('click', () => newTab({ kind: 'check', paragraph: plain.slice(0, 4000) }));
+            // (after the answer, not in it: a late re-render of the answer would drop it)
+            ui.paraBtn = p;
+            ui.answer.after(p);
+          }
+        }
         if (d.ms) ui.activityCount.textContent = `· ${ui.activity.children.length} steps · ${(d.ms / 1000).toFixed(1)}s`;
         break;
     }

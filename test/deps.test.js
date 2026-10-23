@@ -111,7 +111,10 @@ test('one package at two versions: each version gets its own advisories', async 
 test('a GitHub repo link: its lockfile per ecosystem, a sub-folder, the workspace root', async () => {
   assert.deepEqual(repoOf('https://github.com/expressjs/express'), { owner: 'expressjs', repo: 'express', ref: 'HEAD', dir: '' });
   assert.deepEqual(repoOf('github.com/vercel/next.js/tree/canary/packages/next'), { owner: 'vercel', repo: 'next.js', ref: 'canary', dir: 'packages/next' });
-  assert.equal(repoOf('https://github.com/a/b/tree/main/../../x').dir, 'x');
+  // ("..": one repo's packages would show under another's name)
+  assert.equal(repoOf('https://github.com/a/b/tree/main/../../x'), null);
+  assert.equal(repoOf('https://github.com/nobody-zz9/../tree/../expressjs/express/HEAD'), null);
+  assert.equal(repoOf('github.com/a/b/tree/main/src/blob/web').dir, 'src/blob/web');
   assert.equal(repoOf('https://github.com/settings/profile'), null);
   assert.equal(repoOf('https://gitlab.com/a/b'), null);
   const files = {

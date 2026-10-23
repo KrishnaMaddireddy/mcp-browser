@@ -173,7 +173,7 @@
           .map((c) => {
             const n = claims.indexOf(c);
             const v = verdicts[n];
-            const as = c.rewritten ? `<p class="pc-as">Checked as: ${esc(c.claim)}</p>` : '';
+            const as = c.rewritten ? `<p class="pc-as">Checked as: ${esc(c.claim)}${c.unchecked ? `. Not checked: “${esc(c.unchecked)}”` : ''}</p>` : '';
             const body = v
               ? `<p class="pc-v">${v.verdict === 'error' ? `${SHORT.error}: ` : ''}${esc(v.label || SHORT[v.verdict] || v.verdict)}</p>${(v.quotes?.differs || []).slice(0, 1).map((x) => q(x, 'Says otherwise')).join('')}${(v.quotes?.supports || []).slice(0, 1).map((x) => q(x, 'Agrees')).join('')}<p class="ck-acts"><button type="button" class="link-btn" data-pc-open="${esc(c.claim)}">See every source</button></p>`
               : `<p class="pc-v ck-wait">${busy.has(n) ? 'Checking…' : 'Waiting…'}</p>`;
@@ -235,7 +235,14 @@
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const c = input.value.trim();
-      if (c) run(c);
+      if (!c) return;
+      // (more than one sentence typed or pasted: check each fact)
+      if ((c.match(/[.!?]\s+["“(]?\p{Lu}/gu) || []).length) {
+        $('[data-pc-box]').open = true;
+        ptext.value = c;
+        return runPara(c);
+      }
+      run(c);
     });
     el.addEventListener('click', (e) => {
       if (e.target.closest('[data-pc-ex]')) {
@@ -250,7 +257,16 @@
         run(ex.dataset.ckEx);
       }
     });
-    if (hooks.claim) {
+    if (hooks.paragraph) {
+      $('[data-pc-box]').open = true;
+      ptext.value = hooks.paragraph;
+      runPara(hooks.paragraph);
+    } else if (hooks.claim && (hooks.claim.match(/[.!?]\s+["“(]?\p{Lu}/gu) || []).length) {
+      // (several sentences: each fact on its own)
+      $('[data-pc-box]').open = true;
+      ptext.value = hooks.claim;
+      runPara(hooks.claim);
+    } else if (hooks.claim) {
       input.value = hooks.claim;
       run(hooks.claim);
     } else setTimeout(() => input.focus(), 0);

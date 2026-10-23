@@ -375,7 +375,8 @@ function judgeCore(parts, sentence) {
   }
 
   // "The Berlin Wall fell in 1989" (a verb we don't parse): the claim's words together, and which year.
-  if (!parts.relation && parts.years.length) {
+  // (also "The Golden Gate Bridge opened in 1937": a verb with no object, only a year)
+  if ((!parts.relation || (!parts.be && !parts.objectWords.length)) && parts.years.length) {
     if (overlap < 0.8) return overlap >= 0.6 ? { stance: 'mentions', sentence } : null;
     // The year that goes with the claim: in the clause with most of its words ("The Lusitania
     // sank in 1915; the Titanic sank in 1912"), right after its verb when there is one.
@@ -387,11 +388,18 @@ function judgeCore(parts, sentence) {
     if (score(best) / parts.words.length < 0.6) return { stance: 'mentions', sentence };
     const yearAt = ws.map((w, i) => (/^(?:1[5-9]|20)\d\d$/.test(w) ? i : -1)).filter((i) => i >= 0);
     const lastWord = tokenize(parts.text.slice(0, figuresOf(parts.text).find((f) => f.year)?.at ?? parts.text.length)).filter((w) => !/^\d/.test(w)).pop();
-    const verbHit = lastWord ? ws.findIndex((w, i) => ids[i] === best && matches(lastWord, w)) : -1;
+    // The claim's verb: the one with the claim's subject just before it ("The Lusitania sank in
+    // 1915, three years after the Titanic sank in 1912"), in any clause ("Construction began
+    // in 1933 and it opened in 1937").
+    const subjW = parts.subjectWords.length ? parts.subjectWords : parts.words;
+    const hits = lastWord ? ws.map((w, i) => (matches(lastWord, w) ? i : -1)).filter((i) => i >= 0) : [];
+    const near = (i) => subjW.filter((n) => ws.slice(Math.max(0, i - 6), i).some((w) => matches(n, w))).length + (ids[i] === best ? 0.5 : 0);
+    const verbHit = hits.length ? hits.reduce((a, b) => (near(b) > near(a) ? b : a)) : -1;
     const right = verbHit >= 0 ? yearAt.find((i) => i > verbHit && i - verbHit <= 6) : undefined;
     const ys = (right != null ? [right] : yearAt.filter((i) => ids[i] === best)).map((i) => Number(ws[i]));
     if (ys.some((y) => parts.years.includes(y))) return NEGATION.test(sentence) ? { stance: 'differs', sentence } : { stance: 'supports', sentence };
-    const other = ys.find((y) => !parts.years.includes(y) && Math.abs(y - parts.years[0]) <= 60);
+    // (another year counts against it only when it's the year of the claim's own verb)
+    const other = right != null || (verbHit < 0 && !lastWord) ? ys.find((y) => !parts.years.includes(y) && Math.abs(y - parts.years[0]) <= 60) : null;
     return other ? { stance: 'differs', sentence, figure: String(other) } : { stance: 'mentions', sentence };
   }
 
@@ -494,6 +502,9 @@ function judgeCore(parts, sentence) {
   const subj = parts.subjectWords;
   // A name somewhere else in the sentence on the claim's verb ("Madrid is the capital of Spain").
   const someoneElse = () => {
+    // ("The Golden Gate Bridge opened in 1937" has no object: "FDR opens Golden Gate Bridge" is
+    // who opened it, not a rival bridge)
+    if (!parts.be && !parts.objectWords.length) return null;
     const verb = parts.be ? BE : parts.relation;
     const other = verb && new RegExp(`((?:[A-Z][\\p{L}'’.-]+\\s?){1,4})\\s+(?:${verb})\\b`, 'u').exec(sentence);
     // ("Neil Armstrong and Buzz Aldrin became …": one of a pair is still the claim's own)
@@ -684,7 +695,9 @@ function judgeCore(parts, sentence) {
   // (only a verb has a doer: "Pioneers in Tech: Guido van Rossum, creator of …" names no rival)
   const isVerb = verbAt >= 0 && (/(?:ed|es|s)$/.test(ws[verbAt]) || /^(?:won|wrote|built|made|led|bought|beat|ran|began|sold|took|gave|win|write|build|make|lead|buy)$/.test(ws[verbAt])) && !/(?:or|er|ion|ment|ure)s?$/.test(ws[verbAt]);
   // (a passive claim's doer is after "by": the name before the verb is the thing made)
-  if (!parts.passive && subjectOk && !doerOk && isVerb && relWords.length) return { stance: 'differs', sentence, other: firstName };
+  // ("The Golden Gate Bridge opened in 1937" has no object: in "FDR opens Golden Gate Bridge"
+  // the bridge is what was opened, and FDR is no rival bridge)
+  if (!parts.passive && parts.objectWords.length && subjectOk && !doerOk && isVerb && relWords.length) return { stance: 'differs', sentence, other: firstName };
   const subjAt = subj.length ? [...ws.keys()].filter((i) => subj.some((n) => matches(n, ws[i])) && i < verbAt).pop() ?? subjAt0 : -1;
   const subjectNear = subjectOk && subjAt >= 0 && doerOk && subjAt < verbAt && verbAt - subjAt <= 8 && ids[subjAt] === ids[verbAt];
   if (subjectNear) {
@@ -911,7 +924,8 @@ export async function judgeWithModel(provider, claim, evidence, signal) {
 // An AI answer or an article, sentence by sentence: the ones that state something checkable
 // are checked, each on its own, the rest are listed as not checked (with why).
 const ABBREV = /\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|Ft|vs|etc|e\.g|i\.e|approx|No|Inc|Ltd|Co|Corp|U\.S|U\.K|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.$/;
-const OPINION = /\b(?:I|we|you|my|our|your)\b|\b(?:should|must|best|worst|beautiful|amazing|great|terrible|recommend|consider|probably|perhaps|maybe|likely|arguably|seems?|feel)\b/i;
+// (lower-case only: "The Great Wall" is a name, not praise; quoted titles like "I Have a Dream" don't count)
+const OPINION = /\b(?:I|[Ww]e|[Yy]ou|[Mm]y|[Oo]ur|[Yy]our)\b|\b(?:should|must|best|worst|beautiful|amazing|great|terrible|recommend|consider|probably|perhaps|maybe|likely|arguably|seems?|feel)\b/;
 
 /** Split text into sentences (keeps "U.S.", "Dr.", "3.14" and "e.g." whole). */
 export function sentencesOf(text) {
@@ -936,45 +950,72 @@ export function sentencesOf(text) {
  */
 export function claimsIn(text, { max = 8 } = {}) {
   const out = [];
-  let lastName = '';
   let checked = 0;
-  const VERB = '(?:is|was|are|were|has|had|have|became|remains|stands|lies|sits|won|wrote|founded|co-founded|invented|discovered|developed|built|designed|painted|directed|created|led|ran|orbits|flows|contains|measures|weighs|reaches|covers|spans|holds|took|made|received|served|died|lived|moved|joined|left|opened|closed|launched|released|signed|lost|beat|defeated|married|graduated|studied|worked|played|sold|bought|produced|published|composed|ruled|borders|hosts|owns)';
-  const nameOf = (claim, parts) => {
-    // (the subject a later "It" points back to: a name, not "the company")
-    if (!parts.subject || !/^\p{Lu}/u.test(parts.subject.replace(/^the\s+/i, '')) || /^(?:It|He|She|They|This)$/i.test(parts.subject)) return '';
-    const withThe = claim.slice(0, 4).toLowerCase() === 'the ' && claim.slice(4, 4 + parts.subject.length).toLowerCase() === parts.subject.toLowerCase();
-    return withThe ? claim.slice(0, 4 + parts.subject.length) : parts.subject;
+  const VERB = '(?:is|was|are|were|has|had|have|became|remains|stands|lies|sits|won|wrote|founded|co-founded|invented|discovered|developed|built|designed|painted|directed|created|led|ran|orbits|flows|contains|measures|weighs|reaches|covers|spans|holds|took|made|received|served|died|lived|moved|joined|left|opened|closed|launched|released|signed|lost|beat|defeated|married|graduated|studied|worked|played|sold|bought|produced|published|composed|ruled|borders|hosts|owns|went|grew|freezes|boils|sank|fell|began|ended|landed|flew|gave|became)';
+  const ADV = '(?:also|later|then|first|eventually|still|soon|once|now|only|never|originally)';
+  // The grammatical subject: the words before the first verb ("The Eiffel Tower" in "The Eiffel
+  // Tower was designed by Gustave Eiffel", never the "by" name).
+  const leadOf = (claim) => {
+    const m = new RegExp(`^(.{2,80}?)\\s+(?:${ADV}\\s+)?(?:${VERB}|\\w+ed)\\b`).exec(claim);
+    const lead = m?.[1]?.trim();
+    return lead && lead.split(/\s+/).length <= 6 && !/[,;:]/.test(lead) ? lead : '';
   };
+  // A name a later "It" or "She" can stand for: capitalised words, maybe after "The", no
+  // possessives or common nouns ("Her daughter Irene", "Nvidia's revenue" are not).
+  const isName = (lead) => /^(?:The\s+)?(?:[\p{Lu}\p{N}i][\p{L}\p{N}'’.&-]*)(?:\s+(?:of|de|da|van|von|der|the|and|&)?\s*[\p{Lu}\p{N}][\p{L}\p{N}'’.&-]*)*$/u.test(lead) && !/['’]s\b/.test(lead) && !/^(?:His|Her|Its|Their|Our|My|This|That|These|Those|It|He|She|They|We|I|You)\b/.test(lead);
+  // Other names the sentence could be about: objects and "by" names ("Einstein married Mileva
+  // Maric", "founded by Jeff Bezos"); names after "in", "for", "at" … are places and events.
+  const rivals = (claim, lead) => {
+    const rest = claim.slice(lead.length);
+    return [...rest.matchAll(/(?:^|\s)(\p{Lu}[\p{L}'’.-]+(?:\s+\p{Lu}[\p{L}'’.-]+)*)/gu)].filter((m) => {
+      const before = rest.slice(0, m.index).trim().split(/\s+/).slice(-2).join(' ').toLowerCase();
+      return !/(?:^|\s)(?:in|at|on|for|from|to|into|of|during|near|across|through|the|a|an|on the|in the|at the|for the|of the|from the|to the)$/.test(before) || /(?:^|\s)by(?:\s+the)?$/.test(before);
+    }).length;
+  };
+  let prev = null; // { name, ok } from the sentence just before
   for (const [i, sentence] of sentencesOf(text).slice(0, 40).entries()) {
-    let whole = sentence.replace(/^(?:And|But|So|Also|However|In fact|Indeed|Today|Now),?\s+/i, '').replace(/[.!]+$/, '').trim();
-    // (one name back: "It", "He", "She", "They" open with the last sentence's subject)
-    const pron = new RegExp(`^(It|He|She|They|This)\\s+(?=${VERB}\\b)`).exec(whole);
-    if (pron && lastName) whole = `${lastName} ${whole.slice(pron[1].length).trim()}`;
-    // ("… is 330 meters tall and was designed by Gustave Eiffel": two facts, one subject)
+    let whole = sentence.replace(/^(?:And|But|So|Also|However|In fact|Indeed),?\s+/i, '').replace(/[.!]+$/, '').trim();
+    let skipAll = '';
+    // A pronoun stands for the name just before only when nothing else could be meant.
+    const pron = /^(It|He|She|This|That|They|These|Those|Its|His|Her|Their)\b\s*/.exec(whole);
+    if (pron) {
+      if (/^(?:It|He|She)$/.test(pron[1]) && prev?.ok && new RegExp(`^(?:${ADV}\\s+)?(?:${VERB}|\\w+ed)\\b`).test(whole.slice(pron[0].length))) whole = `${prev.name} ${whole.slice(pron[0].length)}`;
+      else skipAll = `says “${pron[1]}”, and it isn’t clear who or what that is`;
+    }
     const pieces = [whole];
-    const two = new RegExp(`^(.{8,}?),?\\s+and\\s+(${VERB}\\b.{6,})$`).exec(whole);
-    if (two) {
-      const first = claimParts(two[1]);
-      const name = first.relation ? nameOf(two[1], first) || (first.subject && /^(?:the\s+)?\p{Lu}/u.test(first.subject) ? first.subject : '') : '';
-      if (name) pieces.splice(0, 1, two[1], `${name} ${two[2]}`);
+    let dropped = '';
+    if (!skipAll) {
+      // ("… is 330 meters tall and was designed by Gustave Eiffel": two facts, one subject)
+      const two = new RegExp(`^(.{8,}?),?\\s+and\\s+((?:${ADV}\\s+)?${VERB}\\b.{6,})$`).exec(whole);
+      const lead2 = two && leadOf(two[1]);
+      if (lead2) pieces.splice(0, 1, two[1], `${lead2} ${two[2]}`);
     }
     for (let [k, claim] of pieces.entries()) {
-      // ("completed in 1889 for the World's Fair": the year is the fact; the rest is why, and
-      // a source that gives the year without the why would read as only mentioning it)
-      claim = claim.replace(/(\b(?:in|on|by|since|from)\s+(?:[A-Z][a-z]+\s+)?(?:\d{1,2},?\s+)?\d{4})\s*,?\s+(?:for|as|during|to mark|to celebrate|after|before|when|while|because|following|under|amid)\b.*$/, '$1');
+      // ("completed in 1889 for the World's Fair": the year is checked; what follows it is said
+      // to be left out, so a verdict never stands for words it didn't check)
+      const why = /(\b(?:in|on|by|since|from)\s+(?:[A-Z][a-z]+\s+)?(?:\d{1,2},?\s+)?\d{4})\s*,?\s+((?:for|as|during|to mark|to celebrate|after|before|when|while|because|following|under|amid)\b.*)$/.exec(claim);
+      if (why && !skipAll) {
+        dropped = why[2];
+        claim = claim.slice(0, why.index) + why[1];
+      }
       const parts = claimParts(claim);
-      let skip = '';
-      if (/\?$/.test(sentence)) skip = 'a question';
-      else if (pron && !lastName) skip = `says “${pron[1]}” without a name before it`;
+      const unquoted = claim.replace(/["“][^"”]*["”]/g, '""');
+      let skip = skipAll;
+      if (skip) {
+        /* (a pronoun nobody can resolve) */
+      } else if (/\?$/.test(sentence)) skip = 'a question';
       else if (claim.split(/\s+/).length < 3) skip = 'too short to check';
       else if (claim.length > 300) skip = 'too long: one fact per sentence checks best';
-      else if (OPINION.test(claim) || HEDGE.test(claim)) skip = 'an opinion, advice, a quote or hedged';
+      else if (OPINION.test(unquoted) || HEDGE.test(claim)) skip = 'an opinion, advice, a quote or hedged';
       else if (!(parts.figures.length || parts.years.length || (parts.relation && parts.subjectWords.length && parts.objectWords.length))) skip = 'no plain fact to check (who did what, or a figure or year)';
       else if (checked >= max) skip = `only the first ${max} facts are checked`;
       if (!skip) checked++;
-      if (k === 0) lastName = nameOf(claim, parts) || lastName;
-      out.push({ i, part: k, sentence, claim: skip ? '' : claim, rewritten: !skip && (pieces.length > 1 || claim !== sentence.replace(/[.!]+$/, '').trim()), skip });
+      out.push({ i, part: k, sentence, claim: skip ? '' : claim, rewritten: !skip && (pieces.length > 1 || claim !== sentence.replace(/[.!]+$/, '').trim()), skip, ...(dropped && !skip ? { unchecked: dropped } : {}) });
+      dropped = '';
     }
+    // (what the next sentence's "It" or "He" can stand for)
+    const lead = leadOf(pieces[0]);
+    prev = !skipAll && lead && isName(lead) ? { name: lead, ok: rivals(pieces[0], lead) === 0 } : null;
   }
   return out;
 }

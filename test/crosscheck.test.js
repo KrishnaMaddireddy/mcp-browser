@@ -241,6 +241,33 @@ test('a whole paragraph: sentences, "It" resolved, two facts split, opinions and
   ]);
   assert.deepEqual(c.filter((x) => !x.claim).map((x) => x.skip), ['an opinion, advice, a quote or hedged', 'a question', 'an opinion, advice, a quote or hedged']);
   // ("It" with no name before it isn't guessed; only the first 8 facts are checked)
-  assert.match(claimsIn('It was built in 1900.')[0].skip, /without a name/);
+  assert.match(claimsIn('It was built in 1900.')[0].skip, /isn’t clear/);
   assert.equal(claimsIn(Array.from({ length: 10 }, (_, i) => `Mount Everest is ${8000 + i} meters high.`).join(' ')).filter((x) => x.claim).length, 8);
+});
+
+test('review: a pronoun is resolved only when nothing else could be meant; the part after a year is said to be unchecked', () => {
+  const facts = (t) => claimsIn(t).map((c) => c.claim || `SKIP ${c.sentence}`);
+  // (a "by" name, an object, a possessive or a second name: "It", "She", "This" stay unresolved)
+  assert.deepEqual(facts('Amazon was founded by Jeff Bezos in 1994. It was started in his garage.'), ['Amazon was founded by Jeff Bezos in 1994', 'SKIP It was started in his garage.']);
+  assert.deepEqual(facts('Albert Einstein married Mileva Maric in 1903. She was a physicist.'), ['Albert Einstein married Mileva Maric in 1903', 'SKIP She was a physicist.']);
+  assert.deepEqual(facts('Marie Curie won two Nobel Prizes. Her daughter Irene won one in 1935. She was born in 1867.'), ['Marie Curie won two Nobel Prizes', 'SKIP Her daughter Irene won one in 1935.', 'SKIP She was born in 1867.']);
+  assert.deepEqual(facts("Nvidia's revenue was $60.9 billion in 2024. It has more than 29,000 employees."), ["Nvidia's revenue was $60.9 billion in 2024", 'SKIP It has more than 29,000 employees.']);
+  assert.equal(facts('Einstein published special relativity in 1905. This was a turning point in physics.')[1], 'SKIP This was a turning point in physics.');
+  // (the split takes the sentence's own subject, never the "by" name)
+  assert.deepEqual(facts('Python was created by Guido van Rossum and was first released in 1991.'), ['Python was created by Guido van Rossum', 'Python was first released in 1991']);
+  assert.deepEqual(facts('Apple was founded in 1976. The iPhone was released in 2007. It is made in China.'), ['Apple was founded in 1976', 'The iPhone was released in 2007', 'The iPhone is made in China']);
+  assert.deepEqual(facts('Marie Curie was born in Warsaw in 1867. She also won the Nobel Prize in Chemistry in 1911. She died in 1934.'), ['Marie Curie was born in Warsaw in 1867', 'Marie Curie also won the Nobel Prize in Chemistry in 1911', 'Marie Curie died in 1934']);
+  const olympics = claimsIn('The Eiffel Tower was completed in 1889 for the 1900 Olympics.')[0];
+  assert.deepEqual([olympics.claim, olympics.unchecked], ['The Eiffel Tower was completed in 1889', 'for the 1900 Olympics']);
+  // ("Great" in a name and a quoted title are not opinions)
+  assert.equal(facts('The Great Wall of China is over 21,000 km long. MLK gave the "I Have a Dream" speech in 1963.').filter((x) => !x.startsWith('SKIP')).length, 2);
+});
+
+test('review: a verb with no object takes its year from its own verb', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.equal(st('The Golden Gate Bridge opened in 1937', 'FDR opens Golden Gate Bridge, May 28, 1937.'), 'supports');
+  assert.equal(st('The Golden Gate Bridge opened in 1937', 'The Golden Gate Bridge opened in 1933.'), 'differs');
+  assert.equal(st('The Titanic sank in 1912', 'The Lusitania sank in 1915, three years after the Titanic sank in 1912.'), 'supports');
+  assert.equal(st('The Golden Gate Bridge opened in 1937', 'Construction on the Golden Gate Bridge began in 1933 and it opened in 1937.'), 'supports');
+  assert.equal(st('The Golden Gate Bridge opened in 1933', 'Construction on the Golden Gate Bridge began in 1933 and it opened in 1937.'), 'differs');
 });
