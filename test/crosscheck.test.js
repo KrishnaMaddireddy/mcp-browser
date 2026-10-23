@@ -163,3 +163,10 @@ test('beliefs and depictions are mentions; any n’t is a denial', () => {
   assert.equal(stance('Vaccines do not cause autism', 'The research is clear: vaccines don’t cause autism in children at all.'), 'supports');
   assert.notEqual(stance('Vaccines do not cause autism', 'Studies have not ruled out the possibility that infant vaccines cause autism, the agency said.'), 'supports');
 });
+
+test('near a border, since a year, conceived of: none of them says it', () => {
+  assert.notEqual(stance('Mount Kilimanjaro is in Kenya', 'Mount Kilimanjaro is located in northern Tanzania, East Africa, near the border with Kenya.'), 'supports');
+  assert.equal(stance('Mount Kilimanjaro is in Tanzania', 'Mount Kilimanjaro is located in northern Tanzania, near the border with Kenya.'), 'supports');
+  assert.notEqual(stance('Windows 11 was released in 2015', 'Windows 11, the first major Windows release since 2015, arrived for PCs.'), 'supports');
+  assert.notEqual(stance('The Earth is flat', 'Ancient cultures in China, India and the Americas also conceived of Earth as flat.'), 'supports');
+});

@@ -221,7 +221,7 @@ export function claimParts(claim) {
 
 /** How one sentence bears on the claim: { stance, sentence, figure?, other? } or null when it's off the point. */
 // Hearsay, quizzes and stories report a claim, they don't make it ("many people assume Toronto is …").
-const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out)\b)/iu;
+const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out|conceiv\w*|imagin\w*|envision\w*)\b)/iu;
 // A source that calls it a myth or false is saying no.
 const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
 const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;
@@ -401,7 +401,8 @@ function judgeCore(parts, sentence) {
   // assassinated in 1865"; one year alone in the clause can sit further away)
   const yearCheck = (anchor) => {
     if (!parts.years.length) return null;
-    const inClause = ws.map((w, i) => (/^(?:1[5-9]|20)\d\d$/.test(w) && idsAnd[i] === idsAnd[anchor] ? i : -1)).filter((i) => i >= 0);
+    // ("the first release since 2015": a reference point, not the event's year)
+    const inClause = ws.map((w, i) => (/^(?:1[5-9]|20)\d\d$/.test(w) && idsAnd[i] === idsAnd[anchor] && !/^(?:since|before|until|till|prior|after)$/.test(ws[i - 1] || '') ? i : -1)).filter((i) => i >= 0);
     const after = inClause.filter((i) => i > anchor && i - anchor <= (inClause.length === 1 ? 14 : 8));
     const before = inClause.filter((i) => i < anchor && anchor - i <= 8);
     const pick = after.length ? after[0] : before.length ? before.at(-1) : null;
@@ -521,6 +522,8 @@ function judgeCore(parts, sentence) {
       // not "kept its status as a capital, it owed taxes to Spain's rulers")
       const between = hits ? sentence.slice(orig[hits[0]]?.at ?? 0, orig[hits.at(-1)]?.at ?? 0) : '';
       const ofOk = !hits || !parts.ofHead || (new RegExp(`\\b${parts.ofPrep}\\b`, 'i').test(between) && !/[;:]|,\s*(?:it|he|she|they|we|which|who|whose|and|but|while|its|his|her|their|the|a|an)\b/i.test(between));
+      // ("near the border with Kenya" doesn't put it in Kenya)
+      if (hits && /\b(?:near|border|bordering|borders|close|outside|beyond|across|neighbou?ring|off)\b/.test(ws.slice(Math.max(last + 1, hits.at(-1) - 4), hits.at(-1)).join(' ')) && !/\b(?:near|border|close|outside|beyond|across|neighbou?r|off)\b/i.test(parts.text)) return { stance: 'mentions', sentence };
       // ("the first man to take communion on the Moon" isn't "the first man on the Moon")
       const inf = hits ? ws.slice(hits[0], hits.at(-1)).findIndex((w, i, a) => w === 'to' && a[i + 1] && !parts.words.some((n) => matches(n, a[i + 1]))) : -1;
       if (linked && ofOk && inf >= 0 && !/\bto\b/i.test(parts.text)) return { stance: 'mentions', sentence };
