@@ -219,6 +219,8 @@ export function claimParts(claim) {
     // "was discovered in 1928 by Fleming": the object's words, without the year
     objectWords: content(object).filter((w) => !/^(?:not|never)$/.test(w)),
     entity: entityOf(text),
+    // ("A hexagon has eight sides": what has the figure, when no subject was read)
+    owner: figures.length ? content(text.slice(0, figures[0].at)).filter((w) => !/^(?:has|have|had|is|are|was|were|contains?|weighs?|measures?|lasts?|takes?|holds?|got)$/.test(w)) : [],
   };
 }
 
@@ -304,11 +306,16 @@ function judgeCore(parts, sentence) {
     const anchorWords = parts.entity ? tokenize(parts.entity) : parts.subjectWords.length ? parts.subjectWords : parts.words;
     const key = anchorWords.filter((w) => EXACT.has(w));
     const inClause = (cl, need) => need.filter((n) => ws.some((w, i) => ids[i] === cl && matches(n, w))).length;
+    const lead = parts.owner || [];
     const aboutIt = (g) => {
       const cl = clauseAtChar(orig, ids, g.at);
       // (all of a name: "the Curie family" isn't "Marie Curie")
       if (key.length) return inClause(cl, key) >= 1 && (!parts.subjectWords.length || inClause(cl, parts.subjectWords) >= Math.ceil(parts.subjectWords.length * 0.6));
-      return parts.subjectWords.length || parts.entity ? inClause(cl, anchorWords) >= 1 : inClause(cl, parts.words) >= Math.ceil(parts.words.length * 0.5);
+      if (parts.subjectWords.length || parts.entity) return inClause(cl, anchorWords) >= 1;
+      // ("A hexagon has eight sides": the thing that has them, not just "eight sides";
+      // "a regular octagon has eight sides" and "it has six legs" are someone else's)
+      if (lead.length && inClause(cl, lead) < Math.ceil(lead.length * 0.6)) return false;
+      return inClause(cl, parts.words) >= Math.ceil(parts.words.length * 0.5);
     };
     figs = figs.filter((g) => comparable(g) && aboutIt(g));
     // Several things measured in one clause ("PostgreSQL uses 5432, MySQL 3306"): the figure
@@ -419,7 +426,7 @@ function judgeCore(parts, sentence) {
   const idsAnd = clausesOf(sentence, { and: true });
   // "Capital: Nairobi" — a labelled answer names the subject directly.
   const w0 = obj[0] || '';
-  const label = parts.be && w0 && new RegExp(`\\b[${w0[0].toUpperCase()}${w0[0]}]${w0.slice(1)}\\w*(?:\\s*[:|]\\s*|\\s+[–-]\\s+)\\|?\\s*([A-Z][\\p{L}'’.-]+(?:\\s[A-Z][\\p{L}'’.-]+){0,3})`, 'u').exec(sentence);
+  const label = parts.be && w0 && new RegExp(`\\b[${w0[0].toUpperCase()}${w0[0]}]${w0.slice(1)}\\w*\\s*[:|]\\s*\\|?\\s*([A-Z][\\p{L}'’.-]+(?:\\s[A-Z][\\p{L}'’.-]+){0,3})`, 'u').exec(sentence);
   if (label && parts.subjectWords.length) {
     const named = tokenize(label[1]);
     if (!parts.subjectWords.some((w) => named.includes(w))) return { stance: 'differs', sentence, other: label[1].trim().replace(/[.,;:]+$/, '') };
@@ -440,7 +447,19 @@ function judgeCore(parts, sentence) {
   };
   // Once the subject and object are bound in one clause: the checks that can still say no.
   // A denial in the clause that says it ("…, though he did not realize …" is another clause).
-  const denied = (at) => NEGATION.test(orig.filter((_, i) => ids[i] === ids[at]).map((x) => x.w).join(' '));
+  // (", not Auckland" / "rather than Sydney" after the claim corrects someone else; it doesn't deny the claim)
+  const denied = (at) => {
+    const own = orig.filter((_, i) => ids[i] === ids[at]);
+    const last = own.at(-1);
+    let text = sentence.slice(own[0]?.at ?? 0, last ? last.at + last.w.length : sentence.length);
+    const fix = /,?\s*(?:and\s+)?(?:not|rather than|instead of)\s+(?:the\s+|in\s+|from\s+)?\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*)*\.?\s*$/u.exec(text);
+    // (only when the name corrected isn't the claim's own: "born in Honolulu, not Kenya" denies "born in Kenya")
+    if (fix) {
+      const named = fix[0].toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(fold);
+      if (!(parts.objectWords || []).some((n) => named.some((w) => matches(n, w)))) text = text.slice(0, fix.index);
+    }
+    return NEGATION.test(text);
+  };
   const settle = (subjAt, headAt) => {
     if (denied(headAt)) return { stance: 'differs', sentence };
     // "Kyoto became the capital in 794": how it came to be, not how it is.
@@ -451,7 +470,10 @@ function judgeCore(parts, sentence) {
     // "the second largest", "one of the largest", "a dwarf planet", "a provincial capital": not the claim.
     const lead = ws.slice(Math.max(0, headAt - 3), headAt).join(' ');
     // (for "X is Y" claims: "won their third World Cup" is a count, not a rank)
-    if (parts.be && /\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|provincial|regional|state|former|deputy|co|second-largest|third-largest|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(lead)) return { stance: 'differs', sentence };
+    // (a rank or "one of" a few words before; "state", "former", "dwarf" right before the head:
+    // "a state capital", but not "a sovereign state in East Africa")
+    const close = ws.slice(Math.max(0, headAt - 2), headAt).join(' ');
+    if (parts.be && (/\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|second-largest|third-largest)\b/.test(lead) || /\b(?:provincial|regional|state|former|deputy|co|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(close))) return { stance: 'differs', sentence };
     const tail = ws.slice(headAt, headAt + 2 * obj.length + 4).join(' ');
     if (/\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
     // "is the capital" vs "was the capital": a former state isn't the present one, nor
@@ -478,7 +500,8 @@ function judgeCore(parts, sentence) {
     // (only a name that says the claim's thing: "Madrid is the capital of Spain", not "The Eiffel Tower was completed")
     if (other) {
       const cl = clauseAtChar(orig, ids, other.index + other[0].length - 1);
-      const inCl = obj.filter((n) => ws.some((w, i) => ids[i] === cl && matches(n, w))).length;
+      const after0 = other.index + other[0].length;
+      const inCl = obj.filter((n) => ws.some((w, i) => ids[i] === cl && orig[i].at >= after0 && matches(n, w))).length;
       if (inCl < Math.max(1, Math.ceil(obj.length * 0.6))) return null;
     }
     if (other) {

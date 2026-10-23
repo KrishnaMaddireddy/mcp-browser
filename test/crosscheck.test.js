@@ -214,3 +214,16 @@ test('any verb: flows, has, co-founded; a list of names is not a headline; neith
   assert.equal(stance('Steve Jobs co-founded Apple', 'Steve Jobs co-founded Apple with Steve Wozniak in 1976.'), 'supports');
   assert.notEqual(stance('Sydney is the capital of Australia', "Neither Sydney nor Melbourne, Australia's capital is Canberra."), 'supports');
 });
+
+test('a correction names someone else; a list is no label; "a sovereign state in" is no rank; the owner of a count', () => {
+  assert.equal(stance('Wellington is the capital of New Zealand', 'Wellington is the capital of New Zealand, not Auckland.'), 'supports');
+  assert.equal(stance('Auckland is the capital of New Zealand', 'Wellington is the capital of New Zealand, not Auckland.'), 'differs');
+  assert.equal(stance('Barack Obama was born in Kenya', 'Barack Obama was born in Honolulu, Hawaii, not Kenya.'), 'differs');
+  assert.equal(stance('Kenya is in Africa', 'Kenya is a sovereign state in East Africa known for its diverse landscapes.'), 'supports');
+  assert.equal(stance('Toronto is the capital of Canada', 'Toronto is the provincial capital of Ontario.'), 'differs');
+  assert.notEqual(stance('Mount Everest is in Nepal', '1, Nepal – Tibet Autonomous Region, China border, Mount Everest, 8,849 m.'), 'differs');
+  assert.notEqual(stance('The Mona Lisa is in the Louvre', 'One of the Louvre’s largest rooms, the Galerie Médicis is a suitable location for the Mona Lisa.'), 'differs');
+  assert.notEqual(stance('A hexagon has eight sides', 'A regular octagon has eight equal sides and eight equal angles of 135˚.'), 'supports');
+  assert.notEqual(stance('A spider has six legs', 'But it has six legs on its thorax, while its head is set up like the mantis shrimp.'), 'supports');
+  assert.equal(stance('A hexagon has six sides', 'A regular hexagon has six sides that are all the same length.'), 'supports');
+});
