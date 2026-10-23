@@ -277,6 +277,10 @@ before found (`{input}`, `{answer}`, `{titles}`, or once per result with `{title
 `{host}`). When a server answers with a record instead of links (a quote, a rating, a CVE
 score), the step shows what it said.
 
+**Build your own:** [docs/pipelines.md](docs/pipelines.md) walks through a first pipeline in
+two minutes, every placeholder, choosing servers, schedules, the JSON format, testing one and
+adding it to the library.
+
 **A pipeline in its own tab:** press **Open in new tab** on its card (or Ctrl/⌘-click or
 middle-click **Run**). The tab shows just that pipeline, runs it, and has an address you can
 bookmark or share, e.g. `mcp://pipelines/fx-three-sources?input=USD%20to%20JPY`.
