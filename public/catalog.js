@@ -235,7 +235,7 @@
       const tested = F.tested != null && r[F.tested];
       if (tested) {
         const [code, day, nTools, why] = tested;
-        const T = { a: ['ok', 'Tested: answers'], m: ['ok', 'Tested: answers with an AI model'], s: ['', 'Tested: connects, no answer yet'], n: ['warn', 'Tested: no tools'], f: ['bad', 'Tested: didn’t start'], k: ['', 'Needs a key to test'], g: ['', 'Needs arguments to test'] }[code];
+        const T = { a: ['ok', 'Tested: answers'], m: ['ok', 'Tested: answers with an AI model'], s: ['', 'Tested: connects, no answer yet'], n: ['warn', 'Tested: no tools'], f: ['bad', 'Tested: didn’t start'], k: ['', 'Needs a key to test'], g: ['', 'Needs arguments to test'], p: ['', /macOS/.test(why || '') ? 'macOS only' : /Windows/.test(why || '') ? 'Windows only' : 'Built for another system'] }[code];
         if (T) tags.push(`<span class="cat-state ${T[0]}" title="${esc(`Tested ${day}${nTools ? `, ${nTools} tools` : ''}${why ? `: ${why}` : ''}`)}">${T[1]}</span>`);
       }
       else if (localApproved) tags.unshift(`<span class="cat-state warn">Needs ${esc(localApproved.missing.join(', '))} again</span>`);

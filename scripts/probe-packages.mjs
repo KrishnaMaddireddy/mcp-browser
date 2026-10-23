@@ -245,7 +245,7 @@ async function worker() {
         }
         if (rec.status === 'fails') {
           const why = explainFailure(rec._heal?.log || rec.error);
-          if (why && (why.kind === 'needs-key' || why.kind === 'needs-args')) Object.assign(rec, { status: why.kind, error: why.hint });
+          if (why && (why.kind === 'needs-key' || why.kind === 'needs-args' || why.kind === 'platform')) Object.assign(rec, { status: why.kind, error: why.hint });
           else if (why) rec.reason = why.hint;
         }
       }

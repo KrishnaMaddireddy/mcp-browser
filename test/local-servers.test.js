@@ -118,3 +118,12 @@ test('self-healing starts: known failures get one fix, install-time code only wh
   assert.equal(explainFailure('e2e requires Node.js 22.22.3 or newer').kind, 'runtime');
   assert.equal(explainFailure('Segmentation fault'), null);
 });
+
+test('explainFailure: platform-only servers and more ways of asking for a key', async () => {
+  const { explainFailure: e } = await import('../src/local-servers.js');
+  assert.equal(e('excel-mcp: ExcelMcp is Windows only.').os, 'Windows');
+  assert.equal(e('npm error code EBADPLATFORM npm error notsup Unsupported platform for safari-mcp@2.1.0: wanted {"os":"darwin"} (current: {"os":"linux"})').os, 'macOS');
+  assert.equal(e('Error: Missing required environment variables: JIRA_API_TOKEN, JIRA_HOST').kind, 'needs-key');
+  assert.equal(e('[ERROR:auth0-mcp] Authorization Error: No valid authorization token found').kind, 'needs-key');
+  assert.equal(e("error: option '--root <dir>' argument missing").kind, 'needs-args');
+});

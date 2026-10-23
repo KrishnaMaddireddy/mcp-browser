@@ -359,7 +359,17 @@ export function explainFailure(log) {
   const t = String(log || '').replace(/\x1b\[[0-9;]*m/g, '');
   const env = /\b([A-Z][A-Z0-9_]{2,60})\b[^\n]{0,40}(?:environment variable )?(?:is )?(?:not set|missing|required|must be set)/.exec(t) || /(?:set|missing|requires?) (?:the )?([A-Z][A-Z0-9_]{2,60}) (?:environment variable|env var)/.exec(t);
   if (env && /KEY|TOKEN|SECRET|PASSWORD|URL|HOST|DSN|ID\b/.test(env[1])) return { kind: 'needs-key', hint: `it needs ${env[1]}, which the registry doesn’t list` };
-  if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
+  // "Missing required environment variables: JIRA_API_TOKEN, JIRA_HOST"
+  const envList = /missing (?:required )?environment variables?:?\s*([A-Z][A-Z0-9_]{2,60}(?:,\s*[A-Z][A-Z0-9_]{2,60})*)/i.exec(t);
+  if (envList) return { kind: 'needs-key', hint: `it needs ${envList[1].split(/,\s*/).slice(0, 3).join(', ')}, which the registry doesn’t list` };
+  if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured|no valid authori[sz]ation token|sign in to [\w .-]{2,40}(?:\(oauth\))? or (?:send|set|provide|use) (?:an? )?[\w .-]{0,30}(?:api key|token)/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
+  // Built for another system: not a failure on that one.
+  const osOnly = /\b(?:is |runs? )?(windows|macos|mac os|darwin|linux) only\b|only (?:runs|works) on (windows|macos|mac|linux)|unsupported platform for [^\n]{0,80}?wanted:?\s*\{?"?os"?:?\s*"?(darwin|win32|linux)|pywin32[^\n]{0,80}cannot be used|EBADPLATFORM[^\n]{0,200}?(darwin|win32)/i.exec(t);
+  if (osOnly || /pywin32/i.test(t) && /cannot be used|no matching distribution/i.test(t)) {
+    const raw = (osOnly && (osOnly[1] || osOnly[2] || osOnly[3] || osOnly[4])) || 'windows';
+    const os = /mac|darwin/i.test(raw) ? 'macOS' : /win/i.test(raw) ? 'Windows' : 'Linux';
+    return { kind: 'platform', os, hint: `it runs only on ${os}` };
+  }
   const missingArg = /a value is required for '([^']+)'|(?:missing|required) (?:required )?(?:argument|option)s?:?\s*['"`]?(--?[\w-]+)|the following arguments are required:\s*([^\n]{1,80})|option '(--?[\w-]+)(?: <[^>]+>)?' argument missing/i.exec(t);
   if (missingArg) return { kind: 'needs-args', hint: `it needs a startup argument the registry doesn’t list: ${(missingArg[1] || missingArg[2] || missingArg[3] || missingArg[4]).trim()}` };
   const usage = /\bUsage:\s*([^\n]{0,120})/i.exec(t);

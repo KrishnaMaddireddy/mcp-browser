@@ -124,7 +124,7 @@ function promptsFor(s, cat) {
 
 // Package servers tested for real in a throwaway machine (scripts/probe-packages.mjs):
 // a=answers s=starts n=no tools f=fails k=needs a key g=needs arguments.
-const PROBE_CODE = { answers: 'a', 'answers-ai': 'm', starts: 's', 'no-tools': 'n', fails: 'f', 'needs-key': 'k', 'needs-args': 'g' };
+const PROBE_CODE = { answers: 'a', 'answers-ai': 'm', starts: 's', 'no-tools': 'n', fails: 'f', 'needs-key': 'k', 'needs-args': 'g', platform: 'p' };
 const probe = {};
 const RANK = { a: 7, m: 6, s: 5, n: 4, k: 3, g: 2, f: 1 };
 const probeFiles = (process.env.MCPB_PROBE_FILES || [file('package-probe.jsonl'), file('hosted-probe.jsonl'), file('ai-probe.jsonl')].join(',')).split(',');
@@ -144,7 +144,7 @@ for (const probeFile of probeFiles) {
       // A package that didn't start, explained with today's rules (missing key or startup argument).
       if (r.status === 'fails' && r.type !== 'hosted') {
         const ex = explainFailure(String(r.error || '') + '\n' + String(r.log || ''));
-        if (ex?.kind === 'needs-key' || ex?.kind === 'needs-args') Object.assign(r, { status: ex.kind, error: ex.hint });
+        if (ex?.kind === 'needs-key' || ex?.kind === 'needs-args' || ex?.kind === 'platform') Object.assign(r, { status: ex.kind, error: ex.hint });
       }
       // A failed AI-inputs try only counts when it shows a key is needed (the registry didn't say).
       if (r.status === 'fails-ai') {
