@@ -975,7 +975,9 @@ export function sentencesOf(text) {
   let m;
   while ((m = re.exec(t))) {
     const piece = t.slice(start, m.index + m[0].length);
-    if (ABBREV.test(piece.replace(/["'”’)]+$/, '')) || /\b[A-Z]\.$/.test(piece)) continue;
+    // ("the U.S. In 1990 he …": an abbreviation can end a sentence when a sentence opener follows)
+    const opener = /^\s+["'“‘(]?(?:In|On|At|The|He|She|It|They|This|That|These|Its|His|Her|Their|After|Before|During|Today|However|But|And|A|An)\b/.test(t.slice(m.index + m[0].length));
+    if ((ABBREV.test(piece.replace(/["'”’)]+$/, '')) || /\b[A-Z]\.$/.test(piece)) && !(opener && /(?:U\.S|U\.K|Inc|Ltd|Co|Corp|etc)\.$/.test(piece.replace(/["'”’)]+$/, '')))) continue;
     out.push(piece.trim());
     start = m.index + m[0].length;
   }

@@ -229,6 +229,7 @@ test('a correction names someone else; a list is no label; "a sovereign state in
 });
 
 test('a whole paragraph: sentences, "It" resolved, two facts split, opinions and questions left out', () => {
+  assert.deepEqual(sentencesOf('He moved to the U.S. In 1990 he founded a company. The U.S. Senate voted.'), ['He moved to the U.S.', 'In 1990 he founded a company.', 'The U.S. Senate voted.']);
   assert.deepEqual(sentencesOf('Dr. Smith moved to the U.S. in 1990. Pi is 3.14 roughly. Is it true? Yes.'), ['Dr. Smith moved to the U.S. in 1990.', 'Pi is 3.14 roughly.', 'Is it true?', 'Yes.']);
   const c = claimsIn('The Eiffel Tower was completed in 1889 for the World’s Fair. It is 330 meters tall and was designed by Gustave Eiffel. You should visit it at night. Is it the most visited monument? Albert Einstein developed the theory of relativity. He was born in Ulm in 1879 and won the Nobel Prize in Physics in 1921. Paris is beautiful in spring.');
   assert.deepEqual(c.filter((x) => x.claim).map((x) => x.claim), [
