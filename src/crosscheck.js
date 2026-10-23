@@ -421,7 +421,8 @@ function judgeCore(parts, sentence) {
     if (sup && new RegExp(`\\b${sup[1]}\\s+${sup[2]}s\\b`, 'i').test(sentence)) return { stance: 'mentions', sentence };
     // "the second largest", "one of the largest", "a dwarf planet", "a provincial capital": not the claim.
     const lead = ws.slice(Math.max(0, headAt - 3), headAt).join(' ');
-    if (/\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|provincial|regional|state|former|deputy|co|second-largest|third-largest|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(lead)) return { stance: 'differs', sentence };
+    // (for "X is Y" claims: "won their third World Cup" is a count, not a rank)
+    if (parts.be && /\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|provincial|regional|state|former|deputy|co|second-largest|third-largest|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(lead)) return { stance: 'differs', sentence };
     const tail = ws.slice(headAt, headAt + 2 * obj.length + 4).join(' ');
     if (/\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
     // "is the capital" vs "was the capital": a former state isn't the present one, nor
@@ -516,7 +517,14 @@ function judgeCore(parts, sentence) {
       }
       // (with "is", "serves as" or an appositive between: "Kyoto capital of Japan, was the phrase" isn't a statement)
       const linked = hits && (ws.slice(last + 1, hits[0]).some((w) => BE_WORD.test(w) || /^(?:as|been|lies|lie|sits|stands|located|situated|found)$/.test(w)) || /^\s*[,(]/.test(sentence.slice(orig[last].at + orig[last].w.length)));
-      if (linked && ids[hits.at(-1)] === ids[p] && hits[0] - last <= 14 && hits.at(-1) - hits[0] <= 2 * obj.length + 3 && !otherSubjectBetween(last, hits.at(-1))) return settle(p, hits[0]);
+      // ("the capital of Spain": the "of" right after the head, no new clause in between —
+      // not "kept its status as a capital, it owed taxes to Spain's rulers")
+      const between = hits ? sentence.slice(orig[hits[0]]?.at ?? 0, orig[hits.at(-1)]?.at ?? 0) : '';
+      const ofOk = !hits || !parts.ofHead || (new RegExp(`\\b${parts.ofPrep}\\b`, 'i').test(between) && !/[;:]|,\s*(?:it|he|she|they|we|which|who|whose|and|but|while|its|his|her|their|the|a|an)\b/i.test(between));
+      // ("the first man to take communion on the Moon" isn't "the first man on the Moon")
+      const inf = hits ? ws.slice(hits[0], hits.at(-1)).findIndex((w, i, a) => w === 'to' && a[i + 1] && !parts.words.some((n) => matches(n, a[i + 1]))) : -1;
+      if (linked && ofOk && inf >= 0 && !/\bto\b/i.test(parts.text)) return { stance: 'mentions', sentence };
+      if (linked && ofOk && ids[hits.at(-1)] === ids[p] && hits[0] - last <= 14 && hits.at(-1) - hits[0] <= 2 * obj.length + 3 && !otherSubjectBetween(last, hits.at(-1))) return settle(p, hits[0]);
       // (b) object … is … subject
       at = p;
       hits = [];
@@ -590,7 +598,9 @@ function judgeCore(parts, sentence) {
       }
     }
   }
-  if (subjectOk && !doerOk && verbAt >= 0 && relWords.length) return { stance: 'differs', sentence, other: firstName };
+  // (only a verb has a doer: "Pioneers in Tech: Guido van Rossum, creator of …" names no rival)
+  const isVerb = verbAt >= 0 && (/(?:ed|es|s)$/.test(ws[verbAt]) || /^(?:won|wrote|built|made|led|bought|beat|ran|began|sold|took|gave|win|write|build|make|lead|buy)$/.test(ws[verbAt])) && !/(?:or|er|ion|ment|ure)s?$/.test(ws[verbAt]);
+  if (subjectOk && !doerOk && isVerb && relWords.length) return { stance: 'differs', sentence, other: firstName };
   const subjAt = subj.length ? [...ws.keys()].filter((i) => subj.some((n) => matches(n, ws[i])) && i < verbAt).pop() ?? subjAt0 : -1;
   const subjectNear = subjectOk && subjAt >= 0 && doerOk && subjAt < verbAt && verbAt - subjAt <= 8 && ids[subjAt] === ids[verbAt];
   if (subjectNear) {
