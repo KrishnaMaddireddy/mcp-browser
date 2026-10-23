@@ -4,7 +4,8 @@
 // kind: training (collects pages to train models), search (indexes pages for an AI search or
 // answer product), user-fetch (opens a page when a person asks an assistant), token (a robots.txt
 // name that controls a use, not a crawler of its own), search-engine (a search crawler, listed so
-// it isn't mistaken for an AI one). fallback: whose group it follows when it has none of its own.
+// it isn't mistaken for an AI one, with a note on how its pages are used for AI). fallback: whose
+// group it follows when it has none of its own; crawler: the crawler a token's rules ride on.
 export const AI_CRAWLERS = [
   {
     "token": "GPTBot",
@@ -76,7 +77,8 @@ export const AI_CRAWLERS = [
     "kind": "token",
     "follows": "yes: the line itself controls Gemini training and grounding",
     "source": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers",
-    "checked": "2026-10-23"
+    "checked": "2026-10-23",
+    "crawler": "Googlebot"
   },
   {
     "token": "Googlebot",
@@ -84,7 +86,8 @@ export const AI_CRAWLERS = [
     "kind": "search-engine",
     "follows": "yes",
     "source": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers",
-    "checked": "2026-10-23"
+    "checked": "2026-10-23",
+    "note": "Google Search's crawler; pages it crawls also appear in AI Overviews, which Google-Extended doesn't control"
   },
   {
     "token": "Google-CloudVertexBot",
@@ -100,7 +103,8 @@ export const AI_CRAWLERS = [
     "kind": "token",
     "follows": "yes: the line itself controls Apple model training",
     "source": "https://support.apple.com/en-us/119829",
-    "checked": "2026-10-23"
+    "checked": "2026-10-23",
+    "crawler": "Applebot"
   },
   {
     "token": "Applebot",
@@ -109,7 +113,8 @@ export const AI_CRAWLERS = [
     "follows": "yes (follows Googlebot's rules when it has none of its own)",
     "source": "https://support.apple.com/en-us/119829",
     "checked": "2026-10-23",
-    "fallback": "Googlebot"
+    "fallback": "Googlebot",
+    "note": "Apple's search crawler; pages it crawls may be used to train Apple's models unless Applebot-Extended is blocked"
   },
   {
     "token": "Amazonbot",
@@ -125,7 +130,8 @@ export const AI_CRAWLERS = [
     "kind": "search",
     "follows": "yes",
     "source": "https://developer.amazon.com/amazonbot",
-    "checked": "2026-10-23"
+    "checked": "2026-10-23",
+    "noGroup": "Amazon says that with no group of its own it follows what the site tells other search bots"
   },
   {
     "token": "Amzn-User",

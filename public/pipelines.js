@@ -44,7 +44,7 @@
     </li>`;
   }
 
-  const stepEdHtml = (s, i) => `<li class="pl-ed-step" data-i="${i}">
+  const stepEdHtml = (s, i, orig = i) => `<li class="pl-ed-step" data-i="${i}" data-orig="${orig}">
       <label>Step ${i + 1}: ask <input type="text" data-ed-ask value="${esc(s.ask)}" placeholder="e.g. latest news about {input}"></label>
       ${i ? `<label class="lr-check"><input type="checkbox" data-ed-each ${s.each ? 'checked' : ''}> once for each result of the step before (use {title}, {url})</label>` : ''}
       <label>Servers <input type="text" data-ed-servers value="${esc((s.servers || []).join(', '))}" placeholder="server ids, or empty to let MCP Browser choose"></label>
@@ -56,7 +56,7 @@
       <label>Name <input type="text" data-ed-title value="${esc(p.title || '')}"></label>
       <label>What you type when you run it <input type="text" data-ed-label value="${esc(p.input?.label || 'Topic')}"></label>
       <label>Example <input type="text" data-ed-example value="${esc(p.input?.example || '')}"></label>
-      <ol class="pl-ed-steps">${(p.steps || [{ ask: '' }]).map(st).join('')}</ol>
+      <ol class="pl-ed-steps">${(p.steps || [{ ask: '' }]).map((s, i) => st(s, i)).join('')}</ol>
       <p class="hint">In a question: <code>{input}</code> what you typed · <code>{answer}</code> the step before’s answer · <code>{titles}</code> its results · in a “for each” step <code>{title}</code> <code>{url}</code> <code>{host}</code> of one result. Server ids are in the Server catalog (e.g. <code>keenable</code>, <code>exa</code>, <code>wikexa</code>, <code>context7</code>, <code>marketcrew</code>, <code>weather-worldwide</code>).</p>
       <div class="lr-acts"><button type="button" class="link-btn" data-ed-add>Add a step</button><button type="submit" class="st-dl-btn">Save</button><button type="button" class="link-btn" data-ed-cancel>Cancel</button><span class="hint" data-ed-msg></span></div>
     </form>`;
@@ -188,10 +188,12 @@
     }
 
     function readEditor(f, base) {
-      // (a step's other settings — its kind, searches, tool call — come along from the pipeline it was made from)
+      // (a step's other settings — its kind, searches, tool call — come along from the step it was
+      // made from, found by where it was in the pipeline, so removing a step doesn't shift them)
       const keep = ({ kind, queries, call, path, check }) => ({ ...(kind ? { kind } : {}), ...(queries ? { queries } : {}), ...(call ? { call } : {}), ...(path ? { path } : {}), ...(check ? { check } : {}) });
-      const steps = [...f.querySelectorAll('.pl-ed-step')].map((li, k) => ({
-        ...(base?.steps?.[k] ? keep(base.steps[k]) : {}),
+      const orig = (li) => (li.dataset.orig === '' ? null : base?.steps?.[Number(li.dataset.orig)]);
+      const steps = [...f.querySelectorAll('.pl-ed-step')].map((li) => ({
+        ...(orig(li) ? keep(orig(li)) : {}),
         ask: li.querySelector('[data-ed-ask]').value.trim(),
         each: Boolean(li.querySelector('[data-ed-each]')?.checked),
         servers: li.querySelector('[data-ed-servers]').value.split(',').map((x) => x.trim()).filter(Boolean),
@@ -208,7 +210,7 @@
         if (e.target.closest('[data-ed-add]')) {
           const ol = f.querySelector('.pl-ed-steps');
           const n = ol.children.length;
-          if (n < 5) ol.insertAdjacentHTML('beforeend', stepEdHtml({ ask: '', each: n > 0 }, n));
+          if (n < 5) ol.insertAdjacentHTML('beforeend', stepEdHtml({ ask: '', each: n > 0 }, n, ''));
         }
         if (e.target.closest('[data-ed-rm]')) e.target.closest('.pl-ed-step').remove();
       });

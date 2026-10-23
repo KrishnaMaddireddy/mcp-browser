@@ -156,8 +156,9 @@ export function cleanPipeline(p) {
   });
   if (!steps.length) throw new Error('a pipeline needs at least one step');
   // Research informs what's made: never a research step after a generate step.
-  const gen = steps.findIndex((s) => stepKind(s) === 'generate');
-  if (gen >= 0 && steps.slice(gen + 1).some((s) => stepKind(s) === 'research')) throw new Error('a research step can’t come after a generate step: research first, so it can inform what’s generated');
+  // (only steps marked as such: an old-style question starting "Make …" or "Compare …" is neither)
+  const gen = steps.findIndex((s) => s.kind === 'generate');
+  if (gen >= 0 && steps.slice(gen + 1).some((s) => s.kind === 'research')) throw new Error('a research step can’t come after a generate step: research first, so it can inform what’s generated');
   return {
     id: String(p.id || crypto.randomBytes(5).toString('hex')).replace(/[^\w-]/g, '').slice(0, 40),
     title: String(p.title || 'My pipeline').trim().slice(0, 100),
@@ -195,6 +196,8 @@ function fillArg(template, vars) {
 }
 
 const PAGE_FETCH_ID = 'app.openkrill/page-fetch';
+// (words too common to show a page is about the subject)
+const GENERIC = new Set('free best new top online app apps tool tools service services search find get easy fast cheap'.split(' '));
 const textOf = (r) => (r?.content || []).filter((c) => c?.type === 'text').map((c) => c.text).join('\n');
 
 /**
@@ -248,6 +251,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       const url = brief.domain ? `https://${brief.domain}${st.path}` : '';
       emit('pipe_run', { i, j: 0, q: url ? `Read ${url}` : st.ask, item: null });
       const run = { q: url ? `Read ${url}` : st.ask, item: null, answer: '', sources: [], servers: [] };
+      let missing = false;
       if (!url) run.note = 'No website named: type a domain, such as example.com.';
       else {
         try {
@@ -259,10 +263,18 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           }
           const r = await call(PAGE_FETCH_ID, 'fetch_page', { url, max_chars: 20000, links: false });
           const sc = r?.structuredContent || {};
+          // (no such file: Page Fetch says status "skipped", reason "not_found"; a site with no
+          // robots.txt allows everything, so say that rather than stop)
+          if (sc.reason === 'not_found' || Number(sc.http_status) === 404) {
+            missing = true;
+            throw new Error(`${url} doesn't exist (not found)`);
+          }
           if (sc.status !== 'ok') throw new Error(`${url}: ${sc.status || 'no reply'}${sc.http_status ? ` (${sc.http_status})` : ''}`);
           // (a page where a text file should be — an HTML "not found" page — isn't the file)
           if (/html/i.test(sc.content_type || '') && st.path === '/robots.txt') throw new Error(`${url} isn't a robots.txt file (the site sent a web page)`);
-          ctx.fetched = { url: sc.final_url || url, text: String(sc.markdown || ''), at: sc.fetched_at || new Date().toISOString(), host: brief.domain };
+          // (where it ended up after redirects, when that's a web address)
+          const finalUrl = /^https?:\/\/[^\s]+$/i.test(String(sc.final_url || '')) ? String(sc.final_url) : url;
+          ctx.fetched = { url: finalUrl, text: String(sc.markdown || ''), at: sc.fetched_at || new Date().toISOString(), host: brief.domain };
           run.servers = ['Page Fetch'];
           run.sources = [{ title: `${brief.domain}${st.path}`, url: ctx.fetched.url, host: brief.domain }];
           run.details = [{ server: `Fetched ${ctx.fetched.at.slice(0, 16).replace('T', ' ')} UTC`, title: '', text: ctx.fetched.text.slice(0, 600) || '(empty file)' }];
@@ -270,7 +282,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           if (signal?.aborted) throw e;
           run.note = `Couldn’t read it: ${String(e.message || e).slice(0, 200)}`;
           // (a site with no robots.txt allows everything: say so rather than stop)
-          if (st.path === '/robots.txt' && /404|not found/i.test(run.note)) ctx.fetched = { url, text: '', at: new Date().toISOString(), host: brief.domain, missing: true };
+          if (st.path === '/robots.txt' && missing) ctx.fetched = { url, text: '', at: new Date().toISOString(), host: brief.domain, missing: true };
         }
       }
       out.push({ i, kind, runs: [run] });
@@ -318,6 +330,8 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           ctx.calls.push({ step: i, server: st.call.server, tool: st.call.tool, args, text, structured: r?.structuredContent || null });
           if (kind === 'generate') {
             const hs = headlinesIn(text);
+            // (this tool takes no research notes: said, so the table's notes aren't read as its sources)
+            if (ctx.notes.length && j === 0) run.answer = `This tool takes only ${Object.keys(args).join(', ')}, so the research notes weren't given to it; with an AI model set in Settings they are.`;
             ctx.made.push(...hs);
             if (hs.length) run.details = [{ server: st.call.server, title: `${hs.length} written`, facts: hs.map((h) => ({ label: h.angle || '—', value: h.text })) }];
             // (a busy or failing generator says so in words: shown, not counted as headlines)
@@ -354,14 +368,25 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
     if (kind === 'check') {
       emit('pipe_step', { i, total: p.steps.length, each: false, runs: 1, kind });
       emit('pipe_run', { i, j: 0, q: st.ask, item: null });
-      const res = checkAdHeadlines(ctx.made, { limit: brief.limit, keep: brief.count || 10, must: keyWords(`${brief.subject} ${brief.benefit}`) });
+      const must = keyWords(`${brief.subject} ${brief.benefit}`);
+      let res = checkAdHeadlines(ctx.made, { limit: brief.limit, keep: brief.count || 10, must });
+      // (too few passed — the generator was busy, or wrote long ones: headlines put together in code
+      // from your own words, checked by the same rules, and labelled as such)
+      if (res.kept.length < (brief.count || 10)) {
+        const own = headlinesFromBrief(brief);
+        if (own.length) {
+          res = checkAdHeadlines([...ctx.made, ...own], { limit: brief.limit, keep: brief.count || 10, must });
+          res.dropped = res.dropped.filter((d) => !own.some((o) => o.text === d.text) || d.reason !== 'more than needed');
+        }
+      }
       ctx.checked = res;
+      const ownUsed = res.kept.filter((k) => k.mine).length;
       const why = {};
       for (const d of res.dropped) why[d.reason.replace(/^\d+ over/, 'over')] = (why[d.reason.replace(/^\d+ over/, 'over')] || 0) + 1;
       const run = {
         q: st.ask,
         item: null,
-        answer: ctx.made.length ? `Kept ${res.kept.length} of ${ctx.made.length}${res.dropped.length ? `; left out: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(', ')}` : ''}.` : 'Nothing to check: the step before wrote nothing.',
+        answer: `${ctx.made.length ? `Kept ${res.kept.length - ownUsed} of ${ctx.made.length} written${res.dropped.length ? `; left out: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(', ')}` : ''}.` : 'The step before wrote nothing.'}${ownUsed ? ` Added ${ownUsed} put together from your own words.` : ''}`,
         sources: [],
         servers: ['MCP Browser'],
         check: res,
@@ -414,7 +439,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       try {
         // (with no AI model, tools are asked the step's subject, not its instruction words:
         // "Write 10 ad headlines for a {input}" asks about "{input}")
-        r = await agent.search(q, { emit: sub, signal, route: stripInstruction(q), ...(st.servers?.length ? resolveServers(st.servers) : {}) });
+        r = await agent.search(q, { emit: sub, signal, ...(WRITES.test(q) ? { route: stripInstruction(q) } : {}), ...(st.servers?.length ? resolveServers(st.servers) : {}) });
       } catch (e) {
         if (signal?.aborted) throw e;
       }
@@ -432,8 +457,14 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           return true;
         });
       // Only results about the subject: the item a "for each" step is about, else what you typed.
-      const subject = item?.title || brief.subject || stripInstruction(input) || '';
-      const { kept, dropped } = aboutSubject(sources, subject);
+      // (research steps only: a plain step's servers often name the subject another way, such as a
+      // ticker for a company, and its results are kept as they come)
+      // (a research query about the benefit — "free federal contract search small businesses" —
+      // is matched on the brief's words it uses, not on the product's name, which its pages won't have)
+      const briefWords = new Set(keyWords(`${brief.subject} ${brief.benefit}`).filter((w) => !GENERIC.has(w)));
+      const asked = research && !item ? keyWords(q).filter((w) => briefWords.has(w)).join(' ') : '';
+      const subject = item?.title || asked || brief.subject || stripInstruction(input) || '';
+      const { kept, dropped } = research ? aboutSubject(sources, subject) : { kept: sources, dropped: [] };
       sources = kept.slice(0, 8).map(({ title, url, host }) => ({ title, url, host }));
       const run = { q, item, answer: text.slice(0, 2000), sources, servers: [...new Set(servers)], ...(details.length ? { details } : {}) };
       if (!sources.length && !text && !details.length) run.note = dropped.length ? `Nothing relevant found: ${dropped.length} result${dropped.length === 1 ? '' : 's'} didn’t mention ${subject}.` : 'Nothing found.';
@@ -477,6 +508,37 @@ async function writeHeadlines(provider, brief, notes, signal) {
   return hs.slice(0, 25);
 }
 
+/**
+ * Headlines put together in code from the request's own words (product, benefit, audience,
+ * subject), for when too few written ones pass the checks. Never adds a claim the user didn't make.
+ * "SpendQuery, a free federal contract search for small businesses" → "Free Federal Contract
+ * Search", "SpendQuery for Small Businesses", "Looking for Federal Contracts?"…
+ */
+export function headlinesFromBrief(brief) {
+  const title = (t) => String(t || '').replace(/\s+/g, ' ').trim().replace(/[\p{L}][\p{L}'’-]*/gu, (w, at) => (/^(?:a|an|the|and|or|of|for|to|in|on|with|by)$/i.test(w) && at > 0 ? w.toLowerCase() : /[A-Z].*[A-Z]|\d/.test(w) ? w : w[0].toUpperCase() + w.slice(1)));
+  const S = title(brief.subject);
+  const P = title(brief.product);
+  const B = title(brief.benefit);
+  const A = title(brief.audience);
+  const plural = /s$/i.test(brief.benefit || brief.subject);
+  const list = [
+    [B, 'Benefit'],
+    [P && B && `${P}: ${B}`, 'Benefit'],
+    [P && A && `${P} for ${A}`, 'Audience'],
+    [B && A && `${B} for ${A}`, 'Audience'],
+    [!P && S && `Find ${plural ? '' : 'a '}${S}`, 'Benefit'],
+    [!P && S && A && `${S} for ${A}`, 'Audience'],
+    [(B || S) && `Looking for ${plural ? '' : 'a '}${B || S}?`, 'Question'],
+    [(B || S) && `Need ${plural ? '' : 'a '}${B || S}?`, 'Question'],
+    [P && `Try ${P}${/\bfree\b/i.test(brief.benefit) ? ' Free' : ''}`, 'Direct Offer'],
+    [P && `${P}: ${S === P ? B || 'See How It Works' : S}`, 'Direct Offer'],
+  ];
+  const seen = new Set();
+  return list
+    .filter(([t]) => t && t.length >= 6 && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()))
+    .map(([text, angle]) => ({ text, angle, mine: true }));
+}
+
 /** The result that ends a pipeline, in the form its kind calls for. */
 function finalResult(p, ctx, out) {
   const { brief } = ctx;
@@ -493,17 +555,22 @@ function finalResult(p, ctx, out) {
       }
       return best ? best.k + 1 : null;
     };
-    const rows = kept.map((h) => ({ headline: h.text, chars: h.chars, angle: `${h.angle || '—'}${h.from ? ' (shortened)' : ''}`, note: noteFor(h) }));
+    const rows = kept.map((h) => ({ headline: h.text, chars: h.chars, angle: `${h.angle || '—'}${h.mine ? ' (from your words)' : h.from ? ' (shortened)' : ''}`, note: noteFor(h) }));
     const order = ['Question', 'Benefit-Driven', 'Benefit', 'Specificity', 'Direct Offer'];
-    const pick = [...rows].sort((a, b) => (order.indexOf(a.angle) + 1 || 9) - (order.indexOf(b.angle) + 1 || 9)).slice(0, 2);
+    const pick = [...rows].filter((r, k) => !kept[k].mine || rows.every((x, m) => kept[m].mine)).sort((a, b) => (order.indexOf(a.angle) + 1 || 9) - (order.indexOf(b.angle) + 1 || 9)).slice(0, 2);
     const notes = [];
     if (!brief.channelGiven) notes.push(`No channel was named, so these are for ${brief.channel}: ${brief.limit} characters each. Say “for LinkedIn” or “for Meta” for longer ones.`);
     if (!brief.product) notes.push(`No product was named, so these are about ${brief.subject} in general. Name what you're advertising (“SpendQuery, a free federal contract search for small businesses”) for headlines about it.`);
-    if (rows.length < (brief.count || 10)) notes.push(`Only ${rows.length} of the headlines written passed the checks (the ${brief.limit}-character limit, no near-duplicates, no risky words): the rest are listed in the check step.`);
+    const mine = kept.filter((h) => h.mine).length;
+    const wrote = ctx.made.length;
+    if (mine && !wrote) notes.push(`The headline tool wrote none this time (see the generate step), so ${mine === rows.length ? 'these were' : `${mine} of these were`} put together in code from the words in your request. Run it again later for more, or set an AI model in Settings.`);
+    else if (mine) notes.push(`${mine} of these were put together in code from the words in your request, because too few of the ones written passed the checks.`);
+    if (rows.length < (brief.count || 10) && wrote) notes.push(`Only ${rows.length} of the headlines written passed the checks (the ${brief.limit}-character limit, no near-duplicates, no risky words): the rest are listed in the check step.`);
     return {
       format: 'ad-table',
       text: rows.length ? `${rows.length} headline${rows.length === 1 ? '' : 's'} for ${brief.product || brief.subject}, each within ${brief.limit} characters. Test first: ${pick.map((r) => `“${r.headline}”`).join(' and ')}.` : 'No headline passed the checks.',
-      table: { columns: ['Headline', 'Characters', 'Angle', 'Research note'], rows: rows.map((r) => [r.headline, String(r.chars), r.angle, r.note ? `[${r.note}]` : '—']) },
+      // ("related": the note shares words with the headline; it wasn't necessarily used to write it)
+      table: { columns: ['Headline', 'Characters', 'Angle', 'Related note (shared words)'], rows: rows.map((r) => [r.headline, String(r.chars), r.angle, r.note ? `[${r.note}]` : '—']) },
       citations: ctx.notes.map((n, k) => ({ n: k + 1, step: n.step, title: n.title, url: n.url, host: n.host })),
       notes,
     };
@@ -524,12 +591,14 @@ function finalResult(p, ctx, out) {
       const differs = other && (other.decision === 'allow') !== a.allowed;
       return { c, a, differs };
     });
-    const blocked = rows.filter((r) => !r.a.allowed);
+    // (crawlers, not tokens, in the sentence: a token is "opted out", not "blocked")
+    const crawlers = rows.filter((r) => r.c.kind !== 'token');
+    const blocked = crawlers.filter((r) => !r.a.allowed);
     const fetchedAt = `${f.at.slice(0, 16).replace('T', ' ')} UTC`;
     const lead = f.missing
       ? `${brief.domain} has no robots.txt (checked ${fetchedAt}), so it asks no crawler to stay away.`
       : blocked.length
-        ? `${brief.domain}'s robots.txt (fetched ${fetchedAt}) blocks ${blocked.map((r) => r.c.token).join(', ')} from the home page; it doesn't block ${rows.filter((r) => r.a.allowed).map((r) => r.c.token).slice(0, 6).join(', ')}${rows.filter((r) => r.a.allowed).length > 6 ? ' and others' : ''}.`
+        ? `${brief.domain}'s robots.txt (fetched ${fetchedAt}) blocks ${blocked.map((r) => r.c.token).join(', ')} from the home page; it doesn't block ${crawlers.filter((r) => r.a.allowed).map((r) => r.c.token).slice(0, 6).join(', ')}${crawlers.filter((r) => r.a.allowed).length > 6 ? ' and others' : ''}.`
         : `${brief.domain}'s robots.txt (fetched ${fetchedAt}) blocks none of these AI crawlers from the home page${groups.some((g) => g.rules.some((r) => !r.allow)) ? ': its Disallow lines cover other paths only' : ''}.`;
     const citations = [{ n: 1, step: null, title: `${brief.domain}/robots.txt`, url: f.url, host: brief.domain }];
     const cite = (url, title) => {
@@ -538,13 +607,21 @@ function finalResult(p, ctx, out) {
       citations.push({ n: citations.length + 1, step: null, title, url, host: hostOf(url) });
       return citations.length;
     };
-    const KIND = { training: 'training', search: 'search index', 'user-fetch': 'user-triggered fetcher', token: 'control token', 'search-engine': 'search crawler (not AI)' };
+    const KIND = { training: 'training', search: 'search index', 'user-fetch': 'user-triggered fetcher', token: 'control token', 'search-engine': 'search crawler' };
+    const how = ({ c, a, differs }) => {
+      const why = a.rule ? ` (${a.rule}${a.group === 'own' ? ', its own group' : a.group === 'fallback' ? `, ${c.fallback}'s group, which it follows` : ''})` : '';
+      // (a token isn't a crawler: it's opted out or not; and its crawler being blocked matters too)
+      let v = c.kind === 'token' ? `${a.allowed ? 'not opted out' : 'opted out'}${why}` : `${a.allowed ? 'allowed' : 'blocked'}${why}`;
+      if (c.kind === 'token' && a.allowed && c.crawler && !robotsAllows(groups, c.crawler, '/').allowed) v += `; ${c.crawler} is blocked, so it doesn't crawl the page anyway`;
+      if (c.noGroup && a.group !== 'own') v += ` — no group of its own: ${c.noGroup}`;
+      return `${v}${differs ? ' — Botcard reads it differently' : ''}`;
+    };
     return {
       format: 'robots',
       text: lead,
       table: {
         columns: ['Crawler', 'Owner', 'Kind', 'Says it follows robots.txt', `${brief.domain}, home page`, 'Source'],
-        rows: rows.map(({ c, a, differs }) => [c.token, c.owner, KIND[c.kind] || c.kind, c.follows, `${a.allowed ? 'allowed' : 'blocked'}${a.rule ? ` (${a.rule}${a.group === 'own' ? `, its own group` : ''})` : ''}${differs ? ' — Botcard reads it differently' : ''}`, `${c.source ? `[${cite(c.source, `${c.owner}'s crawler documentation`)}]` : '—'}${c.report ? ` report: [${cite(c.report, `Report on ${c.token}`)}]` : ''}`]),
+        rows: rows.map((r) => [r.c.token, r.c.owner, `${KIND[r.c.kind] || r.c.kind}${r.c.note ? ` (${r.c.note})` : ''}`, r.c.follows, how(r), `${r.c.source ? `[${cite(r.c.source, `${r.c.owner}'s crawler documentation`)}]` : '—'}${r.c.report ? ` report: [${cite(r.c.report, `Report on ${r.c.token}`)}]` : ''}`]),
       },
       notes: [FETCHER_NOTE.text.replace(/\[(\w+)\]/g, (m, k) => (FETCHER_NOTE.sources[k] ? `[${cite(FETCHER_NOTE.sources[k].url, FETCHER_NOTE.sources[k].title)}]` : m))],
       citations,
@@ -568,7 +645,9 @@ export function detailOf(view, text) {
 
 /** One line per result, for watches ("what changed") and "until" checks. */
 export function pipelineText(result) {
-  const fin = result.result ? `${result.result.text || ''}\n${(result.result.table?.rows || []).map((r) => r.join(' | ')).join('\n')}\n\n` : '';
+  // (the result's table and notes, not its sentence: that carries the fetch time, which would
+  // read as a change on every run of a watch)
+  const fin = result.result ? `${(result.result.table?.rows || []).map((r) => r.join(' | ')).join('\n')}\n${(result.result.notes || []).join('\n')}\n\n` : '';
   return fin + result.steps
     .flatMap((s) => s.runs.map((r) => [r.q, r.answer, ...r.sources.map((x) => `${x.title} ${x.url}`), ...(r.details || []).map((d) => [d.title, d.text, ...(d.facts || []).map((f) => `${f.label}: ${f.value}`)].filter(Boolean).join(' '))].filter(Boolean).join('\n')))
     .join('\n\n');

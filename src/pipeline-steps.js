@@ -23,8 +23,15 @@ export const CHANNELS = {
   tiktok: { name: 'TikTok', limit: 100, platform: 'TikTok' },
 };
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20 };
-// "Write 10 Google ad headlines for a …", "give me some ad copy about …", "create headlines for …"
-const INSTRUCTION = /^\s*(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:(?:write|create|generate|make|draft|give\s+me|come\s+up\s+with|suggest|brainstorm|produce|i\s+need|we\s+need)\s+(?:me\s+)?)?(?:(?:\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|a\s+few|some|several|more)\s+)?(?:(?:google|meta|facebook|instagram|linkedin|tiktok|search|social|display)\s+)*(?:(?:ad|ads|advert|advertising|marketing|campaign|catchy|short|punchy|new)\s+)*(?:headlines?|copy|titles?|slogans?|taglines?|lines?|ads?|ideas?)\s*(?:(?:for|about|on|promoting|to\s+promote|to\s+sell)\s+)?(?:(?:an?|the|my|our)\s+)?/i;
+// "Write 10 Google ad headlines for a …", "give me some ad copy about …", "10 headlines for …".
+// It needs a verb ("write", "give me") or a count before the nouns, and whole words only, so
+// "Adobe", "Linear algebra" and "Lines of code" are never cut.
+const VERB = String.raw`(?:write|create|generate|make|draft|give\s+me|come\s+up\s+with|suggest|brainstorm|produce|i\s+need|we\s+need)\s+(?:me\s+|us\s+)?`;
+const COUNT = String.raw`(?:\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|a\s+few|some|several|more)\s+`;
+const NOUNS = String.raw`(?:(?:google|meta|facebook|instagram|linkedin|tiktok|search|social|display)\s+)*(?:(?:ad|ads|advert|advertising|marketing|campaign|catchy|short|punchy|new)\s+)*(?:headlines?|ad\s+copy|copy|titles?|slogans?|taglines?|ads|ad|captions?|posts?|ideas?)\b`;
+const INSTRUCTION = new RegExp(String.raw`^\s*(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:${VERB}(?:${COUNT})?|${COUNT})${NOUNS}\s*(?:[:,-]\s*|(?:for|about|on|promoting|to\s+promote|to\s+sell)\s+)?(?:(?:an?|the|my|our)\s+)?`, 'i');
+// (words a request uses to ask, not what it's about: with only these left, there's no subject)
+const ASKING = new Set('write create generate make draft give me us come up with suggest brainstorm produce need please some few several more new catchy short punchy ad ads advert advertising marketing campaign headline headlines copy title titles slogan slogans tagline taglines caption captions post posts idea ideas google meta facebook instagram linkedin tiktok search social display i we can could would you'.split(' '));
 
 /** The request with its instruction words taken off: what a tool should be asked about. */
 export function stripInstruction(text) {
@@ -32,6 +39,8 @@ export function stripInstruction(text) {
   const rest = t.replace(INSTRUCTION, '').trim();
   return rest.length >= 2 ? rest : t;
 }
+/** Is anything left that a request is about (not only "write me 10 ad headlines")? */
+const namesSomething = (t) => keyWords(t).some((w) => !ASKING.has(w) && !/^\d+$/.test(w));
 
 const DOMAIN = /\b((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24})\b/i;
 const FILE_EXT = new Set(['js', 'ts', 'md', 'py', 'json', 'txt', 'html', 'css', 'xml', 'yml', 'yaml', 'csv', 'pdf', 'png', 'jpg']);
@@ -48,10 +57,14 @@ export function briefOf(input) {
   const low = raw.toLowerCase();
   const countM = /\b(\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty)\s+(?:(?:google|meta|facebook|instagram|linkedin|tiktok|search|ad|ads|catchy|short)\s+)*(?:headlines?|ads?|titles?|slogans?|taglines?|lines?|ideas?)\b/i.exec(raw);
   const count = countM ? Math.min(20, Number(countM[1]) || NUMBER_WORDS[countM[1].toLowerCase()] || 10) : null;
-  const chKey = /\blinked\s?in\b/.test(low) ? 'linkedin' : /\btik\s?tok\b/.test(low) ? 'tiktok' : /\binstagram\b/.test(low) ? 'instagram' : /\bfacebook\b/.test(low) ? 'facebook' : /\bmeta\b/.test(low) ? 'meta' : /\bgoogle\b|\bsearch ads?\b/.test(low) ? 'google' : null;
+  // (a channel only where the request says where the ads run: "LinkedIn ad headlines", "for Meta",
+  // "on Google" — not "Meta Quest accessories" or "Linked In Learning courses")
+  const chM = /\b(google|meta|facebook|instagram|linkedin|tiktok)\s+(?:search\s+)?(?:ads?|ad\s+copy|headlines?|campaigns?|posts?|captions?)\b|\b(?:on|for|in)\s+(google|meta|facebook|instagram|linkedin|tiktok)(?:\s+(?:search|ads?))*\s*$|\bsearch\s+ads?\b/i.exec(low);
+  const chKey = chM ? (chM[1] || chM[2] || 'google').toLowerCase() : null;
   const ch = CHANNELS[chKey || 'google'];
   let rest = stripInstruction(raw)
-    .replace(/\b(?:on|for|in)\s+(?:google(?:\s+search)?|meta|facebook|instagram|linkedin|tiktok)(?:\s+ads?)?\b/gi, ' ')
+    .replace(/\b(?:on|for|in)\s+(?:google(?:\s+search)?|meta|facebook|instagram|linkedin|tiktok)(?:\s+ads?)?\s*$/gi, ' ')
+    .replace(/^[\s:,;-]+/, '')
     .replace(/\s+/g, ' ')
     .replace(/[.!?]+$/, '')
     .trim();
@@ -65,7 +78,7 @@ export function briefOf(input) {
     benefit = apos[2].trim();
   }
   const forAud = /^(.{3,120}?)\s+(?:for|aimed at|targeting|to)\s+((?:small|busy|new|local|young|first-time|online|independent|federal|government|enterprise)?\s*[\p{L}][\p{L} -]{2,50}?)$/iu.exec(benefit || rest);
-  if (forAud && !/\b(?:sale|free|less|more|you|your)\b/i.test(forAud[2]) && /(?:es|ers?|ors?|people|owners|teams|students|parents|businesses|companies|agencies|firms|buyers|shoppers|users|developers|contractors|startups|families|seniors|nurses|doctors|lawyers)$/i.test(forAud[2].trim())) {
+  if (forAud && !/\b(?:sale|free|less|more|you|your)\b/i.test(forAud[2]) && /(?:ers|ors|people|owners|teams|students|parents|businesses|companies|agencies|firms|buyers|shoppers|users|developers|contractors|startups|families|seniors|nurses|doctors|lawyers|employees|homeowners|retirees|travelers|travellers|gamers|investors|patients|clinics|schools|nonprofits|freelancers|creators)$/i.test(forAud[2].trim())) {
     if (benefit) benefit = forAud[1].trim();
     else rest = forAud[1].trim();
     audience = forAud[2].trim();
@@ -73,10 +86,10 @@ export function briefOf(input) {
   let subject = product || rest;
   // "us government contracts": "us" is the country here
   subject = subject.replace(/^us\b(?=\s+(?:government|federal|army|navy|military|market|companies|stocks?|economy))/i, 'US').trim();
-  const dm = DOMAIN.exec(raw);
-  const domain = dm && !FILE_EXT.has(dm[1].split('.').pop().toLowerCase()) ? dm[1].toLowerCase().replace(/^www\./, '') : '';
-  // (nothing but the request's own nouns left: "ad headlines" names no subject)
-  if (/^(?:(?:google|meta|facebook|linkedin|tiktok|ad|ads|catchy|short)\s+)*(?:headlines?|copy|ads?|titles?|slogans?|taglines?)$/i.test(subject)) subject = '';
+  // (the first name that is a website, not a file: "the robots.txt of theguardian.com")
+  const domain = ([...raw.matchAll(new RegExp(DOMAIN.source, 'gi'))].map((m) => m[1]).find((d) => !FILE_EXT.has(d.split('.').pop().toLowerCase()) && !/^(?:robots|llms|sitemap|security|humans|ads)\.txt$/i.test(d)) || '').toLowerCase().replace(/^www\./, '');
+  // (nothing but asking words left — "Write 10 ad headlines", "Write me some ads": no subject)
+  if (!namesSomething(subject)) subject = '';
   const words = keyWords(subject);
   return {
     raw,
@@ -100,13 +113,18 @@ export function briefOf(input) {
  * that is a ticker or a code ("NVDA", "CVE-2021-44228") is left alone: pages name the company.
  */
 export function aboutSubject(results, subject) {
-  const words = keyWords(subject).filter((w) => w.length >= 3);
+  // (accents, case and hyphens don't count: "Türkiye" matches "Turkiye", "CVE-2021-44228" matches
+  // "cve 2021 44228" in an address)
+  const flat = (t) => String(t || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[-_/–—]+/g, ' ');
+  const words = keyWords(subject).map((w) => flat(w).trim()).filter((w) => w.length >= 3);
   if (!words.length || /^[A-Z0-9.-]{1,6}$/.test(String(subject).trim())) return { kept: results, dropped: [] };
-  const stem = (w) => (w.length > 5 ? w.slice(0, w.length - 2) : w);
+  const stem = (w) => (w.length > 5 && !/\d/.test(w) ? w.slice(0, w.length - 2) : w);
   const kept = [];
   const dropped = [];
   for (const r of results) {
-    const hay = `${r.title || ''} ${decodeURIComponent(String(r.url || '').replace(/%(?![0-9a-f]{2})/gi, '%25'))} ${r.text || ''}`.toLowerCase().replace(/[-_/]+/g, ' ');
+    let url = String(r.url || '');
+    try { url = decodeURIComponent(url.replace(/%(?![0-9a-f]{2})/gi, '%25')); } catch { /* keep it as it is */ }
+    const hay = flat(`${r.title || ''} ${url} ${r.text || ''}`);
     (words.some((w) => hay.includes(stem(w))) ? kept : dropped).push(r);
   }
   return { kept, dropped };
@@ -116,10 +134,20 @@ export function aboutSubject(results, subject) {
 
 // (risky wording, by why it's risky)
 const AD_FLAGS = [
-  ['looks like a government site', /\b(?:official|government[- ]approved|government[- ]endorsed|endorsed by|certified by the|on behalf of)\b|\.gov\b|\bsam\.gov\b|\b(?:GSA|SBA|IRS|DoD|FEMA|USDA)\b(?!\s+(?:schedule|contracts?|set-asides?|bids?|data|rules|guidelines))/i],
-  ['promises a result', /\bguarantee[ds]?\b|\b(?:win|land)\s+every\b|\bnever\s+lose\b|\b100\s?%/i],
-  ['clickbait', /\b(?:secret|hidden|shocking|you won'?t believe|this one trick|nobody tells you|unlock the)\b/i],
+  // ("endorsed by" alone isn't government: "Endorsed by Small Businesses" is a testimonial)
+  ['looks like a government site', /\b(?:official|government[- ](?:approved|endorsed|certified)|(?:endorsed|approved|certified|backed)\s+by\s+(?:the\s+)?(?:government|federal|state|u\.?s\.?\b|gsa|sba|irs|fema|usda|dod)|on behalf of (?:the )?(?:government|agency))\b|\.gov\b|\bsam\.gov\b/i],
+  // (an agency's or a federal system's name, in capitals, as if it were the advertiser: "Search SAM
+  // Faster", "Free IRS Tax Help"; "GSA Schedule" and "SBA loans" are what's being sold, so they pass)
+  ['looks like a government site', /\b(?:SAM|GSA|SBA|IRS|DoD|FEMA|USDA|VA|SSA|USPS)\b(?!\s+(?:[Ss]chedules?|[Cc]ontracts?|[Ss]et-[Aa]sides?|[Bb]ids?|[Dd]ata|[Rr]ules|[Gg]uidelines|[Ll]oans?|[Ff]orms?))/],
+  // ("100% Free" is a price, not a promise; "100% success" is)
+  ['promises a result', /\bguarantee[ds]?\b|\b(?:win|land)\s+every\b|\bnever\s+lose\b|\b100\s?%\s+(?:success|results?|approval|approved|win|wins|guaranteed|accurate|safe|effective|money back)\b|\b(?:make|earn)\s+\$\s?\d[\d,.]*\s*[km]?\b|\blose\s+\d+\s*(?:lbs?|pounds?|kg|kilos?)\b|\bcures?\b/i],
+  ['clickbait', /\b(?:secrets?|hidden|shocking|you won'?t believe|this one trick|one weird trick|nobody tells you|unlock the)\b/i],
+  // (a number of approvals or users is a claim the advertiser has to be able to prove)
+  ['a claim to back up', /\b(?:approved|trusted|used|loved|chosen|rated)\s+by\s+(?:over\s+|more than\s+)?\d[\d,.]*\s*[km+]?\b|\b#1\b|\bnumber one\b|\bbest in (?:the )?(?:us|usa|america|world|country)\b/i],
 ];
+// (characters as a person counts them: "👍🏽" is one)
+const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
+export const charCount = (t) => (SEG ? [...SEG.segment(String(t))].length : [...String(t)].length);
 const norm = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
 function similar(a, b) {
   const A = new Set(keyWords(a));
@@ -135,16 +163,16 @@ export function headlinesIn(text) {
   const out = [];
   for (const line of String(text || '').split(/\n/)) {
     // (numbered lines only: a generator's "• Free, no signup: https://…" lines are its own ads)
-    const m = /^\s*\d{1,2}[.)]\s+(.+?)\s*(?:\[([^\]]{2,30})\])?\s*$/.exec(line);
+    const m = /^\s*\d{1,2}[.)]\s+(.+?)\s*(?:\[([^\]]{2,30})\]|\(([^)]{2,30})\))?\s*$/.exec(line.replace(/\*\*(\[[^\]]*\])\*\*/g, '$1'));
     if (!m || /https?:\/\/|www\./i.test(line)) continue;
-    const t = m[1].replace(/^["“]|["”]$/g, '').trim();
-    if (t.length >= 4 && t.length <= 160 && !/^https?:/i.test(t)) out.push({ text: t, angle: (m[2] || '').trim() });
+    const t = m[1].replace(/\*\*|__|`/g, '').replace(/^["“]|["”]$/g, '').trim();
+    if (t.length >= 4 && t.length <= 160 && !/^https?:/i.test(t)) out.push({ text: t, angle: (m[2] || m[3] || '').trim() });
   }
   return out;
 }
 
 const TAIL = /\s+(?:today|now|fast|instantly|online|here|easily|for free)$/i;
-const ENDS_BADLY = /\b(?:a|an|the|to|and|or|of|for|with|your|our|in|on|at|by|from|that|is|are)$/i;
+const ENDS_BADLY = /\b(?:a|an|the|to|and|or|of|for|with|your|our|in|on|at|by|from|that|is|are|just|not|only|but|than|as|so|if|no|more|less|very)$/i;
 /**
  * A headline over the limit, shortened in code when that keeps its meaning: the part before a
  * dash, colon or comma, or without a trailing "for …"/"with …" phrase or "Today". Kept only if it
@@ -164,7 +192,7 @@ export function shortenHeadline(text, limit, must = []) {
   }
   for (const c0 of cands) {
     const c = c0.replace(/[\s,;:–—-]+$/, '').trim();
-    const len = [...c].length;
+    const len = charCount(c);
     if (len > limit || len < 12 || c.split(/\s+/).length < 3 || ENDS_BADLY.test(c)) continue;
     if (stems.length && !stems.some((w) => c.toLowerCase().includes(w))) continue;
     return c;
@@ -183,20 +211,22 @@ export function checkAdHeadlines(list, { limit = 30, keep = 10, must = null } = 
     let text = String(h.text || h).replace(/\s+/g, ' ').trim();
     const original = text;
     // (too long: shortened in code when a shorter form keeps the subject; `must` = its words)
-    if ([...text].length > limit && must) text = shortenHeadline(text, limit, must) || text;
-    const chars = [...text].length;
+    if (charCount(text) > limit && must) text = shortenHeadline(text, limit, must) || text;
+    const chars = charCount(text);
     const flag = AD_FLAGS.find(([, re]) => re.test(original));
     const from = text !== original ? { from: original } : {};
     // (risky wording first: it matters even when the headline is also too long)
-    if (flag) dropped.push({ text: original, chars: [...original].length, reason: flag[0] });
+    if (flag) dropped.push({ text: original, chars: charCount(original), reason: flag[0] });
     else if (chars > limit) dropped.push({ text, chars, reason: `${chars - limit} over the ${limit}-character limit` });
     else if (kept.some((k) => similar(k.text, text))) dropped.push({ text, chars, reason: 'too like another headline', ...from });
-    else kept.push({ text, chars, angle: h.angle || '', ...from });
+    else kept.push({ text, chars, angle: h.angle || '', ...from, ...(h.mine ? { mine: true } : {}) });
   }
-  // (the best few: one per angle first, then the rest, in the generator's order)
+  // (the best few: one per angle first, then the rest, in the generator's order; headlines put
+  // together from the request's own words only after the written ones)
   const seen = new Set();
-  const first = kept.filter((k) => !seen.has(k.angle) && seen.add(k.angle));
-  const ordered = [...first, ...kept.filter((k) => !first.includes(k))];
+  const theirs = kept.filter((k) => !k.mine);
+  const first = theirs.filter((k) => !seen.has(k.angle) && seen.add(k.angle));
+  const ordered = [...first, ...theirs.filter((k) => !first.includes(k)), ...kept.filter((k) => k.mine)];
   const best = ordered.slice(0, keep);
   for (const k of ordered.slice(keep)) dropped.push({ text: k.text, chars: k.chars, reason: 'more than needed' });
   return { kept: best, dropped };
@@ -209,7 +239,9 @@ export function parseRobots(text) {
   const groups = [];
   let cur = null;
   let lastWasAgent = false;
-  for (const line0 of String(text || '').split(/\r?\n/)) {
+  // (CR, LF or CRLF; only an Allow or Disallow line ends a group's list of agents, so a Sitemap or
+  // Crawl-delay line between two User-agent lines doesn't split them)
+  for (const line0 of String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
     const line = line0.replace(/#.*$/, '').trim();
     const m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(line);
     if (!m) continue;
@@ -217,34 +249,48 @@ export function parseRobots(text) {
     const val = m[2].trim();
     if (key === 'user-agent') {
       if (!cur || !lastWasAgent) groups.push((cur = { agents: [], rules: [] }));
-      cur.agents.push(val.toLowerCase());
+      // ("GPTBot/1.0" names GPTBot: the token is what comes before a slash or a space)
+      cur.agents.push(val.split(/[\/\s]/)[0].toLowerCase());
       lastWasAgent = true;
     } else if ((key === 'allow' || key === 'disallow') && cur) {
-      if (val || key === 'allow') cur.rules.push({ allow: key === 'allow', path: val });
+      if (val || key === 'allow') cur.rules.push({ allow: key === 'allow', path: normPath(val) });
       lastWasAgent = false;
-    } else lastWasAgent = false;
+    }
   }
   return groups;
+}
+// (percent-encoding compared the same way on both sides: "%7e" = "%7E" = "~")
+function normPath(p) {
+  return String(p).replace(/%([0-9a-f]{2})/gi, (all, h) => {
+    const c = String.fromCharCode(parseInt(h, 16));
+    return /[A-Za-z0-9\-._~]/.test(c) ? c : `%${h.toUpperCase()}`;
+  });
 }
 function pathMatches(pattern, path) {
   if (!pattern) return false;
   const re = new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$')}`);
-  return re.test(path);
+  return re.test(normPath(path));
 }
 /**
- * May this user-agent token fetch this path? The group naming the token (else "*"), the longest
- * matching rule wins, Allow wins a tie. { allowed, group: 'own' | 'all' | 'none', rule }.
+ * May this user-agent token fetch this path? The group naming the token (else its owner's stated
+ * fallback, else "*"), the longest matching rule wins, Allow wins a tie.
+ * { allowed, group: 'own' | 'fallback' | 'all' | 'none', rule }.
  */
 export function robotsAllows(groups, token, path = '/', { fallback = null } = {}) {
   const t = String(token).toLowerCase();
   // (Applebot follows Googlebot's group when it has none of its own)
   let own = groups.filter((g) => g.agents.includes(t));
-  if (!own.length && fallback) own = groups.filter((g) => g.agents.includes(String(fallback).toLowerCase()));
+  let kind = own.length ? 'own' : '';
+  if (!own.length && fallback) {
+    own = groups.filter((g) => g.agents.includes(String(fallback).toLowerCase()));
+    if (own.length) kind = 'fallback';
+  }
   const use = own.length ? own : groups.filter((g) => g.agents.includes('*'));
+  if (!kind) kind = use.length ? 'all' : 'none';
   const rules = use.flatMap((g) => g.rules).filter((r) => pathMatches(r.path, path));
-  if (!rules.length) return { allowed: true, group: own.length ? 'own' : use.length ? 'all' : 'none', rule: null };
+  if (!rules.length) return { allowed: true, group: kind, rule: null };
   const best = rules.sort((a, b) => b.path.length - a.path.length || Number(b.allow) - Number(a.allow))[0];
-  return { allowed: best.allow, group: own.length ? 'own' : 'all', rule: `${best.allow ? 'Allow' : 'Disallow'}: ${best.path}` };
+  return { allowed: best.allow, group: kind, rule: `${best.allow ? 'Allow' : 'Disallow'}: ${best.path}` };
 }
 
 // ---------- the result that ends a pipeline ----------

@@ -155,7 +155,10 @@ test('5. every library pipeline: no research after writing, and a result at the 
     assert.equal(last[0], 'pipe_final', p.id);
     if (last[1].format === 'summary' && last[1].citations.length) assert.ok(last[1].citations.every((c) => c.step >= 1 && c.step <= p.steps.length), p.id);
   }
-  assert.throws(() => cleanPipeline({ steps: [{ ask: 'Write 10 ad headlines for {input}' }, { kind: 'research', ask: 'x', queries: ['{subject}'] }] }), /research step can’t come after a generate step/);
+  assert.throws(() => cleanPipeline({ steps: [{ kind: 'generate', ask: 'Write 10 ad headlines for {input}' }, { kind: 'research', ask: 'x', queries: ['{subject}'] }] }), /research step can’t come after a generate step/);
+  // (only steps marked as generate and research: an old-style "Make …" question is neither)
+  assert.doesNotThrow(() => cleanPipeline({ steps: [{ ask: 'Make a list of {input} competitors' }, { ask: 'Compare their prices' }] }));
+  assert.doesNotThrow(() => cleanPipeline({ steps: [{ ask: 'Write 10 ad headlines for {input}' }, { kind: 'research', ask: 'x', queries: ['{subject}'] }] }));
 });
 
 test('results that don\'t mention the subject are left out', () => {
@@ -193,5 +196,7 @@ test('with an AI model set, the model writes the headlines from the brief; resea
   assert.match(asked[0].system, /at most 30 characters/);
   assert.match(asked[0].messages[0].content, /"product":"SpendQuery"/);
   const fin = events.find(([t]) => t === 'pipe_final')[1];
-  assert.deepEqual(fin.table.rows.map((r) => r[0]), ['Find Federal Contracts Fast', 'Who Won It Last Time?', 'Bids Close Soon: Search Now']);
+  assert.deepEqual(fin.table.rows.map((r) => r[0]).slice(0, 3), ['Find Federal Contracts Fast', 'Who Won It Last Time?', 'Bids Close Soon: Search Now']);
+  // (too few passed, so the rest are put together from the request's words, and labelled)
+  assert.ok(fin.table.rows.slice(3).every((r) => /from your words/.test(r[2])), JSON.stringify(fin.table.rows));
 });

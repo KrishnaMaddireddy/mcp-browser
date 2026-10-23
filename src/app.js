@@ -84,9 +84,15 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
    * same rule that hides write tools from the AI model), never one you switched off.
    */
   async function callReadOnlyTool(id, tool, args, opts = {}) {
+    // (switched off: refused before anything connects to it)
+    if (settings.serverOverrides?.[id] === false) throw new Error('switched off in Settings');
     const c = loadCatalog();
     const server = catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
     if (!server) throw new Error('not in the catalog');
+    // A pipeline file can come from anyone, so its steps may only call a hosted server from the
+    // curated list or the registry, over HTTPS, that needs no key or sign-in: never a server on this
+    // computer, one you added, or one that would act as you.
+    if (!pipelineServerOk(server)) throw new Error(`${id} can't be called from a pipeline: only hosted servers that need no key or sign-in can`);
     const { tools } = await pool.get(server);
     const t = (tools || []).find((x) => x.name === tool);
     if (!t) throw new Error(`${id} has no tool called ${tool}`);
@@ -94,6 +100,14 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     if (!v.allowed) throw new Error(`${tool} isn't a read-only tool (${v.reason})`);
     return callCatalogTool(id, tool, args, opts);
   }
+  const pipelineServerOk = (s) =>
+    (s.source === 'curated' || s.source === 'registry') &&
+    /^https:\/\//i.test(String(s.url || '')) &&
+    !s.needsAuth &&
+    !s.signIn &&
+    !s.command &&
+    !(s.headers && Object.keys(s.headers).length) &&
+    !(s.env && Object.keys(s.env).length);
   const watches = new WatchStore();
   const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool });
   const sync = { running: false, progress: null, error: null, last: null };
