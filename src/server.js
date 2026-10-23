@@ -720,7 +720,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
           const got = await fetchRepoDeps(repo, { callTool, emit });
           if (!got.pkgs) {
             const where = `${repo.owner}/${repo.repo}${repo.dir ? `/${repo.dir}` : ''}`;
-            emit('error', { message: got.error && /switched off|disabled/i.test(got.error) ? 'Reading GitHub needs the Page Fetch server, which is switched off in Settings.' : got.found?.length ? `${where} has ${got.found.join(', ')}, but no packages could be read from it.` : `No package-lock.json, yarn.lock, pnpm-lock.yaml, uv.lock, poetry.lock, Cargo.lock, package.json, requirements.txt, pyproject.toml or Cargo.toml at the top of ${where}${got.error ? ` (${String(got.error).slice(0, 120)})` : ''}. In a monorepo, open the package’s folder on GitHub and use that link.` });
+            emit('error', { message: got.error && /switched off|disabled/i.test(got.error) ? 'Reading GitHub needs the Page Fetch server, which is switched off in Settings.' : got.found?.length ? `${where} has ${got.found.join(', ')}, but no packages could be read from it.` : `No package-lock.json, yarn.lock, pnpm-lock.yaml, uv.lock, poetry.lock, Cargo.lock, package.json, requirements.txt, pyproject.toml or Cargo.toml at the top of ${where}${got.error ? ` (the page server didn’t answer${/\b(4\d\d|5\d\d)\b/.test(got.error) ? `: ${/\b(4\d\d|5\d\d)\b/.exec(got.error)[1]}` : ''}; try again in a minute)` : ''}. In a monorepo, open the package’s folder on GitHub and use that link.` });
             return;
           }
           pkgs = got.pkgs;

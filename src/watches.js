@@ -350,7 +350,8 @@ export class WatchScheduler {
         let pkgs = w.deps;
         if (w.repo) {
           const got = await Promise.race([fetchRepoDeps(repoOf(w.repo), { callTool: call }), timeout]);
-          if (!got?.pkgs?.length) throw new Error(got?.error || 'the repo’s dependency files could not be read');
+          // (a short reason on the Watches page, not a gateway's HTML)
+          if (!got?.pkgs?.length) throw new Error(got?.error ? (/switched off/i.test(got.error) ? 'the Page Fetch server is switched off in Settings' : `the page server didn’t answer${/\b(4\d\d|5\d\d)\b/.test(got.error) ? ` (${/\b(4\d\d|5\d\d)\b/.exec(got.error)[1]})` : ''}; trying again next time`) : 'no dependency files found in the repo');
           pkgs = got.pkgs;
         }
         await Promise.race([runDeps(pkgs, { callTool: (id, tool, args) => this.callTool(id, tool, args, { signal: ac.signal }), emit: (t, d) => t === 'deps_row' && rows.push(d) }), timeout]);
