@@ -454,7 +454,8 @@ function judgeCore(parts, sentence) {
   const ids = clausesOf(sentence);
   const idsAnd = clausesOf(sentence, { and: true });
   // "Capital: Nairobi" — a labelled answer names the subject directly.
-  const w0 = obj[0] || '';
+  // (a role like "capital", not a place: "Tanzania | Volcanic Region …" is the next table cell)
+  const w0 = obj[0] && !parts.proper.has(obj[0]) ? obj[0] : '';
   const label = parts.be && w0 && new RegExp(`\\b[${w0[0].toUpperCase()}${w0[0]}]${w0.slice(1)}\\w*\\s*[:|]\\s*\\|?\\s*([A-Z][\\p{L}'’.-]+(?:\\s[A-Z][\\p{L}'’.-]+){0,3})`, 'u').exec(sentence);
   if (label && parts.subjectWords.length) {
     const named = tokenize(label[1]);
@@ -876,6 +877,9 @@ export function verdictOf(evidence) {
  * Run a cross-check: search the claim (and, for figures, the thing measured) and read
  * every source. emit: check_source (each piece of evidence as found), check_verdict.
  */
+// (the curated web search servers; a server switched off in Settings is skipped by the agent)
+const WEB_SEARCH = ['keenable', 'agentsearch', 'exa', 'tanod-web'];
+
 export async function crossCheck(agent, claim, { emit = () => {}, signal } = {}) {
   const parts = claimParts(claim);
   if (parts.words.length < (parts.figures.length || parts.years.length ? 1 : 2)) throw new Error('Write the claim as a sentence, e.g. “The Eiffel Tower is 330 meters tall”.');
@@ -890,10 +894,19 @@ export async function crossCheck(agent, claim, { emit = () => {}, signal } = {})
   const unique = queries.filter((q) => !seenQ.has(q.toLowerCase()) && seenQ.add(q.toLowerCase()));
   // (asked side by side, so the second question costs no extra time)
   await Promise.all(unique.map((q) => runQuery(q)));
-  async function runQuery(q) {
+  // Independent sources need more than one search engine: when only one answered (another
+  // busy or rate-limited), the claim goes to the other web search servers too.
+  const answered = new Set(results.map((r) => r.serverId));
+  if (answered.size < 2 && !signal?.aborted) {
+    // (never one you switched off; one only marked as slow lately is still worth asking here)
+    const others = WEB_SEARCH.filter((id) => !answered.has(id) && agent.catalog?.settings?.serverOverrides?.[id] !== false);
+    if (others.length) await runQuery(parts.text, others).catch(() => {});
+  }
+  async function runQuery(q, servers) {
     await agent.search(q, {
       signal,
       direct: true,
+      ...(servers ? { servers, reason: 'a second search engine for the cross-check' } : {}),
       emit: (type, d) => {
         if (type === 'results' && !d.isError && (d.kind || 'ok') === 'ok') {
           results.push({ serverTitle: d.serverTitle, serverId: d.serverId, text: d.text, view: d.view });

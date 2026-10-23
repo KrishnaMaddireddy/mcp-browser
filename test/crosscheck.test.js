@@ -306,3 +306,26 @@ test('a figure in brackets belongs to the name just before them', () => {
   assert.notEqual(st('The Nile is about 6,650 km long', 'Although falling short of the length of the Mississippi-Missouri (4194 m. according to the estimate of General Tillo), the Nile is at the head of all rivers.'), 'differs');
   assert.equal(st('The Eiffel Tower is 330 meters tall', 'The Eiffel Tower (330 m) is the tallest structure in Paris.'), 'supports');
 });
+
+test('only one search engine answered: the claim goes to the other web search servers, never a switched-off one', async () => {
+  const { crossCheck } = await import('../src/crosscheck.js');
+  const calls = [];
+  const agent = {
+    catalog: { settings: { serverOverrides: { exa: false } } },
+    getProvider: () => null,
+    search: async (q, { emit, servers }) => {
+      calls.push(servers || 'routed');
+      if (!servers) emit('results', { serverTitle: 'Keenable', serverId: 'keenable', text: 'Title: Eiffel\\nURL: https://a.example/x\\nThe Eiffel Tower is 330 meters tall.', kind: 'ok' });
+      else emit('results', { serverTitle: 'Tanod', serverId: 'tanod-web', text: 'Title: Tower\\nURL: https://b.example/y\\nThe Eiffel Tower is 330 metres tall.', kind: 'ok' });
+    },
+  };
+  const r = await crossCheck(agent, 'The Eiffel Tower is 330 meters tall');
+  assert.deepEqual(calls.at(-1), ['agentsearch', 'tanod-web']);
+  assert.ok(r.evidence.length >= 1);
+});
+
+test('a backfill when one search engine answers; a place claim and the next table cell', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.notEqual(st('Mount Kilimanjaro is in Tanzania', 'Volcanic Region Kenyan Rift | Kilimanjaro Country Tanzania | Volcanic Region Kenyan Rift Volcanic Province | Landform Volc Type Composite Stratovolcano'), 'differs');
+  assert.equal(st('Mombasa is the capital of Kenya', 'Kenya facts. Capital: Nairobi. Population: 55 million.'), 'differs');
+});
