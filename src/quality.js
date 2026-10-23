@@ -352,6 +352,9 @@ export function quickAnswer(results, query) {
         if ((s.match(/\b[\w ]{1,24}:\s/g) || []).length >= 2) continue; // key: value metadata
         if (/\b\d{1,2}\.$/.test(s) || /^[A-Z][\w ]{0,30}:\s/.test(s)) continue; // list fragments, labels
         if (/^(?:find|enter|click|sign up|subscribe|discover|explore|book|compare|search|browse|get|check out|shop|verify|ensure|make sure|learn|see|read|follow|try|use|note|example \d+)\b/i.test(s)) continue; // calls to action, instructions
+        // An article's warm-up, not an answer ("When you are working with …, you might encounter …",
+        // "In this article we'll look at …", "Let's dive in").
+        if (/\byou (?:might|may|will|could|often) (?:encounter|come across|run into|find yourself|need to|want to)\b|\bin this (?:article|post|tutorial|guide|blog|video)\b|\blet'?s (?:take a look|explore|dive|look at|see how)\b|\b(?:we|I)(?:'ll| will) (?:show|explore|look at|walk you|cover|discuss)\b|^(?:have you ever|ever wondered|are you looking)\b/i.test(s)) continue;
         // A number question needs a value, not just years ("1950 - 2026") or dates.
         if (wantsNumber && !/\d/.test(s.replace(DATE_BITS, ''))) continue;
         // A price question needs an amount of money, not a percentage.

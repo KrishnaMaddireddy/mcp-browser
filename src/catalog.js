@@ -256,15 +256,20 @@ export class Catalog {
       if (r.score < bar * (s.wide ? 0.12 : hybrid ? 0.3 : 0.25)) continue;
       const coverage = r.terms.length / nTerms;
       if (!s.wide && r.sem < 0.35 && coverage < 0.3 && r.score < bar * 0.6) continue;
+      // Strangers' servers need a clear match in meaning, not just shared words. That goes
+      // for package servers run on this computer too: starting one cold takes up to half a
+      // minute, so one generic word ("sort" in a Python question) mustn't pull one in.
+      const stranger = r.server.source === 'registry' || r.server.source === 'local';
+      if (stranger) {
+        if (hybrid) {
+          if (r.sem < (s.wide ? 0.25 : 0.35) && !(r.terms.length >= 2 && r.sem >= 0.15)) continue;
+        } else if (r.terms.length < Math.min(s.wide ? 1 : 2, qTerms.length) && (r.server.source === 'local' || r.score < top * 0.6)) continue;
+      }
       if (r.server.source === 'registry') {
         if (community >= discMax) continue;
         const pub = publisherOf(r.server);
         const cap = (this._pubCount?.get(pub) || 0) >= FARM ? 1 : 2;
         if ((perPub.get(pub) || 0) >= cap) continue;
-        if (hybrid) {
-          // Strangers' servers need a clear match in meaning, not just shared words.
-          if (r.sem < (s.wide ? 0.25 : 0.35) && !(r.terms.length >= 2 && r.sem >= 0.15)) continue;
-        } else if (r.terms.length < Math.min(s.wide ? 1 : 2, qTerms.length) && r.score < top * 0.6) continue;
         community++;
         perPub.set(publisherOf(r.server), (perPub.get(publisherOf(r.server)) || 0) + 1);
       }
