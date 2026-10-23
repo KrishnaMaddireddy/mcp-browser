@@ -24,6 +24,8 @@ const HELP = `MCP Browser checks
                               any, low, moderate, high, critical (default: never)
       --output FILE           also write the report to FILE
       --json FILE             also write the results as JSON to FILE
+      --max N                 check up to N packages from a lockfile (default 1000; direct ones first)
+      --compact               Markdown for a pull request: problems open, the clean rest folded
   mcpb check "a claim"        is it true? quotes each independent source's own sentence
   mcpb check --file F         each plain fact in a text file (- reads stdin)
       --format md|json|text
@@ -51,7 +53,7 @@ export async function main(argv) {
     console.log(HELP);
     return 0;
   }
-  const valued = new Set(['--format', '--fail-on', '--output', '--file', '--json']);
+  const valued = new Set(['--format', '--fail-on', '--output', '--file', '--json', '--max']);
   const positional = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
   const format = opt(args, '--format') || (process.stdout.isTTY ? 'text' : 'md');
   if (!['md', 'json', 'text'].includes(format)) {
@@ -86,12 +88,12 @@ export async function main(argv) {
         text = readDependencyFile(file);
         if (format === 'text') console.error(`Checking ${path.relative(process.cwd(), path.resolve(file)) || file}…`);
       }
-      const res = await checkDependencies({ text, repo, callTool: (id, tool, args2, o) => engine.callCatalogTool(id, tool, args2, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
+      const res = await checkDependencies({ text, repo, max: Number(opt(args, '--max')) || 1000, callTool: (id, tool, args2, o) => engine.callCatalogTool(id, tool, args2, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
       if (res.error) {
         console.error(res.error);
         return 2;
       }
-      write(depsMarkdown(res), { summary: res.summary, servers: res.servers, source: res.source, packages: res.rows });
+      write(depsMarkdown(res, { limit: 1000, compact: args.includes('--compact') }), { summary: res.summary, servers: res.servers, source: res.source, packages: res.rows });
       if (!res.summary?.checked) return 2;
       const level = opt(args, '--fail-on');
       return level && failsOn(res.rows, level) ? 1 : 0;

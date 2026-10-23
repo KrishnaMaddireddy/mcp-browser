@@ -44,3 +44,30 @@ test('escaping: markup and link targets', () => {
   assert.match(p, /A \\\[b\\\]\(c\) is 3 m/);
   assert.match(p, /Not checked: “You should go\.”/);
 });
+
+test('dependency report, compact (pull request comment): problems open, clean rest folded, under GitHub size limit', () => {
+  const rows = [row({ name: 'ok-a' }), row({ name: 'bad', worst: 'HIGH', vulns: [{ id: 'GHSA-9', summary: 's', severity: 'HIGH', aliases: [], fixedVersions: [] }] }), row({ name: 'old', deprecated: true })];
+  const out = depsMarkdown({ rows, summary: { checked: 3, vulnerable: 1, high: 1, deprecated: 1 }, servers: {} }, { compact: true });
+  const [open, folded] = out.split('<details>');
+  assert.match(open, /\| bad \(npm\)/);
+  assert.match(open, /\| old \(npm\)/);
+  assert.doesNotMatch(open, /ok-a/);
+  assert.match(folded, /The other 1 package: no known vulnerabilities/);
+  assert.match(folded, /ok-a/);
+  const many = Array.from({ length: 1000 }, (_, i) => row({ name: `package-number-${i}`, indirect: true, via: ['some-direct-dependency'] }));
+  const big = depsMarkdown({ rows: many, summary: { checked: 1000, vulnerable: 0 }, servers: {} }, { compact: true, limit: 1000 });
+  assert.ok(big.length < 60000, `comment is ${big.length} characters`);
+  assert.match(big, /… and \d+ more\./);
+});
+
+test('package cap: a lockfile keeps direct dependencies first, up to max', async () => {
+  const { parseManifest } = await import('../src/deps.js');
+  const packages = { '': { dependencies: { d0: '1.0.0' } }, 'node_modules/d0': { version: '1.0.0' } };
+  for (let i = 0; i < 400; i++) packages[`node_modules/i${i}`] = { version: '1.0.0' };
+  const lock = JSON.stringify({ lockfileVersion: 3, packages });
+  assert.equal(parseManifest(lock).length, 150);
+  const all = parseManifest(lock, { max: 1000 });
+  assert.equal(all.length, 401);
+  assert.equal(all[0].name, 'd0');
+  assert.equal(all.total, 401);
+});

@@ -335,7 +335,8 @@ pull request or an issue.
 
 **Lockfiles** (package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, uv.lock,
 Cargo.lock) can be pasted or chosen with **Choose a file**: then the versions actually
-installed are checked, direct dependencies first (up to 150), and each indirect one says
+installed are checked, direct dependencies first (up to 150 in the app, 1,000 from the
+command line), and each indirect one says
 which direct dependency brings it in ("via express"), with a line like "All 7 packages
 with known vulnerabilities come in through express".
 
@@ -346,6 +347,54 @@ looks for the workspace's lockfile at the root). The page server reads up to 100
 characters, so a very long lockfile is checked from its first part, and the page says so.
 **Tell me about new advisories** on a repo makes a watch that reads the repo again each day,
 so a bump to a vulnerable version is news as well as a new advisory.
+
+### From the command line
+
+The same check (and the cross-check) without the app:
+
+```bash
+git clone https://github.com/KrishnaMaddireddy/mcp-browser && cd mcp-browser
+npm ci --omit=optional
+node bin/cli.js deps ~/code/my-app                 # its lockfile, else its manifest
+node bin/cli.js deps package-lock.json --fail-on high --output report.md
+node bin/cli.js deps https://github.com/owner/repo  # a public repo
+node bin/cli.js check "The Eiffel Tower is 330 meters tall"
+node bin/cli.js check --file answer.txt             # each plain fact in a text (- reads stdin)
+```
+
+`--format md|json|text`, `--json FILE` (the results as JSON too), `--max N` (packages from
+a lockfile, default 1000, direct ones first) and `--compact` (problems open, the clean rest
+folded). Exit codes: 0 done, 1 something at or above `--fail-on`, 2 couldn't run. (The
+package isn't on npm, so `npx mcp-browser` would fetch someone else's package: use the clone
+above, or `npx -p github:KrishnaMaddireddy/mcp-browser mcpb deps .`.)
+
+### In GitHub Actions
+
+Add `.github/workflows/dependency-check.yml` to a repo:
+
+```yaml
+name: Dependency check
+on: [pull_request]
+permissions:
+  contents: read
+  pull-requests: write   # for the comment
+jobs:
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: KrishnaMaddireddy/mcp-browser@main
+        with:
+          path: package-lock.json   # or a folder, requirements.txt, uv.lock, Cargo.lock…
+          fail-on: high             # any, low, moderate, high, critical, or never (default)
+```
+
+It writes the report to the job summary and keeps one comment on the pull request up to
+date (vulnerable and deprecated packages in the open, the rest folded away). Outputs:
+`report` (the Markdown file) and `vulnerable` (a count). Only package names and versions
+leave the runner, to the three checking services named in the report. A pull request from a
+fork gets a read-only token, so it has the summary but no comment. This repo runs it on
+itself: [.github/workflows/dependency-check.yml](.github/workflows/dependency-check.yml).
 
 ## Today
 

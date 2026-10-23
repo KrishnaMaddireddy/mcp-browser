@@ -53,7 +53,7 @@ runs:
         report="$RUNNER_TEMP/mcp-browser-deps.md"
         json="$RUNNER_TEMP/mcp-browser-deps.json"
         set +e
-        node "$GITHUB_ACTION_PATH/bin/cli.js" deps "$INPUT_PATH" --format md --output "$report" --json "$json" --fail-on "$INPUT_FAIL_ON" > /dev/null
+        node "$GITHUB_ACTION_PATH/bin/cli.js" deps "$INPUT_PATH" --format md --output "$report" --json "$json" --fail-on "$INPUT_FAIL_ON" --compact > /dev/null
         code=$?
         set -e
         if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; fi

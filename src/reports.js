@@ -21,7 +21,7 @@ export const mdUrl = (u) => (/^https?:\/\//i.test(u || '') ? String(u).replace(/
  * Returns { rows, summary, servers, start, source, error }. Never throws for a server that
  * didn't answer: rows say "not checked" instead.
  */
-export async function checkDependencies({ text = '', repo = '', callTool, titleOf = (id) => id, signal } = {}) {
+export async function checkDependencies({ text = '', repo = '', callTool, titleOf = (id) => id, signal, max } = {}) {
   const servers = {};
   const rows = [];
   let start = null;
@@ -38,11 +38,11 @@ export async function checkDependencies({ text = '', repo = '', callTool, titleO
   const r = repoOf(repo || (String(text).trim().split(/\s+/).length === 1 ? text : ''));
   let pkgs;
   if (r) {
-    const got = await fetchRepoDeps(r, { callTool: call, emit });
+    const got = await fetchRepoDeps(r, { callTool: call, emit, ...(max ? { max } : {}) });
     if (!got.pkgs) return { rows, summary: null, servers, start, source, error: got.found?.length ? `${r.owner}/${r.repo} has ${got.found.join(', ')}, but no packages could be read from it.` : `No lockfile or manifest found at the top of ${r.owner}/${r.repo}${r.dir ? `/${r.dir}` : ''}.` };
     pkgs = got.pkgs;
   } else {
-    pkgs = parseManifest(text);
+    pkgs = parseManifest(text, max ? { max } : {});
     if (!pkgs.length) return { rows, summary: null, servers, start, source, error: 'No packages found. Give a package.json, requirements.txt, pyproject.toml, Cargo.toml, a lockfile, or a GitHub repo link.' };
   }
   await runDeps(pkgs, { callTool: call, titleOf, emit });
@@ -69,7 +69,7 @@ export function failsOn(rows, level) {
 }
 
 /** The report as Markdown: a verdict line, the table (problems first), the advisories. */
-export function depsMarkdown({ rows, summary, servers = {}, start, source }, { title = 'Dependency check', limit = 200, date = new Date().toISOString().slice(0, 10) } = {}) {
+export function depsMarkdown({ rows, summary, servers = {}, start, source }, { title = 'Dependency check', limit = 200, compact = false, date = new Date().toISOString().slice(0, 10) } = {}) {
   const s = summary || { checked: 0, vulnerable: 0, high: 0, deprecated: 0, unchecked: rows.length };
   const ok = Object.values(servers).filter((x) => x.ok && x.key !== 'health');
   const head = !s.checked
@@ -91,13 +91,32 @@ export function depsMarkdown({ rows, summary, servers = {}, start, source }, { t
   const rank = (r) => SEV_RANK[r.worst] || (r.vulns.length || r.counts?.audit ? 0.5 : 0);
   const sorted = [...rows].sort((a, b) => rank(b) - rank(a));
   const shown = sorted.slice(0, limit);
-  out.push('', '| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |', '|---|---|---|---|---|---|');
-  for (const r of shown) {
+  const header = ['| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |', '|---|---|---|---|---|---|'];
+  const line = (r) => {
     const n = r.partial ? r.counts.osv : r.vulns.length || r.counts?.audit || 0;
     const vul = !r.version ? 'not pinned' : !r.checked ? 'not checked' : n ? `${n}${r.worst ? ` (${SEV_LABEL[r.worst] || md(r.worst)})` : ''}` : 'none known';
     const notes = [r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : '', r.indirect ? (r.via?.length ? `via ${md(r.via.join(', '))}` : 'indirect') : ''].filter(Boolean).join(', ');
-    out.push(`| ${md(r.name)} (${md(r.ecosystem)}) | ${md(r.version || r.range || '—')} | ${vul} | ${r.unfixed ? 'no fix yet' : md(r.fix || '')} | ${md(r.latest || '')} | ${notes} |`);
-  }
+    return `| ${md(r.name)} (${md(r.ecosystem)}) | ${md(r.version || r.range || '—')} | ${vul} | ${r.unfixed ? 'no fix yet' : md(r.fix || '')} | ${md(r.latest || '')} | ${notes} |`;
+  };
+  if (compact) {
+    // (a pull request comment: what needs a look stays open, the clean rest folds away)
+    const flagged = (r) => r.vulns.length || r.counts?.audit || r.deprecated || (r.version && !r.checked);
+    const open = shown.filter(flagged);
+    const rest = shown.filter((r) => !flagged(r));
+    if (open.length) out.push('', ...header, ...open.map(line));
+    if (rest.length) {
+      // (GitHub takes comments up to 65,536 characters: the folded list stops short of that)
+      let room = 45000 - out.join('\n').length - open.length * 200;
+      const lines = [];
+      for (const r of rest) {
+        const l = line(r);
+        if ((room -= l.length + 1) < 0) break;
+        lines.push(l);
+      }
+      const more = rest.length - lines.length;
+      out.push('', `<details><summary>${open.length ? `The other ${rest.length}` : rest.length === 1 ? 'The 1' : `All ${rest.length}`} package${rest.length === 1 ? '' : 's'}: no known vulnerabilities</summary>`, '', ...header, ...lines, ...(more ? ['', `… and ${more} more.`] : []), '', '</details>');
+    }
+  } else out.push('', ...header, ...shown.map(line));
   if (sorted.length > shown.length) out.push('', `… and ${sorted.length - shown.length} more with no known vulnerabilities.`);
   const adv = rows.filter((r) => r.vulns.length);
   if (adv.length) {

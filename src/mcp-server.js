@@ -300,7 +300,7 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
       if (!input && !repo) return fail('Give a path to a lockfile or manifest, its text, or a GitHub repo link.');
       let res;
       try {
-        res = await checkDependencies({ text: input, repo, callTool: (id, tool, args, o) => engine.callCatalogTool(id, tool, args, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
+        res = await checkDependencies({ text: input, repo, max: 300, callTool: (id, tool, args, o) => engine.callCatalogTool(id, tool, args, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
       } catch (e) {
         return fail(`Couldn’t check those packages: ${truncate(errMsg(e), 300)}`);
       }

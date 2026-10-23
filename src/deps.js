@@ -38,7 +38,7 @@ export function baseVersion(v) {
  * the versions actually installed. Direct dependencies first, then the ones they pull in
  * (marked indirect). Returns null when the text isn't a lockfile.
  */
-export function parseLockfile(text) {
+export function parseLockfile(text, { max = MAX_PACKAGES } = {}) {
   const t = String(text || '').trim();
   const out = [];
   const seen = new Set();
@@ -77,7 +77,7 @@ export function parseLockfile(text) {
     const isDirect = (p) => p.keys.some((k) => direct.has(k));
     if (direct) for (const p of out) p.indirect = !isDirect(p);
     // (direct ones first, so a long lockfile still checks what you asked for)
-    const kept = out.sort((a, b) => Number(a.indirect) - Number(b.indirect)).slice(0, MAX_PACKAGES);
+    const kept = out.sort((a, b) => Number(a.indirect) - Number(b.indirect)).slice(0, max);
     // "qs (via express)": the nearest direct dependencies up the tree (only for the ones kept)
     let budget = 200000;
     if (direct && parents.size)
@@ -299,9 +299,9 @@ export function parseLockfile(text) {
   return null;
 }
 
-export function parseManifest(text) {
+export function parseManifest(text, { max = MAX_PACKAGES } = {}) {
   const t = String(text || '').trim();
-  const lock = parseLockfile(t);
+  const lock = parseLockfile(t, { max });
   if (lock) return lock;
   const out = [];
   const add = (name, range, ecosystem, dev = false) => {
@@ -320,7 +320,7 @@ export function parseManifest(text) {
     }
     for (const [key, dev] of [['dependencies', false], ['devDependencies', true], ['optionalDependencies', false], ['peerDependencies', false]])
       for (const [n, v] of Object.entries(j?.[key] || {})) add(n, v, 'npm', dev);
-    return out.slice(0, MAX_PACKAGES);
+    return out.slice(0, max);
   }
   const pyHint = /==|~=|>=|^\s*-r\s|\[[\w,]+\]==/m.test(t);
   // Only == (and ===) pins a version; ">=2.19" installs the latest, "!=1.24.1" excludes one.
@@ -354,7 +354,7 @@ export function parseManifest(text) {
     else if ((m = /^(@?[\w.-]+(?:\/[\w.-]+)?)\s+v?(\d[\w.+-]*)$/.exec(line))) add(m[1], m[2], pyHint ? 'pypi' : 'npm');
     else if ((m = /^(@?[\w.-]+(?:\/[\w.-]+)?)$/.exec(line))) add(m[1], '', pyHint ? 'pypi' : 'npm');
   }
-  return out.slice(0, MAX_PACKAGES);
+  return out.slice(0, max);
 }
 
 /** Compare dotted versions numerically ("4.17.21" > "4.17.9"). */
@@ -606,7 +606,7 @@ export function repoOf(input) {
 }
 
 /** Read the repo's dependency file through the page server: { text, file, url, truncated, tried }. */
-export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
+export async function fetchRepoDeps(repo, { callTool, emit = () => {}, max = MAX_PACKAGES } = {}) {
   const enc = (p) => p.split('/').map(encodeURIComponent).join('/');
   const base = `https://raw.githubusercontent.com/${enc(repo.owner)}/${enc(repo.repo)}/${enc(repo.ref)}/${repo.dir ? `${enc(repo.dir)}/` : ''}`;
   const rootBase = `https://raw.githubusercontent.com/${enc(repo.owner)}/${enc(repo.repo)}/${enc(repo.ref)}/`;
@@ -632,7 +632,7 @@ export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
   const parsed = found
     .map((f) => {
       try {
-        return { ...f, pkgs: parseManifest(f.text) };
+        return { ...f, pkgs: parseManifest(f.text, { max }) };
       } catch {
         return null; // (a lockfile cut off mid-JSON doesn't parse)
       }
@@ -651,8 +651,8 @@ export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
   }).filter(Boolean);
   if (picks.length) {
     const pkgs = [];
-    const share = Math.floor(MAX_PACKAGES / picks.length);
-    for (const f of picks) pkgs.push(...f.pkgs.slice(0, picks.length > 1 ? share : MAX_PACKAGES));
+    const share = Math.floor(max / picks.length);
+    for (const f of picks) pkgs.push(...f.pkgs.slice(0, picks.length > 1 ? share : max));
     const lockfile = picks.some((f) => f.pkgs.lockfile);
     Object.assign(pkgs, { lockfile, directKnown: picks.some((f) => f.pkgs.directKnown), total: picks.reduce((n, f) => n + (f.pkgs.total ?? f.pkgs.length), 0) });
     const files = picks.map((f) => ({ file: f.file, url: f.url, truncated: f.truncated, lockfile: Boolean(f.pkgs.lockfile), packages: f.pkgs.total ?? f.pkgs.length }));
