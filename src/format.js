@@ -139,6 +139,23 @@ function itemFromObject(o) {
   let title = take(TITLE_KEYS);
   let url = take(URL_KEYS);
   if (url && !isHttp(url)) url = '';
+  // No link, but a well-known identifier makes one (PubMed, DOI, arXiv, PubMed Central).
+  if (!url) {
+    const id = (k) => {
+      const key = Object.keys(o).find((x) => x.toLowerCase() === k);
+      const v = key != null && (typeof o[key] === 'string' || typeof o[key] === 'number') ? String(o[key]).trim() : '';
+      if (v) used.add(key);
+      return v;
+    };
+    const pmid = id('pmid');
+    const doi = !pmid && id('doi').replace(/^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)/i, '');
+    const pmcid = !pmid && !doi && id('pmcid');
+    const arxiv = !pmid && !doi && !pmcid && (id('arxiv_id') || id('arxivid') || id('arxiv'));
+    if (/^\d{1,9}$/.test(pmid)) url = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+    else if (/^10\.\d{4,9}\/\S+$/.test(doi || '')) url = `https://doi.org/${doi}`;
+    else if (/^PMC\d+$/i.test(pmcid || '')) url = `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid.toUpperCase()}/`;
+    else if (/^(?:\d{4}\.\d{4,5}|[a-z-]+\/\d{7})(?:v\d+)?$/i.test(arxiv || '')) url = `https://arxiv.org/abs/${arxiv}`;
+  }
   let text = '';
   const tp = pick(o, TEXT_KEYS);
   if (tp) {

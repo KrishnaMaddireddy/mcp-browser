@@ -392,3 +392,24 @@ test('third review round: places, statuses, tickers, numbers, links, noise keys,
   const long = JSON.stringify({ answer: `Using Oslo, Norway. ${'Cool and cloudy with light rain showers through the afternoon. '.repeat(12)}` });
   assert.ok(forecastAnswer([{ text: long, view: formatResult(long), score: 20, serverTitle: 'W' }], 'weather in Oslo'), 'long answers still quoted');
 });
+
+test('search hits get links from PubMed/DOI ids and lose rank/domain rows', async () => {
+  const { formatResult } = await import('../src/format.js');
+  const long = 'A long enough abstract that this stays a list of items rather than a table of short cells.';
+  const v = formatResult(JSON.stringify({ articles: [
+    { pmid: '35640743', title: 'Metformin: Is it a drug for all reasons?', abstract: long, doi: 'doi: 10.1016/j.metabol.2022.155223' },
+    { doi: 'doi: 10.1016/j.cmet.2020.04.001', title: 'Benefits of Metformin', abstract: long },
+    { title: 'Yahoo Finance NVDA', url: 'https://finance.yahoo.com/q', snippet: long, position: 1, domain: 'finance.yahoo.com' },
+  ] }), 'metformin');
+  assert.equal(v.kind, 'items');
+  assert.equal(v.items[0].url, 'https://pubmed.ncbi.nlm.nih.gov/35640743/');
+  assert.equal(v.items[1].url, 'https://doi.org/10.1016/j.cmet.2020.04.001');
+  assert.deepEqual(v.items[2].facts.map((f) => f.label), []);
+});
+
+test('help text and empty JSON searches are not answers', async () => {
+  const { classifyResult } = await import('../src/quality.js');
+  assert.equal(classifyResult("Here are the available commands and their input schema for 'core' tool. If you do not find a suitable command", 'x').kind, 'empty');
+  assert.equal(classifyResult('{"files":[],"total_matches":0,"files_searched":0,"files_matched":0,"truncated":false}', 'x').kind, 'empty');
+  assert.equal(classifyResult('{"error":"This repository has no index yet.","remedy":"Build one first with the CLI"}', 'x').kind, 'empty');
+});
