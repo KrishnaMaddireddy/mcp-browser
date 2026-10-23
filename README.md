@@ -4,6 +4,26 @@ An AI search browser that answers questions by routing them to the right
 **MCP servers** — picked from a curated set plus the 27,000+ keyless servers in
 the official MCP Registry — instead of a single search index.
 
+**The search engine that shows its work.** Several independent, often official sources side by
+side; claims and whole paragraphs checked against them; prices, releases, packages and pages
+watched for you. It runs on your own computer, with no account, and works with no AI key at all
+(free mode), with an API key or local Ollama model, or inside Claude Desktop and Claude Code.
+
+Free and open source under the [MIT License](LICENSE).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Start page: search, plus Fact-check a paragraph, Check a project's dependencies and Tell me when](docs/screenshots/start-page.png) | ![Search results: a quoted answer with the same figure in six other sources](docs/screenshots/search-results.png) |
+| **Start page** — ask anything, or start a fact check, a dependency check or a watch | **Search** — a quoted answer, the same figure in other sources, each server's results |
+| ![Answer card for Nvidia built from three servers](docs/screenshots/answer-card.png) | ![Cross-check: five sources give a different height for the Eiffel Tower](docs/screenshots/cross-check.png) |
+| **Answer cards** — one card from several vetted servers, each part labelled with its server | **Cross-check** — every independent source's own sentence: says the same, says something different, or only mentions it |
+| ![Fact-check a paragraph: five facts from an AI answer, each with its reading and clearest quote](docs/screenshots/fact-check-paragraph.png) | ![Dependency check of a package-lock.json: 7 of 65 packages vulnerable, all via express](docs/screenshots/dependency-check.png) |
+| **Fact-check a paragraph** — each fact in an AI answer checked on its own | **Dependency check** — a lockfile or a GitHub link against two OSV services, and which direct dependency brings each problem in |
+| ![Tell me when NVDA drops below 150: the figure it reads now and how often it checks](docs/screenshots/tell-me-when.png) | ![Server catalog: 48,389 registry servers, 13,287 tested for real](docs/screenshots/server-catalog.png) |
+| **Tell me when** — prices, releases and pages watched on your computer | **Server catalog** — the whole MCP Registry, with which servers were tested and actually answer |
+
 ```
  your question
       │
@@ -670,3 +690,9 @@ The catalog's "Tested" labels come from running the servers, not from their desc
 Results go to `<data dir>/catalog-build/*-probe.jsonl`; `node scripts/build-catalog.js --bundle` turns them into the catalog's `tested` field (labels, the "Tested working" filter, Discover) and `src/data/answer-tests.json`, which routing uses: servers that answered are asked sooner, ones that failed or need an AI model (in free mode) later. What your own MCP Browser sees working always wins.
 
 Statuses: answers · answers with an AI model · starts (didn't answer the sample question) · no tools · didn't start (with the reason) · needs a key · needs arguments.
+
+## License
+
+MIT — free to use, copy, modify and distribute, including commercially. See [LICENSE](LICENSE).
+Third-party MCP servers it connects to have their own terms; the registry data in `src/data/`
+comes from the public [MCP Registry](https://registry.modelcontextprotocol.io).
