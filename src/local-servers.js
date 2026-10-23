@@ -374,7 +374,7 @@ export function explainFailure(log) {
   if (missingArg) return { kind: 'needs-args', hint: `it needs a startup argument the registry doesn’t list: ${(missingArg[1] || missingArg[2] || missingArg[3] || missingArg[4]).trim()}` };
   const usage = /\bUsage:\s*([^\n]{0,120})/i.exec(t);
   if (usage && /<[^>]+>|--[\w-]+ \S|required/i.test(usage[1] + t.slice(usage.index, usage.index + 400))) return { kind: 'needs-args', hint: `it needs startup arguments the registry doesn’t list: ${usage[1].trim()}` };
-  const node = /requires Node\.?js ([\d.]+)/i.exec(t);
+  const node = /(?:requires|needs) Node(?:\.?js)? v?(\d+(?:\.\d+)*)(?: or newer| or later|\+)?/i.exec(t);
   if (node) return { kind: 'runtime', hint: `it needs Node.js ${node[1]} or newer` };
   return null;
 }

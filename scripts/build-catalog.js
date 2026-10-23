@@ -145,6 +145,8 @@ for (const probeFile of probeFiles) {
       if (r.status === 'fails' && r.type !== 'hosted') {
         const ex = explainFailure(String(r.error || '') + '\n' + String(r.log || ''));
         if (ex?.kind === 'needs-key' || ex?.kind === 'needs-args' || ex?.kind === 'platform') Object.assign(r, { status: ex.kind, error: ex.hint });
+        // A newer Node.js than the test machine had: not a failure where Node is newer.
+        else if (ex?.kind === 'runtime') Object.assign(r, { status: 'platform', error: ex.hint });
       }
       // A failed AI-inputs try only counts when it shows a key is needed (the registry didn't say).
       if (r.status === 'fails-ai') {
