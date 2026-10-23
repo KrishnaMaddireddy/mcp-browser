@@ -452,3 +452,13 @@ test('a quick answer lists other sources with the same figure', async () => {
   assert.deepEqual(w.map((x) => x.name), ['b.com']);
   assert.deepEqual(agreeingSources({ text: 'Canberra is the capital of Australia.' }, []), []);
 });
+
+test('days until a date or holiday are counted here', async () => {
+  const { dateAnswer } = await import('../src/quality.js');
+  const now = new Date('2026-10-22T20:00:00');
+  assert.equal(dateAnswer('how many days until christmas', now).text, '64 days until Christmas (Friday, December 25, 2026)');
+  assert.equal(dateAnswer('days until thanksgiving?', now).text, '35 days until Thanksgiving (Thursday, November 26, 2026)');
+  assert.equal(dateAnswer('how many weeks until new year', now).text, '10 weeks and 1 day until New Year (Friday, January 1, 2027)');
+  assert.equal(dateAnswer('what day is 2027-01-01', now).text, 'Friday, January 1, 2027');
+  assert.equal(dateAnswer('days until the election', now), null);
+});

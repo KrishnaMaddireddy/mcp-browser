@@ -819,9 +819,97 @@ export function timeAnswer(query, now = new Date()) {
   return { text: `${time} in ${name}, ${day} (${tz})`, url: null, site: '', title: '', server: 'MCP Browser (clock)' };
 }
 
-/** Questions answered here without asking any server: conversions, sums, the time somewhere. */
+// ---------- days until a date ----------
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const nthWeekday = (y, m, wd, n) => {
+  const d = new Date(Date.UTC(y, m, 1));
+  const shift = (wd - d.getUTCDay() + 7) % 7;
+  return new Date(Date.UTC(y, m, 1 + shift + 7 * (n - 1)));
+};
+const lastWeekday = (y, m, wd) => {
+  const d = new Date(Date.UTC(y, m + 1, 0));
+  return new Date(Date.UTC(y, m, d.getUTCDate() - ((d.getUTCDay() - wd + 7) % 7)));
+};
+// Fixed-date and rule-based US holidays: (year) → date (UTC midnight).
+const HOLIDAYS = {
+  christmas: (y) => new Date(Date.UTC(y, 11, 25)),
+  'christmas day': (y) => new Date(Date.UTC(y, 11, 25)),
+  'christmas eve': (y) => new Date(Date.UTC(y, 11, 24)),
+  'new year': (y) => new Date(Date.UTC(y + 1, 0, 1)),
+  "new year's": (y) => new Date(Date.UTC(y + 1, 0, 1)),
+  "new year's day": (y) => new Date(Date.UTC(y + 1, 0, 1)),
+  "new year's eve": (y) => new Date(Date.UTC(y, 11, 31)),
+  halloween: (y) => new Date(Date.UTC(y, 9, 31)),
+  "valentine's day": (y) => new Date(Date.UTC(y, 1, 14)),
+  valentines: (y) => new Date(Date.UTC(y, 1, 14)),
+  'valentines day': (y) => new Date(Date.UTC(y, 1, 14)),
+  'independence day': (y) => new Date(Date.UTC(y, 6, 4)),
+  'july 4th': (y) => new Date(Date.UTC(y, 6, 4)),
+  'the 4th of july': (y) => new Date(Date.UTC(y, 6, 4)),
+  '4th of july': (y) => new Date(Date.UTC(y, 6, 4)),
+  thanksgiving: (y) => nthWeekday(y, 10, 4, 4),
+  'mother’s day': (y) => nthWeekday(y, 4, 0, 2),
+  "mother's day": (y) => nthWeekday(y, 4, 0, 2),
+  "father's day": (y) => nthWeekday(y, 5, 0, 3),
+  'labor day': (y) => nthWeekday(y, 8, 1, 1),
+  'memorial day': (y) => lastWeekday(y, 4, 1),
+};
+function parseDay(text, today) {
+  const t = text.toLowerCase().replace(/[?.!]+$/, '').replace(/^the\s+/, '').trim();
+  const y0 = today.getUTCFullYear();
+  if (HOLIDAYS[t]) {
+    let d = HOLIDAYS[t](y0);
+    if (d < today && !/new year/.test(t)) d = HOLIDAYS[t](y0 + 1);
+    return { date: d, name: t.replace(/\b\p{Ll}/gu, (c) => c.toUpperCase()).replace(/'S\b/g, "'s") };
+  }
+  // "december 25", "dec 25 2026", "25 december", "2027-03-01"
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (m) return { date: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])), name: null };
+  const mi = (w) => MONTHS.findIndex((x) => x.startsWith(w) && w.length >= 3);
+  m = /^([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?$/.exec(t) || null;
+  let month, day, year;
+  if (m && mi(m[1]) >= 0) [month, day, year] = [mi(m[1]), +m[2], m[3] ? +m[3] : null];
+  else {
+    m = /^(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]{3,9})(?:,?\s+(\d{4}))?$/.exec(t);
+    if (m && mi(m[2]) >= 0) [month, day, year] = [mi(m[2]), +m[1], m[3] ? +m[3] : null];
+    else return null;
+  }
+  if (day < 1 || day > 31) return null;
+  let d = new Date(Date.UTC(year ?? y0, month, day));
+  if (year == null && d < today) d = new Date(Date.UTC(y0 + 1, month, day));
+  return { date: d, name: null };
+}
+/** "how many days until Christmas", "days until march 1", "what day is december 25": counted here. */
+export function dateAnswer(query, now = new Date()) {
+  const q = String(query || '').toLowerCase().trim().replace(/[?.!]+$/, '');
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const fmt = (d) => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const done = (text) => ({ text, url: null, site: '', title: '', server: 'MCP Browser (calendar)' });
+  let m = /^(?:how many\s+)?(days|weeks|months)\s+(?:left\s+)?(?:until|till|til|to|before)\s+(.{3,40})$/.exec(q) || /^how long (?:until|till|before)\s+(.{3,40})$/.exec(q);
+  if (m) {
+    const unit = m.length === 3 ? m[1] : 'days';
+    const p = parseDay(m.length === 3 ? m[2] : m[1], today);
+    if (!p) return null;
+    const days = Math.round((p.date - today) / 864e5);
+    if (days < 0) return null;
+    const label = p.name ? `${p.name} (${fmt(p.date)})` : fmt(p.date);
+    if (days === 0) return done(`${label} is today`);
+    const amount = unit === 'weeks' ? `${Math.floor(days / 7)} week${Math.floor(days / 7) === 1 ? '' : 's'}${days % 7 ? ` and ${days % 7} day${days % 7 === 1 ? '' : 's'}` : ''}` : `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'}`;
+    return done(`${amount} until ${label}`);
+  }
+  m = /^what day (?:of the week )?(?:is|was|will be)\s+(.{3,40})$/.exec(q);
+  if (m) {
+    const p = parseDay(m[1], today);
+    if (!p) return null;
+    return done(`${p.name ? `${p.name} is ` : ''}${fmt(p.date)}`);
+  }
+  return null;
+}
+
+/** Questions answered here without asking any server: conversions, sums, the time somewhere, days until a date. */
 export function instantAnswer(query) {
-  return convertAnswer(query) || mathAnswer(query) || timeAnswer(query);
+  return convertAnswer(query) || mathAnswer(query) || timeAnswer(query) || dateAnswer(query);
 }
 
 // ---------- stock quotes ----------
