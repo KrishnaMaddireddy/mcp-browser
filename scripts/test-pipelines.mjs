@@ -18,6 +18,9 @@ const file = argv.find((a) => !a.startsWith('--') && a.endsWith('.json')) || pat
 const only = new Set((argv.includes('--only') ? argv[argv.indexOf('--only') + 1] : '').split(',').filter(Boolean));
 const WRITE = argv.includes('--write');
 const PRUNE = argv.includes('--prune');
+// --dump out.json: everything each step got, to read through or review.
+const DUMP = argv.includes('--dump') ? argv[argv.indexOf('--dump') + 1] : null;
+const dump = [];
 
 const { createEngine } = await import('../src/app.js');
 const { createServer } = await import('../src/server.js');
@@ -49,7 +52,7 @@ async function run(p) {
       const d = /^data: (.*)$/m.exec(b)?.[1];
       if (ev === 'pipe_result' && d) {
         const x = JSON.parse(d);
-        (steps[x.i] ||= []).push({ q: x.q, answer: x.answer || '', sources: x.sources || [], servers: x.servers || [] });
+        (steps[x.i] ||= []).push({ q: x.q, answer: x.answer || '', sources: x.sources || [], servers: x.servers || [], details: x.details || [] });
       }
     }
   }
@@ -59,7 +62,8 @@ async function run(p) {
 function grade(p, res) {
   const g = p.steps.map((st, i) => {
     const runs = res.steps[i] || [];
-    const good = runs.filter((x) => x.answer || x.sources.length || x.servers.length).length;
+    // Something you can read: an answer, a link, or what a server said (a record, a quote).
+    const good = runs.filter((x) => x.answer || x.sources.length || x.details.length).length;
     return { runs: runs.length, good, ok: st.each ? good >= Math.max(1, Math.ceil(runs.length / 2)) : good >= 1 };
   });
   return { pass: g.every((x) => x.ok), g };
@@ -83,12 +87,27 @@ for (const p of list) {
     }
   }
   console.log(`${verdict.pass ? 'PASS' : 'FAIL'} ${p.id.padEnd(40)} ${String(res.ms).padStart(6)}ms  ${verdict.g.map((x) => `${x.good}/${x.runs}`).join(' ')}  ${short(p.title, 50)}${res.error ? ` (${res.error})` : ''}`);
+  if (DUMP)
+    dump.push({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      input: p.input?.example,
+      pass: verdict.pass,
+      steps: p.steps.map((st, i) => ({
+        ask: st.ask,
+        each: Boolean(st.each),
+        servers: st.servers || [],
+        runs: (res.steps[i] || []).map((x) => ({ q: x.q, answer: short(x.answer, 300), sources: x.sources.slice(0, 4).map((y) => `${short(y.title, 90)} (${y.host})`), details: x.details.map((d) => `${d.server}: ${short([d.title, d.text, ...(d.facts || []).map((f) => `${f.label}: ${f.value}`)].filter(Boolean).join(' | '), 400)}`) })),
+      })),
+    });
   if (verdict.pass) {
     passed++;
     if (WRITE) p.tested = { on: today, ms: res.ms };
   } else failed.add(p.id);
 }
 console.log(`\n${passed} passed, ${failed.size} failed`);
+if (DUMP) fs.writeFileSync(DUMP, JSON.stringify(dump, null, 1));
 if (WRITE || PRUNE) {
   const out = PRUNE ? list.filter((p) => !failed.has(p.id)) : list;
   fs.writeFileSync(file, `${JSON.stringify(out, null, 1)}\n`);

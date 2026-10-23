@@ -187,11 +187,17 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       emit('pipe_run', { i, j, q, item });
       const servers = [];
       const listed = []; // the items each server returned, best server first
+      const details = []; // what a server said when it wasn't a list of links (a quote, a rating, a record)
       let quick = null;
       const sub = (type, d) => {
         if (type === 'results' && (d.kind || 'ok') === 'ok' && !d.offTopic && !d.isError) {
           servers.push(d.serverTitle);
-          for (const it of d.view?.kind === 'items' ? d.view.items : []) if (it?.url && it.title) listed.push({ title: String(it.title).slice(0, 200), url: it.url, host: hostOf(it.url), score: d.score || 0 });
+          const linked = (d.view?.kind === 'items' ? d.view.items : []).filter((it) => it?.url && it.title);
+          for (const it of linked) listed.push({ title: String(it.title).slice(0, 200), url: it.url, host: hostOf(it.url), score: d.score || 0 });
+          if (!linked.length && details.length < 2) {
+            const d2 = detailOf(d.view, d.text);
+            if (d2) details.push({ server: d.serverTitle, ...d2 });
+          }
         }
         if (type === 'quick_answer') quick = d;
       };
@@ -216,7 +222,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
         })
         .slice(0, 8)
         .map(({ title, url, host }) => ({ title, url, host }));
-      const run = { q, item, answer: text.slice(0, 2000), sources, servers: [...new Set(servers)] };
+      const run = { q, item, answer: text.slice(0, 2000), sources, servers: [...new Set(servers)], ...(details.length ? { details } : {}) };
       runs.push(run);
       emit('pipe_result', { i, j, ...run });
       found.push(...sources.slice(0, st.max || 5));
@@ -231,10 +237,23 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
   return { steps: out };
 }
 
+/**
+ * A short, readable form of a reply that isn't a list of links: a record's title and
+ * first facts, a table's first rows, or the start of the text. Null when there's nothing.
+ */
+export function detailOf(view, text) {
+  const cut = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+  if (view?.kind === 'record' && view.facts?.length) return { title: cut(view.title, 120), facts: view.facts.slice(0, 6).map((f) => ({ label: cut(f.label, 40), value: cut(f.value, 120) })) };
+  if (view?.kind === 'table' && view.rows?.length) return { title: '', facts: view.rows.slice(0, 4).map((r) => ({ label: cut(r[0], 40), value: cut(r.slice(1).join(' · '), 120) })) };
+  if (view?.kind === 'items' && view.items?.length) return { title: '', facts: view.items.slice(0, 4).map((it) => ({ label: cut(it.title, 60), value: cut(it.text || (it.facts || []).map((f) => `${f.label}: ${f.value}`).join(', '), 140) })) };
+  const t = cut(view?.text || text, 300);
+  return t.length >= 20 ? { title: '', text: t } : null;
+}
+
 /** One line per result, for watches ("what changed") and "until" checks. */
 export function pipelineText(result) {
   return result.steps
-    .flatMap((s) => s.runs.map((r) => [r.q, r.answer, ...r.sources.map((x) => `${x.title} ${x.url}`)].filter(Boolean).join('\n')))
+    .flatMap((s) => s.runs.map((r) => [r.q, r.answer, ...r.sources.map((x) => `${x.title} ${x.url}`), ...(r.details || []).map((d) => [d.title, d.text, ...(d.facts || []).map((f) => `${f.label}: ${f.value}`)].filter(Boolean).join(' '))].filter(Boolean).join('\n')))
     .join('\n\n');
 }
 

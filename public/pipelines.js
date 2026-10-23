@@ -140,7 +140,8 @@
               ? `<p class="hint">${esc(d.note)}</p>`
               : `<p class="pl-q">${esc(d.q)}${d.servers?.length ? ` <span class="pl-from">${esc(d.servers.join(', '))}</span>` : ''}</p>
                  ${d.answer ? `<p class="pl-a">${esc(d.answer)}</p>` : ''}
-                 ${d.sources?.length ? `<ul class="pl-links">${d.sources.slice(0, 4).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="hint">${esc(s.host)}</span></li>`).join('')}</ul>` : d.answer ? '' : '<p class="hint">Nothing useful came back.</p>'}`;
+                 ${(d.details || []).map((x) => `<div class="pl-detail"><span class="pl-from">${esc(x.server)}</span>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<p>${esc(x.text)}</p>` : ''}${x.facts?.length ? `<dl>${x.facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl>` : ''}</div>`).join('')}
+                 ${d.sources?.length ? `<ul class="pl-links">${d.sources.slice(0, 4).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="hint">${esc(s.host)}</span></li>`).join('')}</ul>` : d.answer || d.details?.length ? '' : '<p class="hint">Nothing useful came back.</p>'}`;
           } else if (type === 'pipe_done') {
             out.insertAdjacentHTML('beforeend', `<p class="hint">Done in ${(d.ms / 1000).toFixed(1)} s.</p>`);
           } else if (type === 'error') out.insertAdjacentHTML('beforeend', `<p class="lr-fail">${esc(d.message)}</p>`);
