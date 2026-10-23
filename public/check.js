@@ -20,6 +20,15 @@
     return i < 0 ? s : `${s.slice(0, i)}<mark>${b}</mark>${s.slice(i + b.length)}`;
   }
 
+  async function copyText(t) {
+    try {
+      await navigator.clipboard.writeText(t);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function mount(el, hooks = {}) {
     const $ = (s) => el.querySelector(s);
     const form = $('[data-ck-form]');
@@ -54,7 +63,7 @@
             : `<section class="ck-group ck-${k}"><h3>${esc(label)} <span>${list.length}</span></h3>${body}</section>`;
         }).join('');
         const head = verdict
-          ? `<div class="ck-verdict" data-v="${esc(verdict.verdict)}"><b>${esc(verdict.label)}</b><p>${verdict.judged === 'ai' ? 'An AI model read each quoted sentence.' : 'Each source’s own sentence, matched on the figures and names in your claim. Copies of the same page count once; forums count as mentions.'} Read the quotes: they are the evidence.</p></div>`
+          ? `<div class="ck-verdict" data-v="${esc(verdict.verdict)}"><b>${esc(verdict.label)}</b><p>${verdict.judged === 'ai' ? 'An AI model read each quoted sentence.' : 'Each source’s own sentence, matched on the figures and names in your claim. Copies of the same page count once; forums count as mentions.'} Read the quotes: they are the evidence.</p><p class="ck-acts"><button type="button" class="link-btn" data-ck-copy>Copy as Markdown</button> <span data-ck-copied role="status"></span></p></div>`
           : '';
         const wait = verdict || error ? '' : `<p class="ck-wait">${progress ? `${progress.replies} server${progress.replies === 1 ? '' : 's'} replied (last: ${esc(progress.server)}). Reading what each source says…` : 'Asking web search, Wikipedia and specialist servers, then reading what each one says…'}</p>`;
         out.innerHTML = error ? `<p class="lr-fail">${esc(error)}</p>` : head + wait + (groups || (verdict ? '<p class="hint">No source said anything about it. Try wording it the way a reference page would.</p>' : ''));
@@ -110,6 +119,24 @@
         }
       }
       render();
+      // The verdict with every quote and its link, to paste into a doc, an issue or a chat.
+      const btn = out.querySelector('[data-ck-copy]');
+      if (btn && my === runId)
+        btn.onclick = async () => {
+          const md = [`## Cross-check: “${claim.replace(/[\\`*_[\]<>!|]/g, '\\$&')}”`, '', `**${verdict.label}** (${new Date().toISOString().slice(0, 10)}, MCP Browser)`, ''];
+          for (const [k, label] of GROUPS) {
+            const list = ev.filter((e) => e.stance === k);
+            if (!list.length) continue;
+            md.push(`### ${label} (${list.length})`, '');
+            // (quotes are other people's text: no links, images or HTML of their own in the paste)
+            const mdText = (t) => String(t).replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]<>!|]/g, '\\$&');
+            const mdUrl = (u) => (/^https?:\/\//i.test(u) ? u.replace(/[()\s<>]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`) : '');
+            for (const e of list) md.push(`> ${mdText(e.sentence)}`, `> — ${e.url && mdUrl(e.url) ? `[${mdText(e.source)}](${mdUrl(e.url)})` : mdText(e.source)}${e.kind ? ` (${e.kind})` : ''}`, '');
+          }
+          const ok = await copyText(md.join('\n'));
+          const st = out.querySelector('[data-ck-copied]');
+          if (st) st.textContent = ok ? 'Copied' : 'Couldn’t copy: your browser blocked it';
+        };
     }
 
     form.addEventListener('submit', (e) => {

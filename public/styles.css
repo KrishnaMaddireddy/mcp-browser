@@ -1147,3 +1147,5 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dp-sev[data-sev="MODERATE"], :root:not([data-theme="light"]) .dp-sev[data-sev="MEDIUM"] { color: #f7d98b; background: transparent; border-color: #8a6a1f; } }
 :root[data-theme="dark"] .dp-sev[data-sev="MODERATE"], :root[data-theme="dark"] .dp-sev[data-sev="MEDIUM"] { color: #f7d98b; background: transparent; border-color: #8a6a1f; }
 @media (max-width: 600px) { .dp-table th:nth-child(5), .dp-table tr:not(.dp-adv) td:nth-child(5) { display: none; } .dp-table td, .dp-table th { padding: 7px 6px; } .dp-table tr.dp-adv td { padding-left: 8px; } }
+.ck-acts { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.ck-verdict .dp-copy { float: right; margin: 2px 0 0 12px; }

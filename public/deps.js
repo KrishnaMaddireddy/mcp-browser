@@ -43,7 +43,7 @@
           const s = done.summary;
           const both = done.sources.osv && done.sources.audit;
           const agreeLine = both && s.agreed + s.disagreed > 0 ? (s.disagreed ? `The two OSV servers disagree on ${s.disagreed} package${s.disagreed === 1 ? '' : 's'}: both counts are shown.` : `Two OSV servers from different publishers agree on ${s.agreed === s.checked ? `all ${s.agreed}` : `${s.agreed} of ${s.checked}`}.`) : 'Only one OSV server had answers, so nothing was double-checked.';
-          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
+          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
         } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
         const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
         const ranged = rows.some((r) => /^[\^~>]/.test(r.range || '')) ? '<p class="hint">For ranges like ^4.17.15 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
@@ -108,6 +108,35 @@
         }
       }
       render();
+      // A table to paste into a pull request, an issue or a chat.
+      const btn = out.querySelector('[data-dp-copy]');
+      if (btn && my === runId && done)
+        btn.onclick = async () => {
+          const s = done.summary;
+          // (names and summaries come from servers: no links, images or HTML of their own in the paste)
+          const cell = (x) => String(x ?? '').replace(/\s+/g, ' ').replace(/[\\`*_[\]<>!|]/g, '\\$&');
+          const md = [
+            `## Dependency check: ${s.vulnerable ? `${s.vulnerable} of ${s.checked} packages have known vulnerabilities` : `no known vulnerabilities in ${s.checked} packages`}`,
+            '',
+            `Checked ${new Date().toISOString().slice(0, 10)} with ${Object.values(servers).filter((x) => x.ok).map((x) => cell(x.title)).join(', ')} (OSV.dev data), in MCP Browser.`,
+            '',
+            '| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |',
+            '|---|---|---|---|---|---|',
+            ...rows.map((r) => `| ${cell(r.name)} (${r.ecosystem}) | ${cell(r.version || r.range || '—')} | ${r.version ? (r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0) || 'none' : 'no version'}${r.worst ? ` (${SEV_LABEL[r.worst] || r.worst})` : ''} | ${r.unfixed ? 'no fix yet' : cell(r.fix || '')} | ${cell(r.latest || '')} | ${[r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : ''].filter(Boolean).join(', ')} |`),
+          ];
+          const adv = rows.filter((r) => r.vulns.length);
+          if (adv.length) {
+            md.push('', '### Advisories', '');
+            for (const r of adv) for (const v of r.vulns) md.push(`- **${cell(r.name)}** ${SEV_LABEL[v.severity] || v.severity || ''}: ${cell(v.summary || v.id)} ([${cell(v.id)}](https://osv.dev/vulnerability/${encodeURIComponent(v.id)})${v.aliases.length ? `, ${cell(v.aliases.join(', '))}` : ''})${v.fixedVersions.length ? `, fixed in ${cell(v.fixedVersions.join(', '))}` : ''}`);
+          }
+          let ok = false;
+          try {
+            await navigator.clipboard.writeText(md.join('\n'));
+            ok = true;
+          } catch {}
+          const st = out.querySelector('[data-dp-copied]');
+          if (st) st.textContent = ok ? 'Copied' : 'Couldn’t copy: your browser blocked it';
+        };
     }
 
     $('[data-dp-form]').addEventListener('submit', (e) => {
