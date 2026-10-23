@@ -1028,3 +1028,33 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .pl-detail dl div { display: grid; grid-template-columns: minmax(90px, 32%) minmax(0, 1fr); gap: 8px; }
 .pl-detail dt { color: var(--muted); overflow-wrap: anywhere; }
 .pl-detail dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Cross-check */
+.ck-form { display: flex; gap: 10px; margin: 0 0 10px; }
+.ck-form input { flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 16px; }
+.ck-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.ck-examples button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.ck-examples button:hover { color: var(--ink); border-color: var(--signal); }
+.ck-wait { color: var(--muted); }
+.ck-verdict { border-left: 4px solid var(--muted); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.ck-verdict b { font-size: 19px; display: block; }
+.ck-verdict p { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
+.ck-verdict[data-v="supported"], .ck-verdict[data-v="mostly"] { border-left-color: var(--signal); }
+.ck-verdict[data-v="disputed"] { border-left-color: #c58a12; }
+.ck-verdict[data-v="contradicted"] { border-left-color: #c2410c; }
+.ck-group { margin: 0 0 16px; }
+.ck-group h3 { font-size: 14px; margin: 0 0 8px; }
+.ck-group h3 span, .ck-group summary { color: var(--muted); font-weight: 500; }
+.ck-group summary { cursor: pointer; font-size: 14px; margin-bottom: 8px; }
+.ck-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ck-src { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; }
+.ck-supports .ck-src { border-left-color: var(--signal); }
+.ck-differs .ck-src { border-left-color: #c2410c; }
+.ck-src blockquote { margin: 0; font-size: 14.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.ck-src mark { background: var(--signal-soft); color: inherit; padding: 0 2px; border-radius: 3px; }
+.ck-differs .ck-src mark { background: rgba(194, 65, 12, 0.15); }
+.ck-cite { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+.ck-cite a { color: inherit; }
+.ck-cite span { margin-left: 6px; }
+.ck-btn { margin-left: 10px; font-size: 12.5px; }
+@media (max-width: 600px) { .ck-form { flex-direction: column; } }

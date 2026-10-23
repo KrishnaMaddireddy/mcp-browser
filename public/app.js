@@ -189,6 +189,12 @@
       case 'rank':
         entry.title = 'MCP Rank';
         return buildRank(entry);
+      case 'check': {
+        entry.title = entry.claim ? `Check: ${entry.claim}` : 'Cross-check';
+        const el = $('#tpl-check').content.firstElementChild.cloneNode(true);
+        window.MCPCheck?.mount(el, { claim: entry.claim, open: (u) => open(u) });
+        return el;
+      }
       case 'pipelines': {
         entry.title = 'Pipelines';
         const el = $('#tpl-pipelines').content.firstElementChild.cloneNode(true);
@@ -327,6 +333,13 @@
     if (/^mcp:\/\/stack/i.test(s)) return navigate(tab, { kind: 'stack' });
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
     if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
+    if (/^mcp:\/\/check/i.test(s)) return navigate(tab, { kind: 'check' });
+    // "is it true that …", "fact check: …", "true or false: …" → Cross-check.
+    const claim = /^(?:is it true that|is it true|fact[- ]?check:?|true or false:?|verify:?|check:)\s+(.{6,300}?)\??$/i.exec(s);
+    if (claim) {
+      history.add(s);
+      return navigate(tab, { kind: 'check', claim: claim[1].replace(/^that\s+/i, '') });
+    }
     if (looksLikeUrl(s)) {
       const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
       return openUrl(url, tab);
@@ -1337,6 +1350,15 @@
               ? '<span>Calculated by MCP Browser</span>'
               : `<span>Quoted from <a href="#" class="quoted-link">${esc(d.server || 'a result')}</a>, shown in full below</span>`
         }</figcaption>`;
+        // Quoted from one page: one click checks it against the others.
+        if (!d.calculated && d.text && d.text.length <= 300) {
+          const ck = document.createElement('button');
+          ck.type = 'button';
+          ck.className = 'link-btn ck-btn';
+          ck.textContent = 'Cross-check this';
+          ck.addEventListener('click', () => newTab({ kind: 'check', claim: d.text.replace(/^[^:]{2,60}:\s+(?=\p{Lu})/u, '') }));
+          box.querySelector('figcaption').appendChild(ck);
+        }
         ui.answer.innerHTML = '';
         ui.answer.appendChild(box);
         // The card it quotes comes right after it, and the caption links to it.

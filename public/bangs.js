@@ -27,6 +27,7 @@
     mcp: ['the MCP server catalog', null, null, (q) => ({ kind: 'catalog', view: 'all', q })],
     sites: ['websites with AI tools', null, null, (q) => ({ kind: 'webmcp', q })],
     stack: ['My MCP stack', null, null, () => ({ kind: 'stack' })],
+    check: ['Cross-check', null, null, (q) => ({ kind: 'check', claim: q })],
   };
   /** { name, url } for a site, or { name, entry } for a page in the app; null when there's no bang. */
   function parse(input) {

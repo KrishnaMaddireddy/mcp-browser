@@ -396,6 +396,21 @@
     </section>
   </template>
 
+  <template id="tpl-check">
+    <section class="page panel check">
+      <header class="panel-head">
+        <h1>Cross-check</h1>
+        <p class="panel-lede">Is it true? Your claim goes to web search, Wikipedia and specialist servers, and each source’s own sentence is shown: the ones that say the same, the ones that give a different figure or name, and the ones that only mention it.</p>
+      </header>
+      <form class="ck-form" data-ck-form>
+        <input type="text" data-ck-claim placeholder="A claim, e.g. The Eiffel Tower is 330 meters tall" aria-label="Claim to check" maxlength="300">
+        <button type="submit" class="st-dl-btn">Check</button>
+      </form>
+      <div class="ck-examples" data-ck-examples></div>
+      <div class="ck-out" data-ck-out></div>
+    </section>
+  </template>
+
   <template id="tpl-pipelines">
     <section class="page panel pipelines">
       <header class="panel-head">
@@ -507,6 +522,7 @@
   <script src="stack.js"></script>
   <script src="bangs.js"></script>
   <script src="pipelines.js"></script>
+  <script src="check.js"></script>
   <script src="page-tools.js"></script>
   <script src="webmcp-sites.js"></script>
   <script src="link-actions.js"></script>

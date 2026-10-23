@@ -19,6 +19,7 @@ import { auditInstalled } from './audit.js';
 import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib, testedView } from './catalog-index.js';
 import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
+import { crossCheck } from './crosscheck.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
@@ -569,6 +570,27 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'GET /api/today': async (req, res, url) => {
       const city = String(url.searchParams.get('city') || '').replace(/[^\p{L}\p{N} ,.'-]/gu, '').trim().slice(0, 60);
       json(res, 200, await today(city));
+    },
+    // Cross-check a claim across independent sources (SSE: check_source …, check_verdict, done).
+    'POST /api/crosscheck': async (req, res) => {
+      const b = await readJson(req);
+      const claim = String(b.claim || '').trim().slice(0, 300);
+      if (!claim) return json(res, 400, { error: 'claim required' });
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+      const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
+      const t0 = Date.now();
+      try {
+        await crossCheck(engine.agent, claim, { emit, signal: ac.signal });
+      } catch (e) {
+        if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
+      } finally {
+        emit('done', { ms: Date.now() - t0 });
+        clearInterval(ping);
+        res.end();
+      }
     },
     'GET /api/discover': async (req, res) => {
       const d = discover();

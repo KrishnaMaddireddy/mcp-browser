@@ -650,7 +650,7 @@ const UNITS = {
 };
 const TEMP = { c: 'C', celsius: 'C', '°c': 'C', f: 'F', fahrenheit: 'F', '°f': 'F', k: 'K', kelvin: 'K' };
 
-function unitOf(word) {
+export function unitOf(word) {
   const w = String(word).toLowerCase().replace(/\.$/, '');
   const singular = w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;
   for (const [kind, table] of Object.entries(UNITS)) {
