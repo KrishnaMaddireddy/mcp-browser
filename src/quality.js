@@ -460,9 +460,36 @@ export function orderItems(view, query) {
   const dated = view.items.filter((it) => /^\d{4}-\d{2}-\d{2}$/.test(it.date || '')).length;
   const when = timeFocus(query);
   for (const x of scored) x.when = when ? Number(when(x.it)) : 0;
+  // Pages in the question's own language and script first: an English question gets
+  // English pages before a Chinese or Turkish one (they stay, lower down).
+  const lang = langOf(String(query));
+  for (const x of scored) x.lang = !lang || langOf(`${x.it.title} ${x.it.text || ''}`.slice(0, 300)) === lang ? 1 : 0;
   const byDate = WANTS_NEW.test(String(query)) && dated >= view.items.length / 2;
-  scored.sort((a, b) => (b.on - a.on) || (b.when - a.when) || (byDate ? String(b.it.date || '').localeCompare(String(a.it.date || '')) : 0) || a.i - b.i);
+  scored.sort((a, b) => (b.on - a.on) || (b.lang - a.lang) || (b.when - a.when) || (byDate ? String(b.it.date || '').localeCompare(String(a.it.date || '')) : 0) || a.i - b.i);
   return { ...view, items: scored.map((x) => x.it), offTopicItems: scored.filter((x) => !x.on).length };
+}
+
+const SCRIPTS = [
+  ['han', /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu],
+  ['hangul', /\p{Script=Hangul}/gu],
+  ['cyrillic', /\p{Script=Cyrillic}/gu],
+  ['arabic', /\p{Script=Arabic}/gu],
+  ['devanagari', /\p{Script=Devanagari}/gu],
+  ['greek', /\p{Script=Greek}/gu],
+  ['hebrew', /\p{Script=Hebrew}/gu],
+  ['thai', /\p{Script=Thai}/gu],
+];
+/**
+ * A rough language key for ordering: the main non-Latin script, 'en' for plain
+ * ASCII Latin text, 'latin+' for Latin text with many accented letters (Turkish,
+ * Vietnamese…). Null when there's too little text to tell.
+ */
+export function langOf(text) {
+  const letters = (text.match(/\p{L}/gu) || []).length;
+  if (letters < 4) return null;
+  for (const [name, re] of SCRIPTS) if ((text.match(re) || []).length / letters > 0.2) return name;
+  const accented = (text.match(/[\p{Script=Latin}]/gu) || []).filter((c) => c.charCodeAt(0) > 127).length;
+  return accented / letters > 0.04 ? 'latin+' : 'en';
 }
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
