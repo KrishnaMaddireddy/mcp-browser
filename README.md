@@ -179,8 +179,9 @@ the first results usually show in under a second, and a page budget (9 s by defa
   third-party sources, not advice.
 * **Answered right here.** Sums and percentages ("what is 18% of 250", "45 is what percent
   of 180", "(3+4) x 5"), the time somewhere ("time in Tokyo") and days until a date or
-  holiday ("how many days until Christmas") are worked out locally, with no server;
-  sunrise and sunset come from the weather server's own data, in local time; web search still runs for context, specialists don't.
+  holiday ("how many days until Christmas") are worked out locally, with no server (web
+  search still runs for context; specialists don't). Sunrise and sunset come from the
+  weather server's own data, in the place's local time.
 * **Same figure, other sources.** Under a quoted answer, the other sites in the results
   that give the same figure are listed ("Same figure in 6 other sources"), so one page's
   number isn't taken on trust. Small numbers only count when all of them match.
