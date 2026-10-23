@@ -294,6 +294,12 @@ installed are checked, direct dependencies first (up to 150), and each indirect 
 which direct dependency brings it in ("via express"), with a line like "All 7 packages
 with known vulnerabilities come in through express".
 
+**A GitHub repo link** works too (paste it, or press **Check dependencies** on a repo in a
+desktop web tab): its lockfile, or else its manifest, is read through the Page Fetch server
+(one per ecosystem, so a repo with Cargo.lock and uv.lock gets both; a sub-folder link also
+looks for the workspace's lockfile at the root). The page server reads up to 100,000
+characters, so a very long lockfile is checked from its first part, and the page says so.
+
 ## Today
 
 On the start page, with a city: the weather, the market and today's headlines (articles,
@@ -591,7 +597,7 @@ npm run test:live        # also hits the real curated servers
 | POST | `/api/crosscheck` | `{claim}` → SSE `check_progress`, `check_source`, `check_verdict`, `done` |
 | POST | `/api/card` | `{query}` → SSE `card_start`, `card_section`, `card_done` (or `card_none`) |
 | POST | `/api/track/parse` | `{text}` "tell me when …" → a proposed watch (with the figure it reads now) |
-| POST | `/api/deps` | `{text}` a manifest → SSE `deps_start`, `deps_server`, `deps_row`, `deps_done` |
+| POST | `/api/deps` | `{text}` a manifest, lockfile or GitHub repo link (or `{repo}`) → SSE `deps_repo`, `deps_source`, `deps_start`, `deps_server`, `deps_row`, `deps_done` |
 | GET | `/api/today?city=` · `/api/today/topic?q=` | the start page's Today panel; one followed topic's latest stories |
 
 POST requests need `content-type: application/json` and `x-mcpb: 1`.

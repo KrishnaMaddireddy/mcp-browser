@@ -30,6 +30,8 @@
       const rows = [];
       const servers = {};
       let start = null;
+      let repo = null;
+      let source = null;
       let done = null;
       let error = null;
       const render = () => {
@@ -49,8 +51,9 @@
           const acts = `<p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-watch title="Checked once a day, sent to the same servers">Tell me about new advisories</button> · <button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p>`;
           head = !s.checked
             ? `<div class="ck-verdict" data-v="unclear"><b>Nothing was checked</b><p>${answered ? 'No service had an answer for these packages.' : 'No OSV service answered (switched off in Settings, or not reachable right now).'} Try again later; this is not a clean result.</p></div>`
-            : `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine}${notChecked} Known means published in OSV.dev; a clean result isn’t proof of safety.</p>${acts}</div>`;
-        } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
+            : `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? '' : 's'} ${s.vulnerable === 1 ? 'has' : 'have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine}${notChecked} Known means published in OSV.dev; a clean result isn’t proof of safety.</p>${acts}</div>`;
+        } else if (repo && !start) head = `<p class="ck-wait">Reading ${esc(repo.repo)}${repo.dir ? `/${esc(repo.dir)}` : ''} from GitHub through the Page Fetch server…</p>`;
+        else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
         const lock = start?.lockfile ? `<p class="hint">From your lockfile: the versions installed${start.indirect && start.indirect < start.packages ? `, ${start.packages - start.indirect} you depend on directly and ${start.indirect} pulled in by them (marked with the direct one that brings each in)` : ''}.${start.total > start.packages ? ` The first ${start.packages} of ${start.total} are checked, direct ones first.` : ''}${done && rows.length > 12 ? ' Packages with known vulnerabilities are listed first.' : ''}</p>` : '';
         // ("6 of 7 come in through express": where to start)
         let through = '';
@@ -61,6 +64,10 @@
           const [top, n] = [...tally].sort((a, b) => b[1] - a[1])[0] || [];
           if (top && n > 1 && bad.length > 1) through = `<p class="hint"><b>${n === bad.length ? `All ${n}` : `${n} of ${bad.length}`} packages with known vulnerabilities come in through ${esc(top)}.</b> Updating it is the place to start.</p>`;
         }
+        // (which files of the repo were read, so the result can be checked against them)
+        const from = source
+          ? `<p class="hint dp-from">From <a href="https://github.com/${encodeURIComponent(source.repo.split('/')[0])}/${encodeURIComponent(source.repo.split('/')[1])}" target="_blank" rel="noopener noreferrer">${esc(source.repo)}</a>${source.dir ? `/${esc(source.dir)}` : ''}: ${source.files.map((f) => `<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.file.startsWith('/') ? `${f.file.slice(1)} (repo root)` : f.file)}</a>${f.truncated ? ' (its first part only: the page server reads up to 100,000 characters)' : ''}`).join(', ')}.</p>`
+          : '';
         const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
         const ranged = rows.some((r) => /^[\^~]/.test(r.range || '') && r.version) ? '<p class="hint">For ranges like ^4.17.15 or ~=3.4 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
         const loose = rows.some((r) => /^(?:!=|>=?|<=?)/.test(r.range || '')) ? '<p class="hint">Requirements like >=2.19 or !=1.24.1 don’t pin a version, so only the latest version and upkeep are shown for them. Check your lockfile’s versions for the full picture.</p>' : '';
@@ -83,7 +90,7 @@
             return `<tr><td><b>${esc(r.name)}</b> <span class="dp-muted">${esc(r.ecosystem)}</span>${notes ? `<div class="dp-notes-m">${notes}</div>` : ''}</td><td>${esc(r.version || r.range || '—')}</td><td>${vul}</td><td>${fix}</td><td>${esc(r.latest || '')}</td><td>${notes}</td></tr>${adv}`;
           })
           .join('');
-        out.innerHTML = head + srvLine + through + lock + unpinned + ranged + loose + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th><span class="sr-only">Notes</span></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
+        out.innerHTML = head + srvLine + from + through + lock + unpinned + ranged + loose + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th><span class="sr-only">Notes</span></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
       };
       out.innerHTML = '<p class="ck-wait">Reading your packages…</p>';
       let res;
@@ -117,6 +124,8 @@
           if (!type || !raw) continue;
           const d = JSON.parse(raw);
           if (type === 'deps_start') start = d;
+          else if (type === 'deps_repo') repo = d;
+          else if (type === 'deps_source') source = d;
           else if (type === 'deps_server') servers[d.key] = d;
           else if (type === 'deps_row') rows.push(d);
           else if (type === 'deps_done') {

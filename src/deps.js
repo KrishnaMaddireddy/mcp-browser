@@ -460,3 +460,83 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
   emit('deps_done', { summary, sources: { osv: Boolean(osv), audit: Boolean(audits), health: health.size > 0 } });
   return summary;
 }
+
+// ---------- a public GitHub repo ----------
+// "Is this repo's dependency tree safe?" before you adopt it: its lockfile (or manifest) is
+// read through a page-reading server, then checked like a pasted one.
+export const PAGE_FETCH = 'app.openkrill/page-fetch';
+// (a lockfile first: installed versions; a manifest when there is none or it was cut off)
+const REPO_FILES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'package.json', 'requirements.txt', 'pyproject.toml', 'Cargo.toml'];
+
+/** github.com/owner/repo[/tree/ref/dir] → { owner, repo, ref, dir } (null if not a repo link). */
+export function repoOf(input) {
+  const s = String(input || '').trim();
+  const m = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/([\w.-]{1,100}?)(?:\.git)?(?:\/(?:tree|blob)\/([\w.\/-]{1,200}))?\/?(?:[?#].*)?$/i.exec(s);
+  if (!m || /^(?:settings|orgs|topics|marketplace|explore|features|about|login|sponsors|search|notifications|pulls|issues)$/i.test(m[1])) return null;
+  let ref = 'HEAD';
+  let dir = '';
+  if (m[3]) {
+    // ("tree/main/packages/web": the branch is the first part; a blob link points at a file's folder)
+    const parts = m[3].split('/').filter(Boolean);
+    ref = parts.shift();
+    if (/\/blob\//i.test(s)) parts.pop();
+    dir = parts.filter((p) => p !== '..' && p !== '.').join('/');
+  }
+  return { owner: m[1], repo: m[2], ref, dir };
+}
+
+/** Read the repo's dependency file through the page server: { text, file, url, truncated, tried }. */
+export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
+  const base = `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.ref}/${repo.dir ? `${repo.dir}/` : ''}`;
+  const rootBase = `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.ref}/`;
+  const read = async (file) => {
+    // ("/uv.lock": a workspace's lockfile at the repo root, for a package in a sub-folder)
+    const atRoot = file.startsWith('/');
+    const url = atRoot ? rootBase + file.slice(1) : base + file;
+    try {
+      const r = await callTool(PAGE_FETCH, 'fetch_page', { url, max_chars: 400000 });
+      const sc = r?.structuredContent;
+      if (!sc || sc.status !== 'ok' || !sc.markdown || /^\s*404: Not Found\s*$/.test(sc.markdown)) return null;
+      // (the page server indents raw text two spaces under "markdown:" in its text form; structured is as-is)
+      return { file, url, text: String(sc.markdown), truncated: Boolean(sc.truncated) };
+    } catch (e) {
+      lastError = String(e?.message || e);
+      return null;
+    }
+  };
+  let lastError = null;
+  const LOCKS = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'uv.lock', 'poetry.lock', 'Cargo.lock'];
+  const found = (await Promise.all([...REPO_FILES, ...(repo.dir ? LOCKS.map((f) => `/${f}`) : [])].map(read))).filter(Boolean);
+  const tried = REPO_FILES.length;
+  const parsed = found
+    .map((f) => {
+      try {
+        return { ...f, pkgs: parseManifest(f.text) };
+      } catch {
+        return null; // (a lockfile cut off mid-JSON doesn't parse)
+      }
+    })
+    .filter((f) => f?.pkgs?.length);
+  // For each ecosystem the repo uses: a whole lockfile, else a whole manifest, else the first
+  // part of a long lockfile ("uv" has Cargo.lock and uv.lock: both, side by side).
+  const GROUPS = [['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', '/package-lock.json', '/pnpm-lock.yaml', '/yarn.lock', 'package.json'], ['uv.lock', 'poetry.lock', '/uv.lock', '/poetry.lock', 'requirements.txt', 'pyproject.toml'], ['Cargo.lock', '/Cargo.lock', 'Cargo.toml']];
+  const picks = GROUPS.map((g) => {
+    const mine = g.map((file) => parsed.find((f) => f.file === file)).filter(Boolean);
+    const whole = mine.find((f) => !f.truncated);
+    // (a manifest of ">=" ranges pins nothing: the first part of a long lockfile tells more)
+    const cut = mine.find((f) => f.truncated && f.pkgs.lockfile);
+    if (whole && cut && !whole.pkgs.lockfile && whole.pkgs.filter((p) => p.version).length < whole.pkgs.length / 2) return cut;
+    return whole || mine[0];
+  }).filter(Boolean);
+  if (picks.length) {
+    const pkgs = [];
+    const share = Math.floor(MAX_PACKAGES / picks.length);
+    for (const f of picks) pkgs.push(...f.pkgs.slice(0, picks.length > 1 ? share : MAX_PACKAGES));
+    const lockfile = picks.some((f) => f.pkgs.lockfile);
+    Object.assign(pkgs, { lockfile, total: picks.reduce((n, f) => n + (f.pkgs.total ?? f.pkgs.length), 0) });
+    const files = picks.map((f) => ({ file: f.file, url: f.url, truncated: f.truncated, lockfile: Boolean(f.pkgs.lockfile), packages: f.pkgs.total ?? f.pkgs.length }));
+    emit('deps_source', { repo: `${repo.owner}/${repo.repo}`, dir: repo.dir, ref: repo.ref, files, found: found.map((g) => g.file) });
+    return { pkgs, files, tried };
+  }
+  return { pkgs: null, tried, found: found.map((g) => g.file), error: found.length ? null : lastError };
+}

@@ -426,11 +426,11 @@
     <section class="page panel deps">
       <header class="panel-head">
         <h1>Dependency check</h1>
-        <p class="panel-lede">Paste a package.json, a requirements.txt, a lockfile or one package per line. Two services reading OSV.dev, from different publishers, say which versions have known vulnerabilities, side by side, and a registry service says what’s latest and whether it’s still maintained.</p>
-        <p class="hint">Package names and versions (nothing else) go to three community servers: osv-advisory.caseyjhand.com, security.datakoot.com and package.datakoot.com. Leave out private package names you don’t want them to see.</p>
+        <p class="panel-lede">Paste a package.json, a requirements.txt, a lockfile, one package per line, or a link to a public GitHub repo. Two services reading OSV.dev, from different publishers, say which versions have known vulnerabilities, side by side, and a registry service says what’s latest and whether it’s still maintained.</p>
+        <p class="hint">Package names and versions (nothing else) go to three community servers: osv-advisory.caseyjhand.com, security.datakoot.com and package.datakoot.com. Leave out private package names you don’t want them to see. A GitHub link is read through pagefetch.openkrill.app.</p>
       </header>
       <form class="dp-form" data-dp-form>
-        <textarea data-dp-text rows="8" spellcheck="false" aria-label="Packages to check" placeholder='{ "dependencies": { "lodash": "^4.17.15" } }&#10;or&#10;requests==2.19.0&#10;or&#10;lodash@4.17.15'></textarea>
+        <textarea data-dp-text rows="8" spellcheck="false" aria-label="Packages to check" placeholder='{ "dependencies": { "lodash": "^4.17.15" } }&#10;or&#10;requests==2.19.0&#10;or&#10;lodash@4.17.15&#10;or&#10;https://github.com/expressjs/express'></textarea>
         <div class="dp-acts"><button type="submit" class="st-dl-btn">Check packages</button><label class="link-btn dp-file">Choose a file<input type="file" data-dp-file class="sr-only" accept=".json,.lock,.txt,.toml,.yaml,.yml,text/plain,application/json"></label><span>Try <button type="button" class="link-btn" data-dp-ex="npm">a package.json</button> or <button type="button" class="link-btn" data-dp-ex="py">a requirements.txt</button></span></div>
       </form>
       <div class="dp-out" data-dp-out></div>

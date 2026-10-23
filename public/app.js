@@ -1361,15 +1361,19 @@
       const host = /^https?:/i.test(entry.url) ? hostOf(entry.url).replace(/^www\./, '') : '';
       // Any site: is it up, risky, its certificate, what people say (the website card).
       const site = host && /\.[a-z]{2,}$/i.test(host) ? `<button type="button" class="la-btn" data-la-site="${esc(host)}" title="Uptime, risk check, certificate and reputation from several servers">Check this site</button><button type="button" class="la-btn" data-la-watch title="Read this page again every day and tell you when its text changes">Watch this page</button>` : '';
+      // A GitHub repo: is its dependency tree safe? (its lockfile or manifest, checked like a pasted one)
+      const gh = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([\w.-]{1,100})(?:\/tree\/[^?#]+)?\/?(?:[?#].*)?$/.exec(entry.url);
+      const repoBtn = gh && !/^(?:settings|orgs|topics|marketplace|explore|features|about|login|sponsors|search|notifications|pulls|issues)$/i.test(gh[1]) ? `<button type="button" class="la-btn" data-la-deps title="Read this repo’s lockfile or manifest and check its packages against OSV.dev">Check dependencies</button>` : '';
       if (!info && !site) return (bar.hidden = true);
       bar.hidden = false;
       const first = info?.groups[0];
-      bar.innerHTML = `<span class="la-name">Ask about this page:</span>${site}${first ? first.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="0:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('') : ''}${info ? '<button type="button" class="link-btn" data-la-more>More…</button>' : ''}`;
+      bar.innerHTML = `<span class="la-name">Ask about this page:</span>${repoBtn}${site}${first ? first.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="0:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('') : ''}${info ? '<button type="button" class="link-btn" data-la-more>More…</button>' : ''}`;
       bar.__info = info;
     };
     bar.addEventListener('click', (e) => {
       const sc = e.target.closest('[data-la-site]');
       if (sc) return newTab({ kind: 'search', query: `is ${sc.dataset.laSite} safe` });
+      if (e.target.closest('[data-la-deps]')) return newTab({ kind: 'deps', text: entry.url.replace(/[?#].*$/, '') });
       const pw = e.target.closest('[data-la-watch]');
       if (pw) {
         pw.disabled = true;
@@ -1383,6 +1387,13 @@
       if (b) newTab({ kind: 'link', url: entry.url, autorun: b.dataset.la });
     });
     wv.addEventListener('did-navigate', renderBar);
+    // (GitHub and other single-page sites change the address without loading a page)
+    wv.addEventListener('did-navigate-in-page', (e) => {
+      if (e.isMainFrame === false) return;
+      entry.url = e.url;
+      if (current() === entry) omni.value = e.url;
+      renderBar();
+    });
     renderBar();
     el.appendChild(bar);
     el.appendChild(wv);

@@ -22,7 +22,7 @@ import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
 import { detectEntity, detectPair, runCard } from './cards.js';
 import { parseTrack, figureIn, thresholdMet } from './track.js';
-import { parseManifest, runDeps } from './deps.js';
+import { parseManifest, runDeps, repoOf, fetchRepoDeps } from './deps.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { langOf } from './quality.js';
@@ -658,19 +658,34 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/deps': async (req, res) => {
       // (a lockfile can be a few megabytes)
       const b = await readJson(req, 8 * 1024 * 1024);
-      let pkgs;
-      try {
-        pkgs = parseManifest(String(b.text || '').slice(0, 8 * 1024 * 1024));
-      } catch (e) {
-        return json(res, 400, { error: errMsg(e) });
+      const text = String(b.text || '').slice(0, 8 * 1024 * 1024);
+      // A public GitHub repo link: its lockfile or manifest, read by the page server.
+      const repo = repoOf(b.repo || (text.trim().split(/\s+/).length === 1 ? text : ''));
+      let pkgs = null;
+      if (!repo) {
+        try {
+          pkgs = parseManifest(text);
+        } catch (e) {
+          return json(res, 400, { error: errMsg(e) });
+        }
+        if (!pkgs.length) return json(res, 400, { error: 'No packages found. Paste a package.json, a requirements.txt, a lockfile, a GitHub repo link, or one package per line like lodash@4.17.15.' });
       }
-      if (!pkgs.length) return json(res, 400, { error: 'No packages found. Paste a package.json, a requirements.txt, or one package per line like lodash@4.17.15.' });
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
       const ac = new AbortController();
       res.on('close', () => ac.abort());
       const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
       const callTool = (id, tool, args) => engine.callCatalogTool(id, tool, args, { signal: ac.signal });
       try {
+        if (repo) {
+          emit('deps_repo', { repo: `${repo.owner}/${repo.repo}`, dir: repo.dir, ref: repo.ref });
+          const got = await fetchRepoDeps(repo, { callTool, emit });
+          if (!got.pkgs) {
+            const where = `${repo.owner}/${repo.repo}${repo.dir ? `/${repo.dir}` : ''}`;
+            emit('error', { message: got.error && /switched off|disabled/i.test(got.error) ? 'Reading GitHub needs the Page Fetch server, which is switched off in Settings.' : got.found?.length ? `${where} has ${got.found.join(', ')}, but no packages could be read from it.` : `No package-lock.json, yarn.lock, pnpm-lock.yaml, uv.lock, poetry.lock, Cargo.lock, package.json, requirements.txt, pyproject.toml or Cargo.toml at the top of ${where}${got.error ? ` (${String(got.error).slice(0, 120)})` : ''}. In a monorepo, open the package’s folder on GitHub and use that link.` });
+            return;
+          }
+          pkgs = got.pkgs;
+        }
         await runDeps(pkgs, { callTool, titleOf, emit });
       } catch (e) {
         if (!ac.signal.aborted) emit('error', { message: errMsg(e) });

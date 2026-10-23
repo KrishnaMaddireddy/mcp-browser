@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { parseManifest, baseVersion, cmpVersion, fixVersion, runDeps, DEP_SERVERS } = await import('../src/deps.js');
+const { parseManifest, baseVersion, cmpVersion, fixVersion, runDeps, DEP_SERVERS, repoOf, fetchRepoDeps, PAGE_FETCH } = await import('../src/deps.js');
 
 test('manifests: package.json, requirements.txt and plain lists', () => {
   const npm = parseManifest(JSON.stringify({ dependencies: { lodash: '^4.17.15', '@scope/pkg': '~1.2.3', web: 'git+https://x/y.git' }, devDependencies: { jest: '29.0.0' } }));
@@ -106,4 +106,39 @@ test('one package at two versions: each version gets its own advisories', async 
   const ms = rows.filter((r) => r.name === 'ms').map((r) => [r.version, r.vulns.length, r.counts.audit, r.indirect]);
   assert.deepEqual(ms, [['2.0.0', 0, 0, true], ['0.7.0', 1, 1, true]]);
   assert.deepEqual([start.lockfile, start.total, start.indirect], [true, 3, 2]);
+});
+
+test('a GitHub repo link: its lockfile per ecosystem, a sub-folder, the workspace root', async () => {
+  assert.deepEqual(repoOf('https://github.com/expressjs/express'), { owner: 'expressjs', repo: 'express', ref: 'HEAD', dir: '' });
+  assert.deepEqual(repoOf('github.com/vercel/next.js/tree/canary/packages/next'), { owner: 'vercel', repo: 'next.js', ref: 'canary', dir: 'packages/next' });
+  assert.equal(repoOf('https://github.com/a/b/tree/main/../../x').dir, 'x');
+  assert.equal(repoOf('https://github.com/settings/profile'), null);
+  assert.equal(repoOf('https://gitlab.com/a/b'), null);
+  const files = {
+    'https://raw.githubusercontent.com/o/r/HEAD/package-lock.json': { markdown: '{"lockfileVersion": 3, "packages": {"": {"dependencies": {"qs": "6.7.0"}}, "node_modules/qs": {"version": "6.7.0"}}}' },
+    'https://raw.githubusercontent.com/o/r/HEAD/package.json': { markdown: '{"dependencies": {"qs": "^6.7.0"}}' },
+    'https://raw.githubusercontent.com/o/r/HEAD/Cargo.lock': { markdown: '[[package]]\nname = "time"\nversion = "0.1.4', truncated: true },
+    'https://raw.githubusercontent.com/o/r/HEAD/Cargo.toml': { markdown: '[dependencies]\ntime = "=0.1.43"' },
+    'https://raw.githubusercontent.com/o/r/HEAD/pyproject.toml': { markdown: '[project]\ndependencies = ["fastapi>=0.100"]' },
+    'https://raw.githubusercontent.com/o/r/HEAD/uv.lock': { markdown: '[[package]]\nname = "fastapi"\nversion = "0.115.0"\nsource = { registry = "https://pypi.org/simple" }\n\n[[package]]\nname = "star', truncated: true },
+  };
+  const urls = [];
+  const callTool = async (id, tool, args) => {
+    assert.deepEqual([id, tool], [PAGE_FETCH, 'fetch_page']);
+    urls.push(args.url);
+    const f = files[args.url];
+    return { structuredContent: f ? { status: 'ok', ...f } : { status: 'skipped', reason: 'not_found' } };
+  };
+  const got = await fetchRepoDeps(repoOf('github.com/o/r'), { callTool });
+  // (npm: the whole lockfile; Python: ">=" pins nothing, so the cut-off uv.lock; Rust: the whole Cargo.toml over a cut-off Cargo.lock)
+  assert.deepEqual(got.files.map((f) => f.file), ['package-lock.json', 'uv.lock', 'Cargo.toml']);
+  assert.deepEqual(got.pkgs.map((p) => `${p.ecosystem}:${p.name}@${p.version}`), ['npm:qs@6.7.0', 'pypi:fastapi@0.115.0', 'cargo:time@0.1.43']);
+  assert.ok(!urls.some((u) => u.includes('/HEAD//')));
+  // a sub-folder also looks for the workspace's lockfile at the root
+  urls.length = 0;
+  await fetchRepoDeps(repoOf('https://github.com/o/r/tree/main/backend'), { callTool });
+  assert.ok(urls.includes('https://raw.githubusercontent.com/o/r/main/backend/package.json') && urls.includes('https://raw.githubusercontent.com/o/r/main/uv.lock'));
+  const none = await fetchRepoDeps(repoOf('github.com/x/y'), { callTool: async () => { throw new Error('switched off in Settings'); } });
+  assert.equal(none.pkgs, null);
+  assert.match(none.error, /switched off/);
 });
