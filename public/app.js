@@ -541,6 +541,8 @@
   }
 
   // ---------- answer cards ----------
+  // One thing (a company, a city, a CVE, a website…) gets a card from several servers at
+  // once; "A vs B" gets two cards side by side.
   async function loadCard(box, query) {
     let res;
     try {
@@ -551,15 +553,15 @@
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
-    const sections = new Map();
-    let order = [];
-    const sectionHtml = (d) => {
-      const facts = (x) => (x.facts?.length ? `<dl>${x.facts.slice(0, 5).map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl>` : '');
-      return `<h4>${esc(d.label)}</h4>${d.answer ? `<p class="ac-a">${esc(d.answer)}</p>` : ''}${(d.details || []).map((x) => `${x.title ? `<p class="ac-t">${esc(x.title)}</p>` : ''}${x.text ? `<p class="ac-x">${esc(x.text.slice(0, 320))}${x.text.length > 320 ? '…' : ''}</p>` : ''}${facts(x)}`).join('')}${d.links?.length ? `<ul class="ac-links">${d.links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.title)}</a> <span>${esc(l.host)}</span></li>`).join('')}</ul>` : ''}${d.servers?.length ? `<p class="ac-from">${esc(d.servers.join(', '))}</p>` : ''}`;
-    };
-    const render = (head) => {
-      const parts = order.map((k) => sections.get(k)).filter((d) => d && !d.empty);
-      box.querySelector('[data-ac-grid]').innerHTML = parts.map((d) => `<div class="ac-sec" data-k="${esc(d.key)}">${sectionHtml(d)}</div>`).join('') + order.filter((k) => !sections.has(k)).map(() => '<div class="ac-sec ac-wait"><span></span><span></span></div>').join('');
+    const sides = [{ sections: new Map(), order: [] }, { sections: new Map(), order: [] }];
+    const facts = (x) => (x.facts?.length ? `<dl>${x.facts.slice(0, 5).map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl>` : '');
+    const sectionHtml = (d) =>
+      `<h4>${esc(d.label)}</h4>${d.answer ? `<p class="ac-a">${esc(d.answer)}</p>` : ''}${(d.details || []).map((x) => `${x.title ? `<p class="ac-t">${esc(x.title)}</p>` : ''}${x.text ? `<p class="ac-x">${esc(x.text.slice(0, 320))}${x.text.length > 320 ? '…' : ''}</p>` : ''}${facts(x)}`).join('')}${d.links?.length ? `<ul class="ac-links">${d.links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.title)}</a> <span>${esc(l.host)}</span></li>`).join('')}</ul>` : ''}${d.servers?.length ? `<p class="ac-from">${esc(d.servers.join(', '))}</p>` : ''}`;
+    const render = (i) => {
+      const s = sides[i];
+      const grid = box.querySelector(`[data-ac-grid="${i}"]`);
+      if (!grid) return;
+      grid.innerHTML = s.order.map((k) => s.sections.get(k)).filter((d) => d && !d.empty).map((d) => `<div class="ac-sec" data-k="${esc(d.key)}">${sectionHtml(d)}</div>`).join('') + s.order.filter((k) => !s.sections.has(k)).map(() => '<div class="ac-sec ac-wait"><span></span><span></span></div>').join('');
     };
     for (;;) {
       const { value, done } = await reader.read().catch(() => ({ done: true }));
@@ -573,18 +575,26 @@
         const raw = /^data: (.*)$/m.exec(block)?.[1];
         if (!type || !raw) continue;
         const d = JSON.parse(raw);
+        const i = d.side ?? 0;
         if (type === 'card_none') return;
-        if (type === 'card_start') {
-          order = ['time', ...d.sections.map((s) => s.key)].filter((x) => x !== 'time' || d.type === 'place');
+        if (type === 'card_pair') {
           box.dataset.type = d.type;
-          box.innerHTML = `<header><h3>${esc(d.title)}</h3><span>${esc(d.subtitle)} · from ${d.sections.length + (d.type === 'place' ? 1 : 0)} sources, asked at once</span></header><div class="ac-grid" data-ac-grid></div>`;
+          box.classList.add('ac-pair');
+          box.innerHTML = `<div class="ac-side" data-side="0"></div><div class="ac-side" data-side="1"></div>`;
           box.hidden = false;
-          render();
+        } else if (type === 'card_start') {
+          sides[i].order = ['time', ...d.sections.map((x) => x.key)].filter((x) => x !== 'time' || d.type === 'place');
+          box.dataset.type = d.type;
+          const head = `<header><h3>${esc(d.title)}</h3><span>${esc(d.subtitle)} · from ${d.sections.length + (d.type === 'place' ? 1 : 0)} sources, asked at once</span></header><div class="ac-grid" data-ac-grid="${i}"></div>`;
+          const host = d.side != null ? box.querySelector(`[data-side="${i}"]`) : box;
+          host.innerHTML = head;
+          box.hidden = false;
+          render(i);
         } else if (type === 'card_section') {
-          sections.set(d.key, d);
-          render();
-          // A price in the card: one click to be told when it crosses a line (5% away).
-          if (d.key === 'quote' && d.answer && box.dataset.type === 'company' && !box.querySelector('[data-ac-track]')) {
+          sides[i].sections.set(d.key, d);
+          render(i);
+          // A price in a single company card: one click to be told when it crosses a line (5% away).
+          if (d.side == null && d.key === 'quote' && d.answer && box.dataset.type === 'company' && !box.querySelector('[data-ac-track]')) {
             const m = /\(([A-Z.]{1,6})\)\s*:\s*([\d,.]+)/.exec(d.answer);
             if (m) {
               const p = Number(m[2].replace(/,/g, ''));
@@ -595,9 +605,12 @@
             }
           }
         } else if (type === 'card_done') {
-          for (const k2 of order) if (!sections.has(k2)) sections.set(k2, { key: k2, empty: true });
-          render();
-          if (![...sections.values()].some((x) => !x.empty)) box.hidden = true;
+          for (const j of d.all || box.classList.contains('ac-pair') ? [0, 1] : [i]) {
+            for (const k2 of sides[j].order) if (!sides[j].sections.has(k2)) sides[j].sections.set(k2, { key: k2, empty: true });
+            render(j);
+          }
+          const any = sides.some((x) => [...x.sections.values()].some((y) => !y.empty));
+          if (!any) box.hidden = true;
           // The card has what was found: the "no useful results" notice would contradict it.
           else box.closest('.turn')?.classList.add('has-card');
         }

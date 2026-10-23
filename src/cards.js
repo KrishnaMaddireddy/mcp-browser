@@ -37,7 +37,7 @@ export function detectEntity(query) {
     // (a name in lower case alone is a word first: "visa", "apple" — it needs "stock" or a capital)
     const named = co[2] && (/^\p{Lu}/u.test(co[2]) || /\s(?:stock|shares|share price|stock price)$/i.test(q));
     const tick = co[1] && NAME_OF[co[1]] ? co[1] : named ? COMPANY_TICKERS[co[2].toLowerCase().trim()] : null;
-    if (tick) return { type: 'company', value: tick, title: titleCase(named ? co[2].trim() : NAME_OF[tick] || tick), ticker: tick };
+    if (tick) return { type: 'company', value: tick, title: named ? titleCase(co[2].trim()) : co[1] || titleCase(NAME_OF[tick] || tick), ticker: tick };
   }
   // A city: its name alone, or with a travel word.
   const pl = /^([\p{L}][\p{L} .'-]{1,30}?)(?:\s+(?:travel|trip|city|visit|guide|tourism|things to do))?$/u.exec(q);
@@ -93,6 +93,11 @@ function firstSentences(t) {
     if ((out + p).length > 300) break;
     out = out ? `${out} ${p}` : p;
   }
+  // (a last piece with no full stop is a cut-off fragment: drop it when there's a sentence before it)
+  if (out && !/[.!?)"”]$/.test(out)) {
+    const cut = out.replace(/\s+[^.!?]*$/, '');
+    if (/[.!?]$/.test(cut)) out = cut;
+  }
   return out || String(t).slice(0, 300);
 }
 /** Servers' sales lines out of their answers ("Free email alerts …: https://…", "sign up at …"). */
@@ -110,7 +115,9 @@ const SUBTITLE = { company: 'Company', place: 'City', cve: 'Vulnerability', webs
  * Build a card: card_start { type, title, subtitle }, then card_section for each part as
  * it comes in ({ key, label, answer, details, links, servers }), then card_done.
  */
-export async function runCard(agent, entity, { emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }) } = {}) {
+export async function runCard(agent, entity, { emit: emit0 = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), side } = {}) {
+  // (side 0 / 1 when two cards are compared: every event says which one it's for)
+  const emit = side == null ? emit0 : (type, d) => emit0(type, { ...d, side });
   const sections = cardSections(entity);
   emit('card_start', { type: entity.type, title: entity.title, subtitle: SUBTITLE[entity.type] || '', sections: sections.map((s) => ({ key: s.key, label: s.label })) });
   // The time there needs no server.
@@ -162,4 +169,14 @@ export async function runCard(agent, entity, { emit = () => {}, signal, resolveS
     })
   );
   emit('card_done', { ms: Date.now() - t0 });
+}
+
+/** "Nvidia vs AMD", "Lisbon or Madrid": two things of one kind, side by side. Null otherwise. */
+export function detectPair(query) {
+  const m = /^(.{2,40}?)\s+(?:vs\.?|versus|or|compared (?:to|with)|v\.?)\s+(.{2,40}?)\??$/i.exec(String(query || '').trim());
+  if (!m) return null;
+  const a = detectEntity(m[1]);
+  const b = detectEntity(m[2]);
+  if (!a || !b || a.type !== b.type || a.value === b.value || !['company', 'place', 'software'].includes(a.type)) return null;
+  return [a, b];
 }

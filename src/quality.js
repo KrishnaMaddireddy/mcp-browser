@@ -553,7 +553,10 @@ const SCRIPTS = [
  * ASCII Latin text, 'latin+' for Latin text with many accented letters (Turkish,
  * Vietnamese…). Null when there's too little text to tell.
  */
-const EN_SMALL = new Set('the and of to in is for on with are was by at from as that its it this be an or has have will new how what why who your you can more about after over into than not'.split(' '));
+// (no "in", "an", "on", "a": other languages use them too)
+const EN_SMALL = new Set('the and of to is for with are was by at from that its it this be or has have will new how what why who your you can more about after over into than not'.split(' '));
+// Small words of German, Spanish, French, Portuguese, Italian and Dutch that English doesn't use.
+const FOREIGN_SMALL = new Set('der die das und mit auf bei ist sind von zu im den des dem nicht ein eine einen auch nach wie el la los las del y que por para con una les et est du au le pour dans sur sont pas os em com uma nao não il di che per della dei degli het een van voor niet ook zijn'.split(' '));
 export function langOf(text) {
   const letters = (text.match(/\p{L}/gu) || []).length;
   if (letters < 4) return null;
@@ -562,7 +565,9 @@ export function langOf(text) {
   if (accented / letters > 0.04) return 'latin+';
   // Latin text with none of English's small words is another language ("Nvidia despliega miles de millones en Europa").
   const words = text.toLowerCase().match(/[a-z]+/g) || [];
-  if (words.length >= 6 && !words.some((w) => EN_SMALL.has(w))) return 'latin+';
+  const en = words.filter((w) => EN_SMALL.has(w)).length;
+  const foreign = words.filter((w) => FOREIGN_SMALL.has(w)).length;
+  if (words.length >= 6 && en < (words.length >= 14 ? 2 : 1) && foreign >= 1 && foreign > en) return 'latin+';
   return 'en';
 }
 

@@ -20,7 +20,7 @@ import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, s
 import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
-import { detectEntity, runCard } from './cards.js';
+import { detectEntity, detectPair, runCard } from './cards.js';
 import { parseTrack } from './track.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
@@ -598,9 +598,25 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     // or card_none right away.
     'POST /api/card': async (req, res) => {
       const b = await readJson(req);
-      const entity = detectEntity(String(b.query || '').slice(0, 200));
+      const q = String(b.query || '').slice(0, 200);
+      const pair = detectPair(q);
+      const entity = pair ? null : detectEntity(q);
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
       const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (pair) {
+        const ac = new AbortController();
+        res.on('close', () => ac.abort());
+        emit('card_pair', { type: pair[0].type, titles: pair.map((e) => e.title) });
+        try {
+          await Promise.all(pair.map((e, side) => runCard(engine.agent, e, { emit, signal: ac.signal, resolveServers, side })));
+        } catch (e) {
+          if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
+        } finally {
+          emit('card_done', { all: true });
+          res.end();
+        }
+        return;
+      }
       if (!entity) {
         emit('card_none', {});
         return res.end();

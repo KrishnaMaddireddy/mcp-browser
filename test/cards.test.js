@@ -30,3 +30,19 @@ test('each card asks several named servers at once', () => {
     assert.ok(s.every((x) => x.servers?.length && x.ask && x.label), q);
   }
 });
+
+test('"A vs B" of one kind gets two cards side by side', async () => {
+  const { detectPair } = await import('../src/cards.js');
+  assert.deepEqual(detectPair('Nvidia vs AMD').map((e) => e.title), ['Nvidia', 'AMD']);
+  assert.deepEqual(detectPair('Lisbon or Madrid').map((e) => e.type), ['place', 'place']);
+  assert.equal(detectPair('Paris vs Nvidia'), null);
+  assert.equal(detectPair('iPhone vs Pixel'), null);
+});
+
+test('other languages are told apart from short English headlines', async () => {
+  const { langOf } = await import('../src/quality.js');
+  assert.equal(langOf('Chip stocks had a rough week'), 'en');
+  assert.equal(langOf('Apple Unveils New iPhone Pro Max Today'), 'en');
+  assert.equal(langOf('Nvidia despliega miles de millones en Europa: Impacto en startups del continente'), 'latin+');
+  assert.equal(langOf('Nvidia Aktie: Tech-Ausverkauf drückt Kurs ins Minus, Nachfrage trifft auf knappe Mittel bei Cloudanbietern'), 'latin+');
+});

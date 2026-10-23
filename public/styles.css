@@ -1100,3 +1100,7 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .acard header .ac-track .link-btn { font-size: 13px; }
 .src-kind { font-size: 11.5px; font-weight: 600; color: var(--signal); border: 1px solid var(--signal-soft); background: var(--signal-soft); border-radius: 999px; padding: 0 7px; line-height: 18px; }
 .src-kind[data-kind="primary"] { color: var(--ink); background: transparent; border-color: var(--line); }
+.acard.ac-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+.acard.ac-pair .ac-grid { grid-template-columns: 1fr; }
+.acard.ac-pair .ac-side + .ac-side { border-left: 1px solid var(--line); padding-left: 22px; }
+@media (max-width: 760px) { .acard.ac-pair { grid-template-columns: 1fr; } .acard.ac-pair .ac-side + .ac-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; } }
