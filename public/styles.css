@@ -1205,3 +1205,15 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 }
 :root[data-theme="dark"] .fact-mark[data-v="disputed"], :root[data-theme="dark"] .fact-mark[data-v="weak"] { color: #f0c46a; border-color: #8a6a1f; }
 :root[data-theme="dark"] .fact-mark[data-v="contradicted"] { color: #ff8a5c; border-color: #8a3f1f; }
+
+/* A pipeline's result, its check step and its citations */
+.pl-final { margin-top: 14px; padding-top: 10px; border-top: 2px solid var(--signal); }
+.pl-final h4 { margin: 0 0 6px; }
+.pl-final .pl-ask { font-size: 15px; font-weight: 600; }
+.pl-final-table { border-collapse: collapse; font-size: 13.5px; margin: 8px 0; min-width: 100%; }
+.pl-final-table th, .pl-final-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.pl-final-table th { font-weight: 600; color: var(--muted); }
+.pl-cites { margin: 8px 0 0; padding-left: 22px; font-size: 13px; }
+.pl-check { margin: 4px 0; padding-left: 18px; font-size: 14px; }
+.pl-check-out summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.pl-check-out ul { margin: 4px 0; padding-left: 18px; font-size: 13px; color: var(--muted); }

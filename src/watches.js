@@ -226,10 +226,11 @@ export class WatchStore {
  * and the first run after adding all go through one queue.
  */
 export class WatchScheduler {
-  constructor({ store, agent, callTool = null, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
+  constructor({ store, agent, callTool = null, pipelineTool = null, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
     this.store = store;
     this.agent = agent;
     this.callTool = callTool;
+    this.pipelineTool = pipelineTool;
     this.intervalMs = intervalMs;
     this.runTimeoutMs = runTimeoutMs;
     this.timer = null;
@@ -363,7 +364,7 @@ export class WatchScheduler {
       }
       if (w.pipeline) {
         const resolveServers = (ids) => ({ servers: ids, adhoc: (w.pipeAdhoc || []).filter((a) => ids.includes(a.id)) });
-        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers }), timeout]);
+        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers, callTool: this.pipelineTool }), timeout]);
         const text = pipelineText(r);
         const sources = r.steps.flatMap((s) => s.runs.flatMap((x) => x.sources));
         const rec = this.store.record(id, { mode: 'llm', answer: text, results: [], sources });

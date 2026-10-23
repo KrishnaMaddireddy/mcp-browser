@@ -570,7 +570,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const known = new Map(engine.catalog.all().map((sv) => [sv.id, sv.title]));
       const c = loadCatalog();
       const title = (id) => known.get(id) || c?.byName.get(id)?.[c.F.title] || id;
-      const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.servers || []).map(title) })) });
+      const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.call?.server ? [s.call.server] : s.servers || []).map(title) })) });
       json(res, 200, { starters: STARTERS.map(withTitles), library: loadLibrary().map(withTitles), topics: TOPICS, mine: pipes().list.map(withTitles) });
     },
     'POST /api/pipelines/save': async (req, res) => {
@@ -612,7 +612,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
       try {
         emit('provider', engine.providerInfo());
-        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers });
+        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers, callTool: engine.callReadOnlyTool });
       } catch (e) {
         if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
       } finally {

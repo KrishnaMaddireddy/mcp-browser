@@ -15,6 +15,7 @@ import { runRank, rankScores, loadRank, SUITES } from './rank.js';
 import { WatchStore, WatchScheduler } from './watches.js';
 import { loadCatalog, adhocFor } from './catalog-index.js';
 import { LocalServers } from './local-servers.js';
+import { classifyTool } from './policy.js';
 
 function isLocalHostUrl(url) {
   try {
@@ -78,8 +79,23 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     if (r?.isError) throw new Error(String(r.content?.[0]?.text || 'the server returned an error').slice(0, 200));
     return r;
   }
+  /**
+   * The same, for a pipeline step that names a server and a tool: only a tool that reads (the
+   * same rule that hides write tools from the AI model), never one you switched off.
+   */
+  async function callReadOnlyTool(id, tool, args, opts = {}) {
+    const c = loadCatalog();
+    const server = catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
+    if (!server) throw new Error('not in the catalog');
+    const { tools } = await pool.get(server);
+    const t = (tools || []).find((x) => x.name === tool);
+    if (!t) throw new Error(`${id} has no tool called ${tool}`);
+    const v = classifyTool(t, { trust: server.trust });
+    if (!v.allowed) throw new Error(`${tool} isn't a read-only tool (${v.reason})`);
+    return callCatalogTool(id, tool, args, opts);
+  }
   const watches = new WatchStore();
-  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool });
+  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool });
   const sync = { running: false, progress: null, error: null, last: null };
   const rank = { running: false, category: null, progress: null, error: null };
   const stars = new StarsStore();
@@ -97,6 +113,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     catalog,
     pool,
     callCatalogTool,
+    callReadOnlyTool,
     oauth,
     stars,
     /** GitHub stars for a server: { repo, url, stars, pushedAt, archived, fork, sharedWith } or null. */

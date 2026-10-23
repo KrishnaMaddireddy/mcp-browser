@@ -1429,32 +1429,58 @@
  },
  {
   "id": "ad-headline-research",
-  "title": "Ad headlines plus competitor angles",
-  "description": "Draft ad headlines for a product and see what competitors and marketing stats say.",
+  "title": "Ad headlines, researched and checked",
+  "description": "Headlines for what you sell: researched first, then written, then checked against the channel's character limit and risky wording.",
   "category": "business",
   "input": {
-   "label": "Product",
-   "example": "bamboo standing desk"
+   "label": "What you're advertising (and where it runs)",
+   "example": "SpendQuery, a free federal contract search for small businesses"
   },
   "steps": [
    {
-    "ask": "Write 10 ad headlines for a {input}",
-    "servers": [
-     "com.adcreator-ai/generate-ad-headlines"
-    ]
+    "kind": "brief",
+    "ask": "Read the brief: product, audience, channel and limit"
    },
    {
-    "ask": "{input} best selling brands marketing",
+    "kind": "research",
+    "ask": "What buyers read about it",
+    "queries": [
+     "{subject}",
+     "{subject} {audience}",
+     "{benefit} {audience}"
+    ],
     "servers": [
      "keenable",
      "exa"
-    ]
+    ],
+    "max": 5
+   },
+   {
+    "kind": "generate",
+    "ask": "Write headlines",
+    "call": {
+     "server": "com.adcreator-ai/generate-ad-headlines",
+     "tool": "generate_ad_headlines",
+     "args": [
+      {
+       "product": "{pitch}",
+       "audience": "{audience}",
+       "platform": "{platform}"
+      },
+      {
+       "product": "{subject}",
+       "platform": "{platform}"
+      }
+     ]
+    }
+   },
+   {
+    "kind": "check",
+    "ask": "Check them: length, near-duplicates, risky wording",
+    "check": "ad-headlines"
    }
   ],
-  "tested": {
-   "on": "2026-10-22",
-   "ms": 6238
-  }
+  "result": "ad-table"
  },
  {
   "id": "sales-tool-finder",
@@ -2220,34 +2246,35 @@
  },
  {
   "id": "ai-crawler-policy",
-  "title": "Who may crawl this site? AI bot rules",
-  "description": "Which AI crawlers exist and how they treat robots.txt, and whether a site blocks GPTBot, ClaudeBot and others.",
+  "title": "Which AI crawlers may read this site?",
+  "description": "Reads the site's own robots.txt and says which AI crawlers it blocks, with what each crawler's owner says about robots.txt.",
   "category": "security",
   "input": {
    "label": "Website domain",
-   "example": "nytimes.com"
+   "example": "spendquery.com"
   },
   "steps": [
    {
-    "ask": "Which AI crawlers obey robots.txt?",
-    "servers": [
-     "com.whosthatbot/botcard"
-    ],
-    "max": 5
+    "kind": "fetch",
+    "ask": "Read the site's own robots.txt",
+    "path": "/robots.txt"
    },
    {
-    "ask": "{input} robots.txt block AI crawlers GPTBot ClaudeBot",
-    "servers": [
-     "keenable",
-     "exa"
-    ],
-    "max": 4
+    "kind": "call",
+    "ask": "A second reading of it (Botcard, RFC 9309)",
+    "call": {
+     "server": "com.whosthatbot/botcard",
+     "tool": "check_robots",
+     "args": [
+      {
+       "robots_txt": "{fetched}",
+       "path": "/"
+      }
+     ]
+    }
    }
   ],
-  "tested": {
-   "on": "2026-10-22",
-   "ms": 4678
-  }
+  "result": "robots"
  },
  {
   "id": "compliance-auditor-finder",

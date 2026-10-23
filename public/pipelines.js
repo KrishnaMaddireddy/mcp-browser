@@ -9,10 +9,24 @@
   const post = (p, b) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify(b) });
   const hl = (s) => esc(s).replace(/\{(input|answer|titles|title|url|host)\}/g, '<span class="pl-var">{$1}</span>');
 
+  // (what each kind of step does, in a few words)
+  const HOW = {
+    brief: () => 'Read your request in code (no server)',
+    research: (s) => `Search ${s.serverTitles?.length ? `<b>${esc(s.serverTitles.join(' + '))}</b>` : 'the servers MCP Browser picks'} for`,
+    generate: (s) => `Ask <b>${esc(s.serverTitles?.[0] || s.call?.server || '')}</b> to`,
+    call: (s) => `Ask <b>${esc(s.serverTitles?.[0] || s.call?.server || '')}</b> for`,
+    fetch: () => 'Read from the site itself',
+    check: () => 'Check in code (no server)',
+  };
   function stepsHtml(p) {
-    return `<ol class="pl-steps">${p.steps
-      .map((s) => `<li><span class="pl-how">${s.each ? 'For each result of the step before, ask' : 'Ask'}${s.serverTitles?.length ? ` <b>${esc(s.serverTitles.join(' + '))}</b>` : ' the servers MCP Browser picks'}</span><q>${hl(s.ask)}</q></li>`)
-      .join('')}</ol>`;
+    const items = p.steps.map((s) => {
+      const how = HOW[s.kind]?.(s) || `${s.each ? 'For each result of the step before, ask' : 'Ask'}${s.serverTitles?.length ? ` <b>${esc(s.serverTitles.join(' + '))}</b>` : ' the servers MCP Browser picks'}`;
+      const what = s.kind === 'research' && s.queries?.length ? s.queries.map((q) => hl(q)).join(' · ') : s.kind === 'fetch' ? hl(`{domain}${s.path || '/robots.txt'}`) : hl(s.ask);
+      return `<li><span class="pl-how">${how}</span><q>${what}</q></li>`;
+    });
+    // (every pipeline ends with a result that answers from the steps above)
+    items.push('<li><span class="pl-how">Then</span><q>a result that answers from the steps above, citing them</q></li>');
+    return `<ol class="pl-steps">${items.join('')}</ol>`;
   }
   const niceDay = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
   function cardHtml(p, mine) {
@@ -90,11 +104,13 @@
       const ac = (card.__ac = new AbortController());
       out.innerHTML = '<p class="hint">Running…</p>';
       const steps = [];
+      const kinds = [];
+      const KIND_WORD = { brief: 'brief', research: 'research', generate: 'write', call: 'look up', fetch: 'read the site', check: 'check' };
       const box = (i) => {
         if (!steps[i]) {
           const s = document.createElement('section');
           s.className = 'pl-step-out';
-          s.innerHTML = `<h4>Step ${i + 1}</h4><div data-runs></div>`;
+          s.innerHTML = `<h4>Step ${i + 1}${kinds[i] ? `: ${esc(kinds[i])}` : ''}</h4><div data-runs></div>`;
           out.appendChild(s);
           steps[i] = s;
         }
@@ -123,7 +139,9 @@
           const raw = /^data: (.*)$/m.exec(block)?.[1];
           if (!type || !raw) continue;
           const d = JSON.parse(raw);
-          if (type === 'pipe_run') {
+          if (type === 'pipe_step') kinds[d.i] = KIND_WORD[d.kind] || '';
+          else if (type === 'pipe_final') out.appendChild(finalHtml(d));
+          else if (type === 'pipe_run') {
             const r = document.createElement('div');
             r.className = 'pl-run-out';
             r.dataset.k = `${d.i}:${d.j}`;
@@ -141,6 +159,8 @@
               : `<p class="pl-q">${esc(d.q)}${d.servers?.length ? ` <span class="pl-from">${esc(d.servers.join(', '))}</span>` : ''}</p>
                  ${d.answer ? `<p class="pl-a">${esc(d.answer)}</p>` : ''}
                  ${(d.details || []).map((x) => `<div class="pl-detail"><span class="pl-from">${esc(x.server)}</span>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<p>${esc(x.text)}</p>` : ''}${x.facts?.length ? `<dl>${x.facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl>` : ''}</div>`).join('')}
+                 ${d.check ? checkHtml(d.check) : ''}
+                 ${d.dropped ? `<p class="hint">${d.dropped} result${d.dropped === 1 ? '' : 's'} that didn’t mention the subject left out.</p>` : ''}
                  ${d.sources?.length ? `<ul class="pl-links">${d.sources.slice(0, 4).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="hint">${esc(s.host)}</span></li>`).join('')}</ul>` : d.answer || d.details?.length ? '' : '<p class="hint">Nothing useful came back.</p>'}`;
           } else if (type === 'pipe_done') {
             out.insertAdjacentHTML('beforeend', `<p class="hint">Done in ${(d.ms / 1000).toFixed(1)} s.</p>`);
@@ -149,13 +169,34 @@
       }
     }
 
+    // The check step: what passed, and what was left out and why.
+    function checkHtml(c) {
+      const row = (h) => `<li>${esc(h.text)} <span class="hint">${h.chars} characters${h.reason ? `: ${esc(h.reason)}` : ''}</span></li>`;
+      return `${c.kept.length ? `<ul class="pl-check">${c.kept.map(row).join('')}</ul>` : ''}${c.dropped.length ? `<details class="pl-check-out"><summary>${c.dropped.length} left out</summary><ul>${c.dropped.map(row).join('')}</ul></details>` : ''}`;
+    }
+    // The result that ends every pipeline: an answer, a table if there is one, notes, and citations.
+    function finalHtml(d) {
+      const sec = document.createElement('section');
+      sec.className = 'pl-final';
+      const cites = (t) => esc(t).replace(/\[(\d{1,2})\]/g, (m, n) => {
+        const c = (d.citations || []).find((x) => x.n === Number(n));
+        return c?.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer" title="${esc(c.title || '')}">[${n}]</a>` : m;
+      });
+      const table = d.table?.rows?.length ? `<div class="table-wrap"><table class="pl-final-table"><thead><tr>${d.table.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${d.table.rows.map((r) => `<tr>${r.map((v) => `<td>${cites(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+      sec.innerHTML = `<h4>Result</h4>${String(d.text || '').split('\n').filter(Boolean).map((l) => `<p class="${d.format === 'question' ? 'pl-ask' : 'pl-a'}">${cites(l)}</p>`).join('')}${table}${(d.notes || []).map((n) => `<p class="hint">${cites(n)}</p>`).join('')}${d.citations?.length ? `<ol class="pl-cites">${d.citations.map((c) => `<li value="${c.n}"><a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.title || c.url)}</a> <span class="hint">${esc(c.host || '')}${c.step ? ` · step ${c.step}` : ''}</span></li>`).join('')}</ol>` : ''}`;
+      return sec;
+    }
+
     function readEditor(f, base) {
-      const steps = [...f.querySelectorAll('.pl-ed-step')].map((li) => ({
+      // (a step's other settings — its kind, searches, tool call — come along from the pipeline it was made from)
+      const keep = ({ kind, queries, call, path, check }) => ({ ...(kind ? { kind } : {}), ...(queries ? { queries } : {}), ...(call ? { call } : {}), ...(path ? { path } : {}), ...(check ? { check } : {}) });
+      const steps = [...f.querySelectorAll('.pl-ed-step')].map((li, k) => ({
+        ...(base?.steps?.[k] ? keep(base.steps[k]) : {}),
         ask: li.querySelector('[data-ed-ask]').value.trim(),
         each: Boolean(li.querySelector('[data-ed-each]')?.checked),
         servers: li.querySelector('[data-ed-servers]').value.split(',').map((x) => x.trim()).filter(Boolean),
       })).filter((s) => s.ask);
-      return { ...(base?.id && data.mine.some((m) => m.id === base.id) ? { id: base.id } : {}), title: f.querySelector('[data-ed-title]').value, description: base?.description || '', input: { label: f.querySelector('[data-ed-label]').value, example: f.querySelector('[data-ed-example]').value }, steps };
+      return { ...(base?.id && data.mine.some((m) => m.id === base.id) ? { id: base.id } : {}), title: f.querySelector('[data-ed-title]').value, description: base?.description || '', input: { label: f.querySelector('[data-ed-label]').value, example: f.querySelector('[data-ed-example]').value }, steps, ...(base?.result ? { result: base.result } : {}) };
     }
     function openEditor(p) {
       const host = $('[data-pl-edhost]');
