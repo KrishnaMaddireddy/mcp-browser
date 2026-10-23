@@ -205,9 +205,11 @@ const textOf = (r) => (r?.content || []).filter((c) => c?.type === 'text').map((
  * pipe_result { i, j, q, item, answer, sources, servers, details?, note?, check? }, pipe_final
  * { format, text, citations, table?, notes? }, pipe_done { ms }.
  * resolveServers(ids) → { servers, adhoc } for agent.search; callTool(id, tool, args, { signal })
- * calls one read-only tool of one server (for call, generate and fetch steps).
+ * calls one read-only tool of one server (for call, generate and fetch steps). allowServer(id):
+ * may a step name this server (a pipeline file can come from anyone, so not one on this computer,
+ * one you added, or one with your key or sign-in); servers it refuses are skipped and said so.
  */
-export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null } = {}) {
+export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null, allowServer = null } = {}) {
   const t0 = Date.now();
   const out = [];
   let items = [];
@@ -261,20 +263,24 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
             const groups = parseRobots(rob?.structuredContent?.markdown || '');
             if (!robotsAllows(groups, 'mcp-browser', st.path).allowed) throw new Error(`${brief.domain}'s robots.txt asks not to fetch ${st.path}`);
           }
-          const r = await call(PAGE_FETCH_ID, 'fetch_page', { url, max_chars: 20000, links: false });
+          // (Page Fetch's most: 100,000 characters; a longer robots.txt is read that far, and said so)
+          const r = await call(PAGE_FETCH_ID, 'fetch_page', { url, max_chars: 100000, links: false });
           const sc = r?.structuredContent || {};
           // (no such file: Page Fetch says status "skipped", reason "not_found"; a site with no
           // robots.txt allows everything, so say that rather than stop)
-          if (sc.reason === 'not_found' || Number(sc.http_status) === 404) {
-            missing = true;
-            throw new Error(`${url} doesn't exist (not found)`);
+          // (RFC 9309: any 4xx — 401, 403, 404, 410 — means there are no rules to follow)
+          const code = Number(sc.http_status) || 0;
+          if (sc.reason === 'not_found' || (code >= 400 && code < 500)) {
+            missing = code && code !== 404 ? code : true;
+            throw new Error(`${url} isn't available (${code ? `HTTP ${code}` : 'not found'})`);
           }
           if (sc.status !== 'ok') throw new Error(`${url}: ${sc.status || 'no reply'}${sc.http_status ? ` (${sc.http_status})` : ''}`);
           // (a page where a text file should be — an HTML "not found" page — isn't the file)
           if (/html/i.test(sc.content_type || '') && st.path === '/robots.txt') throw new Error(`${url} isn't a robots.txt file (the site sent a web page)`);
           // (where it ended up after redirects, when that's a web address)
           const finalUrl = /^https?:\/\/[^\s]+$/i.test(String(sc.final_url || '')) ? String(sc.final_url) : url;
-          ctx.fetched = { url: finalUrl, text: String(sc.markdown || ''), at: sc.fetched_at || new Date().toISOString(), host: brief.domain };
+          const text0 = String(sc.markdown || '');
+          ctx.fetched = { url: finalUrl, text: text0, cut: Boolean(sc.truncated) || text0.length >= 99000, at: sc.fetched_at || new Date().toISOString(), host: brief.domain };
           run.servers = ['Page Fetch'];
           run.sources = [{ title: `${brief.domain}${st.path}`, url: ctx.fetched.url, host: brief.domain }];
           run.details = [{ server: `Fetched ${ctx.fetched.at.slice(0, 16).replace('T', ' ')} UTC`, title: '', text: ctx.fetched.text.slice(0, 600) || '(empty file)' }];
@@ -282,7 +288,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           if (signal?.aborted) throw e;
           run.note = `Couldn’t read it: ${String(e.message || e).slice(0, 200)}`;
           // (a site with no robots.txt allows everything: say so rather than stop)
-          if (st.path === '/robots.txt' && missing) ctx.fetched = { url, text: '', at: new Date().toISOString(), host: brief.domain, missing: true };
+          if (st.path === '/robots.txt' && missing) ctx.fetched = { url, text: '', at: new Date().toISOString(), host: brief.domain, missing };
         }
       }
       out.push({ i, kind, runs: [run] });
@@ -381,12 +387,13 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       }
       ctx.checked = res;
       const ownUsed = res.kept.filter((k) => k.mine).length;
+      const theirDropped = res.dropped.filter((x) => !x.mine).length;
       const why = {};
-      for (const d of res.dropped) why[d.reason.replace(/^\d+ over/, 'over')] = (why[d.reason.replace(/^\d+ over/, 'over')] || 0) + 1;
+      for (const d of res.dropped.filter((x) => !x.mine)) why[d.reason.replace(/^\d+ over/, 'over')] = (why[d.reason.replace(/^\d+ over/, 'over')] || 0) + 1;
       const run = {
         q: st.ask,
         item: null,
-        answer: `${ctx.made.length ? `Kept ${res.kept.length - ownUsed} of ${ctx.made.length} written${res.dropped.length ? `; left out: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(', ')}` : ''}.` : 'The step before wrote nothing.'}${ownUsed ? ` Added ${ownUsed} put together from your own words.` : ''}`,
+        answer: `${ctx.made.length ? `Kept ${res.kept.length - ownUsed} of ${ctx.made.length} written${theirDropped ? `; left out: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(', ')}` : ''}.` : 'The step before wrote nothing.'}${ownUsed ? ` Added ${ownUsed} put together from your own words.` : ''}`,
         sources: [],
         servers: ['MCP Browser'],
         check: res,
@@ -407,6 +414,17 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
     }
     const runs = [];
     const found = [];
+    // (the servers this step names that a pipeline may use; with none left, it stops here)
+    const named = st.servers || [];
+    const usable = allowServer ? named.filter((id) => allowServer(id)) : named;
+    const refused = named.filter((id) => !usable.includes(id));
+    if (named.length && !usable.length) {
+      const note = `Not asked: ${refused.join(', ')} can't be used from a pipeline (only hosted servers that need no key or sign-in, and aren't switched off, can).`;
+      emit('pipe_result', { i, j: 0, q: st.ask, item: null, answer: '', sources: [], servers: [], note });
+      out.push({ i, kind, runs: [{ q: st.ask, item: null, answer: '', sources: [], servers: [], note }] });
+      items = [];
+      continue;
+    }
     const jobs = st.each ? each.map((item) => [st.ask, item]) : qs.map((q) => [q, null]);
     for (let j = 0; j < jobs.length; j++) {
       if (signal?.aborted) throw new Error('stopped');
@@ -439,7 +457,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       try {
         // (with no AI model, tools are asked the step's subject, not its instruction words:
         // "Write 10 ad headlines for a {input}" asks about "{input}")
-        r = await agent.search(q, { emit: sub, signal, ...(WRITES.test(q) ? { route: stripInstruction(q) } : {}), ...(st.servers?.length ? resolveServers(st.servers) : {}) });
+        r = await agent.search(q, { emit: sub, signal, ...(WRITES.test(q) ? { route: stripInstruction(q) } : {}), ...(usable.length ? resolveServers(usable) : {}) });
       } catch (e) {
         if (signal?.aborted) throw e;
       }
@@ -466,7 +484,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       const subject = item?.title || asked || brief.subject || stripInstruction(input) || '';
       const { kept, dropped } = research ? aboutSubject(sources, subject) : { kept: sources, dropped: [] };
       sources = kept.slice(0, 8).map(({ title, url, host }) => ({ title, url, host }));
-      const run = { q, item, answer: text.slice(0, 2000), sources, servers: [...new Set(servers)], ...(details.length ? { details } : {}) };
+      const run = { q, item, answer: text.slice(0, 2000), sources, servers: [...new Set(servers)], ...(details.length ? { details } : {}), ...(refused.length && j === 0 ? { refused } : {}) };
       if (!sources.length && !text && !details.length) run.note = dropped.length ? `Nothing relevant found: ${dropped.length} result${dropped.length === 1 ? '' : 's'} didn’t mention ${subject}.` : 'Nothing found.';
       else if (dropped.length) run.dropped = dropped.length;
       runs.push(run);
@@ -515,23 +533,32 @@ async function writeHeadlines(provider, brief, notes, signal) {
  * Search", "SpendQuery for Small Businesses", "Looking for Federal Contracts?"…
  */
 export function headlinesFromBrief(brief) {
-  const title = (t) => String(t || '').replace(/\s+/g, ' ').trim().replace(/[\p{L}][\p{L}'’-]*/gu, (w, at) => (/^(?:a|an|the|and|or|of|for|to|in|on|with|by)$/i.test(w) && at > 0 ? w.toLowerCase() : /[A-Z].*[A-Z]|\d/.test(w) ? w : w[0].toUpperCase() + w.slice(1)));
+  // (a word already capitalised somewhere — "iPhone", "eBay", "SpendQuery", "IRS" — stays as typed)
+  const title = (t) => String(t || '').replace(/\s+/g, ' ').trim().replace(/[\p{L}][\p{L}'’-]*/gu, (w, at) => (/\p{Lu}/u.test(w) ? w : /^(?:a|an|the|and|or|of|for|to|in|on|with|by)$/i.test(w) && at > 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1)));
   const S = title(brief.subject);
   const P = title(brief.product);
   const B = title(brief.benefit);
   const A = title(brief.audience);
-  const plural = /s$/i.test(brief.benefit || brief.subject);
+  // (a subject that's a phrase, not a thing — "why my bakery is great", "to save money", "best CRM
+  // in the world" — doesn't go after "Find" or "Need a")
+  const thing = (t) => t && !/^\d/.test(t) && !/^(?:why|how|what|when|where|who|to|best|top|my|our|your|the best|get|make|save|grow|learn)\b/i.test(t);
+  // ("an" before a vowel sound: "an Accounting Firm", "an IRS …"; "a University …", "a Free …")
+  const a = (t) => ((/^(?:[aeiou]|hon|hour)/i.test(t) && !/^(?:uni|use|usu|eu|one|once)/i.test(t)) || /^[AEFHILMNORSX][A-Z0-9]+\b/.test(t) ? 'an ' : 'a ');
+  // (plural by its head noun: "contracts" in "US government contracts", not "students" in
+  // "tutoring service to help students")
+  const head = (t) => String(t || '').split(/\s+(?:for|to|in|with|that|from|of|by|on)\s+/i)[0].trim().split(/\s+/).pop() || '';
+  const plural = /s$/i.test(head(brief.benefit || brief.subject)) && !/(?:ss|us|is)$/i.test(head(brief.benefit || brief.subject));
+  const noun = B || S;
   const list = [
     [B, 'Benefit'],
     [P && B && `${P}: ${B}`, 'Benefit'],
     [P && A && `${P} for ${A}`, 'Audience'],
     [B && A && `${B} for ${A}`, 'Audience'],
-    [!P && S && `Find ${plural ? '' : 'a '}${S}`, 'Benefit'],
-    [!P && S && A && `${S} for ${A}`, 'Audience'],
-    [(B || S) && `Looking for ${plural ? '' : 'a '}${B || S}?`, 'Question'],
-    [(B || S) && `Need ${plural ? '' : 'a '}${B || S}?`, 'Question'],
+    [!P && thing(S) && `Find ${plural ? '' : a(S)}${S}`, 'Benefit'],
+    [!P && thing(S) && A && `${S} for ${A}`, 'Audience'],
+    [thing(noun) && `Looking for ${plural ? '' : a(noun)}${noun}?`, 'Question'],
+    [thing(noun) && `Need ${plural ? '' : a(noun)}${noun}?`, 'Question'],
     [P && `Try ${P}${/\bfree\b/i.test(brief.benefit) ? ' Free' : ''}`, 'Direct Offer'],
-    [P && `${P}: ${S === P ? B || 'See How It Works' : S}`, 'Direct Offer'],
   ];
   const seen = new Set();
   return list
@@ -596,7 +623,9 @@ function finalResult(p, ctx, out) {
     const blocked = crawlers.filter((r) => !r.a.allowed);
     const fetchedAt = `${f.at.slice(0, 16).replace('T', ' ')} UTC`;
     const lead = f.missing
-      ? `${brief.domain} has no robots.txt (checked ${fetchedAt}), so it asks no crawler to stay away.`
+      ? typeof f.missing === 'number'
+        ? `${brief.domain}'s robots.txt answered HTTP ${f.missing} (checked ${fetchedAt}); by the robots.txt standard (RFC 9309) that means no rules, so it asks no crawler to stay away. A site that refuses the file may still block crawlers at its firewall.`
+        : `${brief.domain} has no robots.txt (checked ${fetchedAt}), so it asks no crawler to stay away.`
       : blocked.length
         ? `${brief.domain}'s robots.txt (fetched ${fetchedAt}) blocks ${blocked.map((r) => r.c.token).join(', ')} from the home page; it doesn't block ${crawlers.filter((r) => r.a.allowed).map((r) => r.c.token).slice(0, 6).join(', ')}${crawlers.filter((r) => r.a.allowed).length > 6 ? ' and others' : ''}.`
         : `${brief.domain}'s robots.txt (fetched ${fetchedAt}) blocks none of these AI crawlers from the home page${groups.some((g) => g.rules.some((r) => !r.allow)) ? ': its Disallow lines cover other paths only' : ''}.`;
@@ -612,7 +641,7 @@ function finalResult(p, ctx, out) {
       const why = a.rule ? ` (${a.rule}${a.group === 'own' ? ', its own group' : a.group === 'fallback' ? `, ${c.fallback}'s group, which it follows` : ''})` : '';
       // (a token isn't a crawler: it's opted out or not; and its crawler being blocked matters too)
       let v = c.kind === 'token' ? `${a.allowed ? 'not opted out' : 'opted out'}${why}` : `${a.allowed ? 'allowed' : 'blocked'}${why}`;
-      if (c.kind === 'token' && a.allowed && c.crawler && !robotsAllows(groups, c.crawler, '/').allowed) v += `; ${c.crawler} is blocked, so it doesn't crawl the page anyway`;
+      if (c.kind === 'token' && a.allowed && c.crawler && !robotsAllows(groups, c.crawler, '/', { fallback: AI_CRAWLERS.find((x) => x.token === c.crawler)?.fallback }).allowed) v += `; ${c.crawler} is blocked, so it doesn't crawl the page anyway`;
       if (c.noGroup && a.group !== 'own') v += ` — no group of its own: ${c.noGroup}`;
       return `${v}${differs ? ' — Botcard reads it differently' : ''}`;
     };
@@ -623,7 +652,7 @@ function finalResult(p, ctx, out) {
         columns: ['Crawler', 'Owner', 'Kind', 'Says it follows robots.txt', `${brief.domain}, home page`, 'Source'],
         rows: rows.map((r) => [r.c.token, r.c.owner, `${KIND[r.c.kind] || r.c.kind}${r.c.note ? ` (${r.c.note})` : ''}`, r.c.follows, how(r), `${r.c.source ? `[${cite(r.c.source, `${r.c.owner}'s crawler documentation`)}]` : '—'}${r.c.report ? ` report: [${cite(r.c.report, `Report on ${r.c.token}`)}]` : ''}`]),
       },
-      notes: [FETCHER_NOTE.text.replace(/\[(\w+)\]/g, (m, k) => (FETCHER_NOTE.sources[k] ? `[${cite(FETCHER_NOTE.sources[k].url, FETCHER_NOTE.sources[k].title)}]` : m))],
+      notes: [...(f.cut ? [`The file is longer than 100,000 characters; only that much was read, so a rule further down isn't counted.`] : []), FETCHER_NOTE.text.replace(/\[(\w+)\]/g, (m, k) => (FETCHER_NOTE.sources[k] ? `[${cite(FETCHER_NOTE.sources[k].url, FETCHER_NOTE.sources[k].title)}]` : m))],
       citations,
     };
   }

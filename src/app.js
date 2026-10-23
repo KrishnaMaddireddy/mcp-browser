@@ -100,6 +100,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     if (!v.allowed) throw new Error(`${tool} isn't a read-only tool (${v.reason})`);
     return callCatalogTool(id, tool, args, opts);
   }
+  // (nothing that would act as you: no key or address you saved for it, no sign-in you made)
   const pipelineServerOk = (s) =>
     (s.source === 'curated' || s.source === 'registry') &&
     /^https:\/\//i.test(String(s.url || '')) &&
@@ -107,9 +108,19 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     !s.signIn &&
     !s.command &&
     !(s.headers && Object.keys(s.headers).length) &&
-    !(s.env && Object.keys(s.env).length);
+    !(s.env && Object.keys(s.env).length) &&
+    !settings.serverAuth?.[s.id] &&
+    !catalog.hasAuth(s) &&
+    oauth.status(s) !== 'signed-in';
+  /** May a pipeline step (from a file anyone could have written) use this server, by id? */
+  function pipelineServerAllowed(id) {
+    if (settings.serverOverrides?.[id] === false) return false;
+    const c = loadCatalog();
+    const server = catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
+    return Boolean(server) && pipelineServerOk(server);
+  }
   const watches = new WatchStore();
-  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool });
+  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool, pipelineServerAllowed });
   const sync = { running: false, progress: null, error: null, last: null };
   const rank = { running: false, category: null, progress: null, error: null };
   const stars = new StarsStore();
@@ -128,6 +139,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     pool,
     callCatalogTool,
     callReadOnlyTool,
+    pipelineServerAllowed,
     oauth,
     stars,
     /** GitHub stars for a server: { repo, url, stars, pushedAt, archived, fork, sharedWith } or null. */

@@ -612,7 +612,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
       try {
         emit('provider', engine.providerInfo());
-        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers, callTool: engine.callReadOnlyTool });
+        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers, callTool: engine.callReadOnlyTool, allowServer: engine.pipelineServerAllowed });
       } catch (e) {
         if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
       } finally {

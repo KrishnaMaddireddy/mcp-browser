@@ -210,3 +210,78 @@ test('pipeline tool calls: refused for a switched-off server before connecting, 
   await engine.close();
   srv.close();
 });
+
+// ---------- third round: what the review of the fixes found ----------
+
+test('a step\'s servers list is held to the same rule as a tool call: refused servers aren\'t asked', async () => {
+  const agent = agentListing([{ title: 'vault passwords', url: 'https://v.example', text: '' }]);
+  const p = cleanPipeline({ steps: [{ ask: 'vault {input}', servers: ['locked'] }, { ask: 'more on {answer}', servers: ['locked', 'keenable'] }] });
+  const r = await runPipeline(agent, p, { input: 'passwords', allowServer: (id) => id !== 'locked' });
+  assert.match(r.steps[0].runs[0].note, /Not asked: locked can't be used from a pipeline/);
+  // (one usable server left: only that one is asked)
+  assert.equal(agent.log.length, 1);
+});
+
+test('a key or sign-in you saved for a public server keeps it out of pipelines', async () => {
+  const { createEngine } = await import('../src/app.js');
+  const engine = createEngine({ providerOverride: null });
+  const id = 'app.openkrill/page-fetch';
+  assert.equal(engine.pipelineServerAllowed(id), true);
+  engine.updateSettings({ serverAuth: { [id]: { header: 'X-Api-Key', value: 'USER-SECRET' } } });
+  assert.equal(engine.pipelineServerAllowed(id), false);
+  await assert.rejects(engine.callReadOnlyTool(id, 'fetch_page', { url: 'https://example.com/robots.txt' }), /can't be called from a pipeline/);
+  engine.updateSettings({ serverAuth: { [id]: null } });
+  assert.equal(engine.pipelineServerAllowed(id), true);
+  engine.updateSettings({ serverOverrides: { [id]: false } });
+  assert.equal(engine.pipelineServerAllowed(id), false);
+  await engine.close();
+});
+
+test('the brief: end punctuation, channels inside product names, hyphens, counts on their own', () => {
+  assert.equal(briefOf('Write 10 headlines for running shoes on Instagram.').limit, 40);
+  assert.equal(briefOf('Write 10 headlines for my bakery for Instagram?').subject, 'bakery');
+  assert.equal(briefOf('Write ads for my cafe on Facebook, please').channel, 'Facebook');
+  assert.equal(briefOf('Write 10 headlines for a LinkedIn ads course').limit, 30);
+  assert.equal(briefOf('Write 10 headlines for my Facebook ads agency').limit, 30);
+  assert.equal(briefOf('Facebook ad copy: dog grooming in Austin').subject, 'dog grooming in Austin');
+  assert.equal(briefOf('Google search ads for a dentist').subject, 'dentist');
+  for (const t of ['Make ad-free YouTube work', 'Some copy-paste tools for Mac', 'One post-office near me', '10 ads that changed advertising', '5 ideas to save money', 'More posts like this', 'Facebook ads manager login', 'Search ads cost per click 2026']) assert.equal(stripInstruction(t), t, t);
+  assert.equal(stripInstruction('Write an ad for my bakery'), 'bakery');
+  assert.equal(briefOf('Write a LinkedIn post about remote work').subject, 'remote work');
+  assert.equal(briefOf('Write ad headlines for a VPN for veterans').audience, 'veterans');
+  assert.equal(briefOf('Write ad headlines for a tutoring service to help students').audience, '');
+  assert.equal(briefOf('news on abc.com.py').domain, 'abc.com.py');
+});
+
+test('headline checks, third round: more risky wording caught, fair wording passes', () => {
+  const bad = ['#1 Rated App', 'You Won’t Believe This', 'Endorsed by the Department of Defense', 'Federally Approved Contractors', 'US Govt Endorsed Program', 'Make 5k a Month From Home', 'Double Your Income Fast', 'Treats Diabetes Fast', 'Doctors Hate This Trick', 'Best CRM in the World'];
+  const fair = ['Speedy VA Home Loans', 'USPS Shipping Supplies', 'Official Nike Store', 'Cure Your Boredom', 'Secret Santa Gift Ideas', 'Hidden Gems in Austin', 'Never Lose Your Keys Again'];
+  const r = checkAdHeadlines([...bad, ...fair].map((text) => ({ text })), { limit: 40, keep: 30 });
+  assert.deepEqual(r.dropped.map((d) => d.text).sort(), [...bad].sort());
+  assert.deepEqual(r.kept.map((k) => k.text), fair);
+});
+
+test('own-words headlines: articles, capitals as typed, and no phrase after "Find"', () => {
+  const of = (q) => headlinesFromBrief(briefOf(q)).map((h) => h.text);
+  assert.ok(of('Write 10 ad headlines for an accounting firm').includes('Find an Accounting Firm'));
+  assert.ok(of('Write ad headlines for iPhone cases').includes('Find iPhone Cases'));
+  assert.ok(of('Write ad headlines for a tutoring service to help students').includes('Find a Tutoring Service to Help Students'));
+  assert.ok(of('10 Google ad headlines for SpendQuery, a free federal contract search for small businesses').includes('Need a Free Federal Contract Search?'));
+  assert.deepEqual(of('Write ad headlines for why my bakery is great'), []);
+});
+
+test('robots.txt answering 401, 403 or 410 means no rules; a long file is read to 100,000 characters and said so', async () => {
+  const { fin } = await robotsRun('example.com', () => ({ status: 'error', reason: 'http_error', http_status: 403 }));
+  assert.match(fin.text, /answered HTTP 403.*no rules/);
+  const calls = [];
+  const events = [];
+  const long = `User-agent: *\nAllow: /\n${'# filler line\n'.repeat(3000)}User-agent: GPTBot\nDisallow: /\n`;
+  await runPipeline(agentListing([]), ROBOTS, { input: 'example.com', emit: (t, d) => events.push([t, d]), callTool: tools(calls, () => ({ status: 'ok', content_type: 'text/plain', markdown: long.slice(0, 100000), fetched_at: '2026-10-23T20:42:27.121Z' })) });
+  assert.equal(calls.find((c) => c.tool === 'fetch_page').args.max_chars, 100000);
+  assert.match(finalOf(events).text, /blocks GPTBot/);
+});
+
+test('Applebot-Extended notes that Applebot is blocked through Googlebot\'s group', async () => {
+  const { fin } = await robotsRun('example.com', ok('User-agent: Googlebot\nDisallow: /'));
+  assert.match(fin.table.rows.find((r) => r[0] === 'Applebot-Extended')[4], /Applebot is blocked/);
+});
