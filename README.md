@@ -345,9 +345,8 @@ opens the whole list.
 Each check also sends the claim to every curated web search engine, and the subject alone
 ("Panama Canal") to them and Wikipedia to find the pages about it, so more independent sources
 get read (engines resting after rate limits, and any you switched off, are skipped; a paragraph
-check skips the subject search). A sentence that starts with "It" counts when the sentence
-before is plainly about the claim's subject ("The Thames is a river in England. It flows through
-London."), never after another name, a "but", or in "It was Bell who …". On 30 claims written after this was built and never tuned on, true
+check skips the subject search). A sentence that starts with "It" never counts for a
+claim: "Mars has a thin atmosphere. It is made mostly of carbon dioxide" is about the atmosphere. On 30 claims written after this was built and never tuned on, true
 claims backed by three or more sources went from 4 of 17 to 9 of 17, and no false claim was
 backed, before or after; on the 206 earlier claims, still none.
 
