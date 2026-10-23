@@ -177,6 +177,18 @@ the first results usually show in under a second, and a page budget (9 s by defa
   ticker or company named in the question ("NVDA", "Nvidia"), and skipped otherwise.
 * **Money, health and legal questions** carry a one-line reminder that results are
   third-party sources, not advice.
+* **Answered right here.** Sums and percentages ("what is 18% of 250", "45 is what percent
+  of 180", "(3+4) x 5") and the time somewhere ("time in Tokyo") are worked out locally,
+  with no server; web search still runs for context, specialists don't.
+* **Same figure, other sources.** Under a quoted answer, the other sites in the results
+  that give the same figure are listed ("Same figure in 6 other sources"), so one page's
+  number isn't taken on trust. Small numbers only count when all of them match.
+* **Follow-ups without a model.** "and AMD?" after "Nvidia stock price today" searches
+  "AMD stock price today" (the page says what it searched); "and why?" is left alone.
+* **Your language first.** In result lists, pages in the question's language and script
+  come before others (they stay, lower down).
+* **Today on the start page (opt-in).** Add your city once (kept in this browser only) to
+  see the weather there, the S&P 500 and today's headlines, refreshed every 10 minutes.
 
 Turn on AI mode in **Settings** (gear icon) or with environment variables:
 
