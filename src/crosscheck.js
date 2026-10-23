@@ -228,6 +228,8 @@ const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)
 // Page titles and headlines name a topic; they aren't statements ("Discovery of penicillin - Wikipedia").
 const isHeading = (s) => {
   const words = s.split(/\s+/);
+  // "Flexi answers - Mercury is …", "Q: …": a question page's title, not its answer
+  if (/^(?:[\p{L}]+\s+)?(?:answers?|q&a|faq|quiz|question|q)\s*[-–:|]/iu.test(s)) return true;
   if (words.length < 6 || (/\s[-–|]\s[^-–|]{2,40}$/.test(s) && words.length < 16)) return true;
   // "50 Years Ago Today, Apple Was Founded By …": a headline in title case
   const caps = words.filter((w) => /^\p{Lu}/u.test(w)).length;
@@ -319,6 +321,14 @@ function judgeCore(parts, sentence) {
     const part = /^(?:the|a|an|its)\s+([a-z]+)\s+(?:of|on|in|at|atop|inside)\s+(?:the\s+)?/i.exec(sentence);
     if (part && anchors.length && Math.min(...anchors) <= part[0].length + 2 && !/^(?:height|length|width|depth|elevation|altitude|size|total|top|tip|summit|peak|population|area|age|weight|distance|speed|cost|price|value|number|count|capacity|temperature|boiling|melting|default|average|official|overall|full)$/i.test(part[1])) return overlap >= 0.6 ? { stance: 'mentions', sentence } : null;
     const match = parts.figures.find((f) => figs.some((g) => same(f, g)));
+    // "A spider has eight legs" is about spiders in general: "the one spider who …", "some
+    // spiders have six" are about particular ones
+    const generic = /^(?:an?|all|every)\s+([\p{L}-]+)/iu.exec(parts.text);
+    if (match && generic) {
+      const noun = fold(generic[1].toLowerCase()).replace(/s$/, '');
+      const sw = ws.findIndex((w) => matches(noun, w));
+      if (sw >= 0 && /\b(?:some|one|this|that|my|certain|few|only|particular|individual)\b/.test(ws.slice(Math.max(0, sw - 3), sw).join(' '))) return { stance: 'mentions', sentence };
+    }
     if (match) {
       const g = figs.find((x) => same(match, x));
       const lead = sentence.slice(Math.max(0, g.at - 40), g.at).toLowerCase();
@@ -505,7 +515,9 @@ function judgeCore(parts, sentence) {
         // ("born in Ulm, Germany": the place, then the country the claim names)
         // (only for "in"/"at": "the capital of Victoria, Australia" is Victoria's capital, not Australia's)
         const then = m && parts.ofPrep !== 'of' ? wordsAt(rest.slice(m.index + m[0].length, m.index + m[0].length + 40)).slice(0, 4) : [];
-        if (m && !tokenize(m[1]).map(fold).some((w) => tokenize(parts.ofWhat).map(fold).includes(w)) && !tokenize(parts.ofWhat).map(fold).every((w) => then.includes(w))) {
+        // ("the capital of Spain's stateless nation of Catalunya": Spain's something isn't Spain)
+        const possessive = m && (/['’]s$/.test(m[1]) || /^['’]s\b/.test(rest.slice(m.index + m[0].length)));
+        if (m && (possessive || (!tokenize(m[1]).map(fold).some((w) => tokenize(parts.ofWhat).map(fold).includes(w)) && !tokenize(parts.ofWhat).map(fold).every((w) => then.includes(w))))) {
           // ("the Canadian province of Ontario": the place is Ontario)
           const more = /^\s+[\p{L} ]{0,30}?\bof\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})/u.exec(rest.slice(m.index + m[0].length));
           return { stance: 'differs', sentence, other: more ? more[1] : m[1] };
@@ -670,7 +682,7 @@ export function judgeText(parts, text) {
     const s = raw.replace(/\s+/g, ' ').trim();
     if (s.length < 20 || s.length > 400) continue;
     // A question asks, it doesn't say ("Did Thomas Edison invent the telephone?").
-    if (/\?\s*$/.test(s) || /^(?:did|does|do|is|was|are|were|can|who|what|when|where|which|how|why)\b/i.test(s)) continue;
+    if (/\?[\s.]*$/.test(s) || /\?\s+[-–|]/.test(s) || /^(?:did|does|do|is|was|are|were|can|who|what|when|where|which|how|why)\b/i.test(s)) continue;
     const j = judgeSentence(parts, s);
     if (!j) continue;
     const score = RANK[j.stance] * 10 + tokenize(s).filter((w) => parts.words.includes(w)).length;

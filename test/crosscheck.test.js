@@ -198,3 +198,10 @@ test('places keep their preposition; a unit conversion is the same amount; "Nepa
   assert.equal(stance('A year on Mars lasts about 687 Earth days', 'A Martian year lasts about 687 Earth days, or roughly 1.88 Earth years.'), 'supports');
   assert.notEqual(stance('Mount Everest is in Nepal', 'Mount Everest sits on the Nepal-China border, with its southern slope in Nepal and its northern slope in Tibet.'), 'differs');
 });
+
+test('particular cases, possessive places and question-page titles do not back a claim', () => {
+  assert.notEqual(stance('A spider has six legs', 'The one spider who has stuck around the longest only has six legs, four on one side.'), 'supports');
+  assert.notEqual(stance('Barcelona is the capital of Spain', "Barcelona is the capital of Spain's stateless nation of Catalunya, where the locals speak a different language."), 'supports');
+  assert.notEqual(stance('Mercury is the hottest planet in the Solar System', 'Flexi answers - Mercury is the hottest planet in our solar system.'), 'supports');
+  assert.equal(stance('A spider has eight legs', 'Every spider has exactly 8 legs, arranged in 4 pairs.'), 'supports');
+});
