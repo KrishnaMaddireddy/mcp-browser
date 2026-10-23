@@ -3,7 +3,7 @@ import { classifyTool, cleanDescription, detectInjection, detectBlocked, resultT
 import { extractSources, SourceBook } from './sources.js';
 import { toToolSchema } from './llm/index.js';
 import { mapLimit, errMsg, tokenize, splitIdentifier, truncate, withTimeout, parseJsonLenient } from './util.js';
-import { classifyResult, resultScore, simplerQueries, entityOf, followUpQuery, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
+import { classifyResult, resultScore, simplerQueries, entityOf, followUpQuery, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, agreeingSources, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
 import { formatResult } from './format.js';
 
 // Servers connected (and, in free mode, searched) at the same time per question.
@@ -652,6 +652,15 @@ export class SearchAgent {
         if (best && best.text !== answered.text) {
           answered = best;
           emit('quick_answer', withId(best));
+        }
+      }
+      // Other sources that give the same figure: shown under the quote, so one page's
+      // number isn't taken on trust.
+      if (answered && answered.kind !== 'calculated') {
+        const agree = agreeingSources(answered, useful);
+        if (agree.length) {
+          answered.agree = agree;
+          emit('quick_agree', { text: answered.text, sources: agree });
         }
       }
       const { kind, ...qa } = answered || {};

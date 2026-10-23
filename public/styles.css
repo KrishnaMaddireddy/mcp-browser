@@ -988,3 +988,4 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .deeper .la-btn { padding: 4px 11px; font-size: 13px; }
 
 .rewrite-note { margin: 2px 0 6px; font-size: 13px; color: var(--muted, #667); }
+.quick-answer figcaption .agree { display: block; margin-top: 4px; }

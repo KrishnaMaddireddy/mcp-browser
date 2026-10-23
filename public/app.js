@@ -1265,6 +1265,15 @@
         placeQuoted(ui);
         break;
       }
+      case 'quick_agree': {
+        // The same figure in other sources: listed under the quote.
+        const cap = $('.quick-answer figcaption', ui.answer);
+        if (!cap || ui.quick?.text !== d.text || !d.sources?.length) break;
+        $('.agree', cap)?.remove();
+        const links = d.sources.map((x) => (x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a>` : esc(x.name)));
+        cap.insertAdjacentHTML('beforeend', `<span class="agree">Same figure in ${d.sources.length === 1 ? '1 other source' : `${d.sources.length} other sources`}: ${links.join(', ')}</span>`);
+        break;
+      }
       case 'sources':
         ui.sourceList = d.list || [];
         renderSources(ui);

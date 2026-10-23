@@ -436,3 +436,19 @@ test('free-mode follow-ups swap the new name into the last question', async () =
   assert.equal(f('tell me more', h('Nvidia stock')), 'tell me more');
   assert.equal(f('and AMD?', []), 'and AMD?');
 });
+
+test('a quick answer lists other sources with the same figure', async () => {
+  const { agreeingSources } = await import('../src/quality.js');
+  const items = [
+    { site: 'toureiffel.paris', url: 'https://toureiffel.paris/a', title: 'Eiffel Tower height', text: 'It stands 330 m high' },
+    { site: 'britannica.com', url: 'https://britannica.com/b', title: 'Eiffel Tower', text: 'about 1083 ft tall' },
+    { site: 'other.com', url: 'https://other.com/c', title: 'Towers', text: '324 m in 1889' },
+    { site: 'en.wikipedia.org', url: 'https://en.wikipedia.org/x', title: 'Eiffel', text: '330 m' },
+  ];
+  const got = agreeingSources({ text: 'The Eiffel Tower is 330 meters, or 1,083 feet, tall.', url: 'https://en.wikipedia.org/x', server: 'Keenable' }, [{ serverTitle: 'Exa', text: '', view: { kind: 'items', items } }]);
+  assert.deepEqual(got.map((x) => x.name), ['toureiffel.paris', 'britannica.com']);
+  // Small numbers only count when all of them match.
+  const w = agreeingSources({ text: 'Lisbon: mild and dry, 13° to 21°.', server: 'Weather' }, [{ serverTitle: 'Exa', text: '', view: { kind: 'items', items: [{ site: 'a.com', title: 'x', text: 'top 21 things' }, { site: 'b.com', title: 'Lisbon', text: 'low 13, high 21' }] } }]);
+  assert.deepEqual(w.map((x) => x.name), ['b.com']);
+  assert.deepEqual(agreeingSources({ text: 'Canberra is the capital of Australia.' }, []), []);
+});

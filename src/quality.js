@@ -660,6 +660,49 @@ export function convertAnswer(query) {
   return { text: `${round(value)} ${label(a, from)} = ${round(out)} ${label(b, to)}`, url: null, site: '', title: '', server: 'MCP Browser (calculated)' };
 }
 
+// ---------- other sources that say the same ----------
+
+/**
+ * Other sources among the results that state the quick answer's figures too
+ * ("212.21", "8,849 m"): distinct sites for web results, servers otherwise. Only
+ * answers with a figure in them are checked; words are too loose to count as agreement.
+ */
+export function agreeingSources(answer, results) {
+  const strip = (t) => String(t || '').replace(/(\d),(?=\d{3}\b)/g, '$1');
+  let nums = (strip(answer?.text).match(/\d+(?:\.\d+)?/g) || []).filter((n) => n.replace('.', '').length >= 2);
+  const notYears = nums.filter((n) => !/^(?:19|20)\d\d$/.test(n));
+  if (notYears.length) nums = notYears;
+  if (!nums.length) return [];
+  // A distinctive figure (3+ digits, like 212.21 or 8849) is enough on its own; small
+  // ones ("13° to 21°") only count when every one of them is there.
+  const strong = nums.filter((n) => n.replace('.', '').length >= 3);
+  const found = (x, n) => new RegExp(`(?:^|[^\\d.])${n.replace('.', '\\.')}(?![\\d]|\\.\\d)`).test(x);
+  const has = (t) => {
+    const x = strip(t);
+    return strong.length ? strong.some((n) => found(x, n)) : nums.every((n) => found(x, n));
+  };
+  const quotedSite = answer.url ? siteOfUrl(answer.url) : '';
+  const out = new Map();
+  for (const r of results) {
+    const items = r.view?.kind === 'items' ? r.view.items : null;
+    if (items?.length) {
+      for (const it of items) {
+        const site = it.site || (it.url ? siteOfUrl(it.url) : '');
+        if (!site || site === quotedSite || out.has(site)) continue;
+        if (has(`${it.title} ${it.text || ''} ${(it.facts || []).map((f) => f.value).join(' ')}`)) out.set(site, { name: site, url: it.url || null });
+      }
+    } else if (r.serverTitle !== answer.server && !out.has(r.serverTitle) && has(r.text)) out.set(r.serverTitle, { name: r.serverTitle, url: null });
+  }
+  return [...out.values()].slice(0, 6);
+}
+const siteOfUrl = (u) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
 // ---------- arithmetic and percentages ----------
 
 /** A small arithmetic evaluator (+ − × ÷ ^ and brackets): no eval, numbers only. */
