@@ -70,7 +70,7 @@ export class SearchAgent {
    * @param {string} query
    * @param {{emit?: Function, signal?: AbortSignal, history?: {q:string,a:string}[], servers?: string[]}} opts
    */
-  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc } = {}) {
+  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc, reason = 'chosen by you' } = {}) {
     const t0 = Date.now();
     // A template may turn on discovery for this one search; "Search wider" also
     // casts a bigger net (more servers, more time) just this once.
@@ -94,7 +94,7 @@ export class SearchAgent {
     // 1. Route
     let routed;
     if (forcedIds?.length) {
-      routed = forcedIds.map((id) => this.catalog.get(id) || (adhoc || []).find((a) => a.id === id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason: 'chosen by you' }));
+      routed = forcedIds.map((id) => this.catalog.get(id) || (adhoc || []).find((a) => a.id === id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason }));
       // Asked for servers this browser doesn't have (e.g. from the catalog): route normally.
       if (!routed.length) forcedIds = undefined;
     }
@@ -617,7 +617,7 @@ export class SearchAgent {
       // A readable view (items / table / record / text); the raw text stays for "Show raw".
       const view = orderItems(preView, query);
       // A reply led by a government body's page (CDC, NHS, gov.uk) comes before others of its kind.
-      if (quality.kind === 'ok' && view?.kind === 'items' && view.items[0]?.kind === 'official') score += 4;
+      if (quality.kind === 'ok' && view?.kind === 'items' && view.items[0]?.srcKind === 'official') score += 4;
       if (quality.kind === 'ok' && !offTopic) useful.push({ text, view, score, serverTitle: p.server.title, serverId: p.server.id, general: Boolean(p.server.general) });
       emit('results', { serverId: p.server.id, serverTitle: p.server.title, serverTrust: p.server.trust, serverSource: p.server.source, tool: p.tool.name, text, view, flags, sources: nums, isError: false, kind: quality.kind, reason: quality.reason, score, offTopic });
       if (quality.kind === 'ok' && !offTopic) tryAnswer(false);

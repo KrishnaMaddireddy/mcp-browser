@@ -129,7 +129,8 @@
   function syncChrome() {
     const e = current();
     if (!e) return;
-    omni.value = e.kind === 'search' ? e.query : e.kind === 'web' ? e.url : e.kind === 'home' ? '' : `mcp://${e.kind}`;
+    // (a cross-check shows its claim, so the address can be copied, re-entered or reloaded)
+    omni.value = e.kind === 'search' ? e.query : e.kind === 'web' ? e.url : e.kind === 'home' ? '' : e.kind === 'check' && e.claim ? `check: ${e.claim}` : `mcp://${e.kind}`;
     $('#back').disabled = !active || active.idx <= 0;
     $('#fwd').disabled = !active || active.idx >= active.history.length - 1;
     document.title = `${e.title || 'New tab'} – MCP Browser`;
@@ -192,7 +193,14 @@
       case 'check': {
         entry.title = entry.claim ? `Check: ${entry.claim}` : 'Cross-check';
         const el = $('#tpl-check').content.firstElementChild.cloneNode(true);
-        window.MCPCheck?.mount(el, { claim: entry.claim, open: (u) => open(u) });
+        window.MCPCheck?.mount(el, {
+          claim: entry.claim,
+          open: (u) => open(u),
+          onClaim: (c) => {
+            entry.claim = c;
+            setTitle(tab, entry, `Check: ${c}`);
+          },
+        });
         return el;
       }
       case 'pipelines': {
@@ -334,10 +342,15 @@
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
     if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
     if (/^mcp:\/\/check/i.test(s)) return navigate(tab, { kind: 'check' });
-    // "tell me when …", "notify me if …" → set up a watch.
-    if (/^(?:please\s+)?(?:tell|notify|alert|ping)\s+me\s+(?:when|if|whenever|once|about)\s+\S|^let me know (?:when|if)\s+\S/i.test(s)) return navigate(tab, { kind: 'watches', track: s });
+    // "tell me when …", "notify me if NVDA drops below 200", "tell me about new recalls …" → set up a watch.
+    // ("tell me about the French Revolution" and "tell me if I need a visa" are questions: they search.)
+    const lead = /^(?:please\s+)?(?:(?:tell|notify|alert|ping)\s+me|let me know)\s+/i.exec(s);
+    if (lead) {
+      const rest = s.slice(lead[0].length);
+      if (/^(?:when|whenever|once|as soon as)\s+\S/i.test(rest) || /^about\s+(?:new|any new|the latest|latest)\s+\S/i.test(rest) || /^if\s+.*\b(?:below|under|above|over|less than|more than|hits?|reaches?|is (?:released|out|announced|available|approved))\b/i.test(rest)) return navigate(tab, { kind: 'watches', track: s });
+    }
     // "is it true that …", "fact check: …", "true or false: …" → Cross-check.
-    const claim = /^(?:is it true that|is it true|fact[- ]?check:?|true or false:?|verify:?|check:)\s+(.{6,300}?)\??$/i.exec(s);
+    const claim = /^(?:is it true that|is it true|fact[- ]?check:?|true or false:?|verify:|verify that|check:)\s+(.{6,300}?)\??$/i.exec(s);
     if (claim) {
       history.add(s);
       return navigate(tab, { kind: 'check', claim: claim[1].replace(/^that\s+/i, '') });
@@ -482,14 +495,22 @@
       return;
     }
     let seen = {};
+    // Only what happens after notifications were turned on here, not a backlog of every past change.
+    let since = 0;
     try {
       seen = JSON.parse(localStorage.getItem(NOTIFIED) || '{}');
-    } catch {}
+      since = Number(localStorage.getItem(`${NOTIFIED}.since`)) || 0;
+      if (!since) localStorage.setItem(`${NOTIFIED}.since`, String((since = Date.now())));
+    } catch {
+      since = Date.now() - 120_000;
+    }
     for (const w of data.watches || []) {
       const h = w.history?.[0];
       const at = w.met?.at || (h?.changed ? h.at : 0);
-      if (!at || seen[w.id] >= at) continue;
+      // (the server remembers what was notified, so other windows don't repeat it)
+      if (!at || at <= since || seen[w.id] >= at || (w.notifiedAt || 0) >= at) continue;
       seen[w.id] = at;
+      api.post('/api/watches/update', { id: w.id, notifiedAt: at }).catch(() => {});
       const body = w.met ? w.met.snippet : `${h.newSources?.length || 0} new source${h.newSources?.length === 1 ? '' : 's'}${h.newSources?.[0] ? `: ${h.newSources[0].title}` : ''}`;
       try {
         const n = new Notification(w.label || w.query, { body: String(body).slice(0, 180), tag: `watch-${w.id}` });
@@ -585,7 +606,8 @@
         } else if (type === 'card_start') {
           sides[i].order = ['time', ...d.sections.map((x) => x.key)].filter((x) => x !== 'time' || d.type === 'place');
           box.dataset.type = d.type;
-          const head = `<header><h3>${esc(d.title)}</h3><span>${esc(d.subtitle)} · from ${d.sections.length + (d.type === 'place' ? 1 : 0)} sources, asked at once</span></header><div class="ac-grid" data-ac-grid="${i}"></div>`;
+          sides[i].subtitle = d.subtitle;
+          const head = `<header><h3>${esc(d.title)}</h3><span data-ac-sub>${esc(d.subtitle)} · asking ${d.sections.length} servers at once</span></header><div class="ac-grid" data-ac-grid="${i}"></div>`;
           const host = d.side != null ? box.querySelector(`[data-side="${i}"]`) : box;
           host.innerHTML = head;
           box.hidden = false;
@@ -608,6 +630,10 @@
           for (const j of d.all || box.classList.contains('ac-pair') ? [0, 1] : [i]) {
             for (const k2 of sides[j].order) if (!sides[j].sections.has(k2)) sides[j].sections.set(k2, { key: k2, empty: true });
             render(j);
+            // (what it says it's from: the servers whose answers are on it, not the ones asked)
+            const used = new Set([...sides[j].sections.values()].filter((y) => !y.empty).flatMap((y) => y.servers || []).filter((x) => x !== 'MCP Browser'));
+            const sub = (d.all || box.classList.contains('ac-pair') ? box.querySelector(`[data-side="${j}"]`) : box)?.querySelector('[data-ac-sub]');
+            if (sub) sub.textContent = used.size ? `${sides[j].subtitle} · from ${used.size} server${used.size === 1 ? '' : 's'}` : sides[j].subtitle;
           }
           const any = sides.some((x) => [...x.sections.values()].some((y) => !y.empty));
           if (!any) box.hidden = true;
@@ -901,14 +927,18 @@
         twPrev.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
         return;
       }
-      const what = p.kind === 'threshold' ? `When the figure in the answer to <q>${esc(p.query)}</q> goes <b>${esc(p.when.op)} ${esc(p.when.value.toLocaleString())}</b>, you get a notification and it stops.` : p.kind === 'until' ? `When a source says <b>${esc(p.label.split(': ')[0])}</b> has been ${esc(p.until)} (not just expected), you get a notification and it stops.` : `Each new source about <q>${esc(p.query)}</q> is news: you get a notification when there are new ones.`;
+      const line = p.when ? `${p.when.value.toLocaleString()}${p.when.unit === '%' ? '%' : ''}` : '';
+      const opText = p.when?.op === 'reach' ? 'reaches' : `goes ${p.when?.op}`;
+      // What it reads right now, so you can see it's reading the right number.
+      const now = p.now ? ` Right now it reads <b>${esc(p.now.value.toLocaleString())}</b>${p.now.met ? ' — already past the line, so the first check will notify you' : ''}.` : p.kind === 'threshold' && p.nowChecked ? ' It couldn’t read a figure right now; it will try again on each check.' : '';
+      const what = p.kind === 'threshold' ? `When the figure in the answer to <q>${esc(p.query)}</q> ${esc(opText)} <b>${esc(line)}</b>, you get a notification and it stops.${now}` : p.kind === 'until' ? `When a source says <b>${esc(p.label.split(': ')[0])}</b> has been ${esc(p.until)} (not a trailer, a pre-order or a date it’s expected), you get a notification and it stops.` : `Each new source about <q>${esc(p.query)}</q> is news: you get a notification when there are new ones.`;
       twPrev.hidden = false;
-      twPrev.innerHTML = `<p>${what}</p><div class="tw-acts"><label>Check <select data-tw-every><option value="hourly">every hour</option><option value="daily">every day</option><option value="weekly">every week</option></select></label><button type="button" class="la-btn" data-tw-save>Start watching</button><button type="button" class="link-btn" data-tw-cancel>Cancel</button></div>`;
+      twPrev.innerHTML = `<p>${what}</p>${p.note ? `<p class="hint">${esc(p.note)}</p>` : ''}<div class="tw-acts"><label>Check <select data-tw-every><option value="hourly">every hour</option><option value="daily">every day</option><option value="weekly">every week</option></select></label><button type="button" class="la-btn" data-tw-save>Start watching</button><button type="button" class="link-btn" data-tw-cancel>Cancel</button></div>`;
       $('[data-tw-every]', twPrev).value = p.every;
       $('[data-tw-cancel]', twPrev).onclick = () => (twPrev.hidden = true);
       $('[data-tw-save]', twPrev).onclick = async () => {
         try {
-          await api.post('/api/watches', { query: p.query, label: p.label, every: $('[data-tw-every]', twPrev).value, until: p.until, untilRe: p.untilRe, untilAbout: p.untilAbout, when: p.when });
+          await api.post('/api/watches', { query: p.query, label: p.label, every: $('[data-tw-every]', twPrev).value, until: p.until, untilAbout: p.untilAbout, when: p.when });
         } catch (e) {
           twPrev.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
           return;
@@ -1525,7 +1555,9 @@
               : `<span>Quoted from <a href="#" class="quoted-link">${esc(d.server || 'a result')}</a>, shown in full below</span>`
         }</figcaption>`;
         // Quoted from one page: one click checks it against the others.
-        if (!d.calculated && d.text && d.text.length <= 300) {
+        // (a statement, not a live price, a forecast or a list: those can't be checked against other pages)
+        const claimLike = (t) => t.split(/\s+/).length >= 5 && /\b(?:is|was|are|were|has|have|had|invented|discovered|founded|wrote|won|created|built|became|released|launched|painted|designed|developed|acquired)\b/i.test(t) && !/\([A-Z.^-]{1,10}\)\s*:|1-day change|°|\b(?:forecast|today|now|right now|currently)\b|^\s*[-•*]/i.test(t);
+        if (!d.calculated && d.text && d.text.length <= 300 && claimLike(d.text)) {
           const ck = document.createElement('button');
           ck.type = 'button';
           ck.className = 'link-btn ck-btn';
@@ -1831,10 +1863,10 @@
   const COMMUNITY_HOSTS = /(?:^|\.)(?:reddit\.com|news\.ycombinator\.com|stackoverflow\.com|stackexchange\.com|superuser\.com|quora\.com|bsky\.app|x\.com|twitter\.com|mastodon\.social|medium\.com|substack\.com|dev\.to|tiktok\.com|youtube\.com|facebook\.com|discord\.com|tripadvisor\.[a-z.]+|trustpilot\.com|github\.com\/[^/]+\/[^/]+\/issues)$|forum|community|discuss/;
   const RESEARCH_HOSTS = /(?:^|\.)(?:pubmed\.ncbi\.nlm\.nih\.gov|ncbi\.nlm\.nih\.gov|arxiv\.org|doi\.org|nature\.com|science\.org|cell\.com|thelancet\.com|nejm\.org|bmj\.com|jamanetwork\.com|springer\.com|link\.springer\.com|sciencedirect\.com|wiley\.com|plos\.org|frontiersin\.org|mdpi\.com|biorxiv\.org|medrxiv\.org|ssrn\.com|semanticscholar\.org|researchgate\.net|cochranelibrary\.com|acm\.org|ieee\.org|openreview\.net)$|\.edu$|\.ac\.[a-z]{2}$/;
   function perspectiveOf(it) {
-    if (it.kind === 'official') return 'official';
+    if (it.srcKind === 'official') return 'official';
     const h = it.site || hostOf(it.url || '');
     if (!h) return 'data';
-    if (it.kind === 'primary' || RESEARCH_HOSTS.test(h)) return 'research';
+    if (it.srcKind === 'primary' || it.srcKind === 'preprint' || RESEARCH_HOSTS.test(h)) return 'research';
     if (COMMUNITY_HOSTS.test(h)) return 'community';
     if (NEWS_HOSTS.test(h)) return 'news';
     return 'web';
@@ -1893,8 +1925,8 @@
           const title = it.url
             ? `<a class="rt" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title || it.site)}</a>`
             : `<span class="rt-plain">${esc(it.title)}</span>`;
-          const kind = { official: ['Official', 'A government or international body'], primary: ['Primary source', 'The registry of record: the paper, filing or package itself'], own: ['Official site', 'The company’s own website'] }[it.kind];
-          const meta = [it.site ? `<span class="site">${esc(it.site)}</span>` : '', kind ? `<span class="src-kind" data-kind="${esc(it.kind)}" title="${esc(kind[1])}">${esc(kind[0])}</span>` : '', it.date ? `<span>${esc(niceDate(it.date))}</span>` : ''].join('');
+          const kind = { official: ['Official', 'A government or international body'], primary: ['Primary source', 'The registry of record: the paper or filing itself'], own: ['Official site', 'The company’s own website'], package: ['Package page', 'A package registry page: anyone can publish one'], preprint: ['Preprint', 'Not yet peer reviewed'] }[it.srcKind];
+          const meta = [it.site ? `<span class="site">${esc(it.site)}</span>` : '', kind ? `<span class="src-kind" data-kind="${esc(it.srcKind)}" title="${esc(kind[1])}">${esc(kind[0])}</span>` : '', it.date ? `<span>${esc(niceDate(it.date))}</span>` : ''].join('');
           return `<li class="ritem" data-persp="${esc(perspectiveOf(it))}">${title}${meta ? `<div class="rmeta">${meta}</div>` : ''}${it.text ? `<p class="rtext">${esc(it.text)}</p>` : ''}${factsHtml(it.facts)}</li>`;
         })
         .join('')}</ol>`;

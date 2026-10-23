@@ -13,7 +13,8 @@ const hostOf = (u) => {
   }
 };
 const NAME_OF = Object.fromEntries(Object.entries(COMPANY_TICKERS).map(([n, t]) => [t, n]));
-const titleCase = (s) => s.replace(/\b\p{Ll}/gu, (c) => c.toUpperCase());
+// (\b is ASCII-only: "são paulo" needs a letter test, or it becomes "SÃO Paulo")
+const titleCase = (s) => (/\p{Lu}/u.test(s) ? s : s.replace(/(^|[^\p{L}'’])(\p{Ll})/gu, (_, a, c) => a + c.toUpperCase()));
 
 /**
  * What one thing a question is about, if it's only about that: { type, value, title } or null.
@@ -27,10 +28,12 @@ export function detectEntity(query) {
   if (cve) return { type: 'cve', value: cve[0].toUpperCase(), title: cve[0].toUpperCase() };
   // A website: "is example.com safe", "example.com down", "check example.com".
   const site = /^(?:is\s+|check\s+|about\s+|site\s+)?((?:[a-z0-9-]+\.)+[a-z]{2,24})(?:\s+(?:safe|legit|legitimate|a scam|scam|down|up|status|trustworthy|real|security|ssl|dns|reviews?|check))?$/i.exec(q);
-  if (site && (/\s/.test(q) || /^(?:check|about|site)\b/i.test(q))) return { type: 'website', value: site[1].toLowerCase(), title: site[1].toLowerCase() };
+  // (node.js, readme.md and setup.py are files and frameworks, not websites)
+  const tld = site ? site[1].split('.').pop().toLowerCase() : '';
+  if (site && !FILE_EXT.has(tld) && (/\s/.test(q) || /^(?:check|about|site)\b/i.test(q))) return { type: 'website', value: site[1].toLowerCase(), title: site[1].toLowerCase() };
   // Software security: "Apache Struts vulnerabilities", "log4j exploits".
-  const sw = /^(.{2,40}?)\s+(?:vulnerabilities|vulnerability|security issues|exploits?|cves?|security advisories)$/i.exec(q);
-  if (sw) return { type: 'software', value: sw[1], title: sw[1] };
+  const sw = /^(?:(?:what|which)\s+(?:are|were|is)\s+(?:the\s+)?|(?:how\s+to\s+(?:fix|patch|mitigate)|list|any|show(?:\s+me)?|find|latest|recent|known)\s+(?:the\s+)?)?(.{2,40}?)\s+(?:vulnerabilities|vulnerability|security issues|exploits?|cves?|security advisories)$/i.exec(q);
+  if (sw && sw[1].split(/\s+/).length <= 3 && !/^(?:what|how|why|which|are|is|the|any)\b/i.test(sw[1])) return { type: 'software', value: sw[1], title: sw[1] };
   // A company: its ticker or name alone, or with "stock" / "shares" / "company".
   const co = /^(?:\$?([A-Z]{1,5})|([A-Za-z][A-Za-z&.' -]{1,30}?))(?:\s+(?:stock|shares|share price|stock price|company|inc|corp))?$/.exec(q);
   if (co) {
@@ -51,7 +54,6 @@ export function cardSections(e) {
     case 'company':
       return [
         { key: 'quote', label: 'Share price', ask: `${e.value} stock price today`, servers: ['marketcrew'] },
-        { key: 'rating', label: 'Rating', ask: `What's the Market Eyes rating for ${e.value}?`, servers: ['io.github.marketeyeslive/market-eyes-live'] },
         { key: 'about', label: 'About', ask: e.title, servers: ['wikexa'], summary: true },
         { key: 'news', label: 'Latest news', ask: `${e.title} latest news`, servers: ['keenable'], links: 4 },
       ];
@@ -100,11 +102,12 @@ function firstSentences(t) {
   }
   return out || String(t).slice(0, 300);
 }
+const FILE_EXT = new Set('js ts jsx tsx mjs cjs py rb go rs java kt md txt json yaml yml toml xml csv html htm css scss exe dll zip tar gz pdf doc docx xls xlsx ppt pptx png jpg jpeg gif svg mp3 mp4 mov sh bat ps1 lock log ini cfg conf env'.split(' '));
 /** Servers' sales lines out of their answers ("Free email alerts …: https://…", "sign up at …"). */
 function unpitch(t) {
   return String(t)
     .split(/(?<=[.!?])\s+/)
-    .filter((x) => !/(?:sign ?up|subscri(?:be|ption)|free (?:email )?alerts?|to be alerted|monitor it free|upgrade to|pricing|per call|not in this data)/i.test(x))
+    .filter((x) => !/(?:sign ?up|subscri(?:be|ption)|free (?:email )?alerts?|to be alerted|monitor it free|upgrade to|pricing|per call|not in this data|trade plan|has a .{0,20}page|rating page|buy now|get (?:the )?full|premium)/i.test(x))
     .join(' ')
     .trim();
 }
@@ -133,11 +136,14 @@ export async function runCard(agent, entity, { emit: emit0 = () => {}, signal, r
       const links = [];
       const summaries = [];
       let quick = null;
+      const use = resolveServers(s.servers);
+      // (every server for this part switched off: the part is left out, never routed elsewhere)
+      if (!use.servers?.length) return emit('card_section', { key: s.key, label: s.label, empty: true });
       try {
         const r = await agent.search(s.ask, {
           signal,
           direct: true,
-          ...resolveServers(s.servers),
+          ...use,
           emit: (type, d) => {
             if (type === 'quick_answer') quick = d;
             if (type !== 'results' || d.isError || (d.kind || 'ok') !== 'ok' || d.offTopic) return;
@@ -173,7 +179,8 @@ export async function runCard(agent, entity, { emit: emit0 = () => {}, signal, r
 
 /** "Nvidia vs AMD", "Lisbon or Madrid": two things of one kind, side by side. Null otherwise. */
 export function detectPair(query) {
-  const m = /^(.{2,40}?)\s+(?:vs\.?|versus|or|compared (?:to|with)|v\.?)\s+(.{2,40}?)\??$/i.exec(String(query || '').trim());
+  // ("or" is too common in questions: "Apple or Visa" stays a search)
+  const m = /^(.{2,40}?)\s+(?:vs\.?|versus|compared (?:to|with)|v\.?)\s+(.{2,40}?)\??$/i.exec(String(query || '').trim());
   if (!m) return null;
   const a = detectEntity(m[1]);
   const b = detectEntity(m[2]);

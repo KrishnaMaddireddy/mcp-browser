@@ -21,9 +21,10 @@ import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
 import { detectEntity, detectPair, runCard } from './cards.js';
-import { parseTrack } from './track.js';
+import { parseTrack, figureIn, thresholdMet } from './track.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
+import { langOf } from './quality.js';
 import { StackStore } from './stack.js';
 import { setupScript } from './stack-script.js';
 import { applyStack, detectClients } from './stack-run.js';
@@ -373,6 +374,92 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   // What the start page offers to discover: servers you can ask right now (newest
   // first), popular servers, and how many of each. Cached per catalog file.
   let discoverCache = null;
+  const todayOne = async (query, { items = 0 } = {}) => {
+    const out = { query, answer: null, items: [] };
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15000);
+    try {
+      await engine.agent.search(query, {
+        signal: ac.signal,
+        direct: true,
+        emit: (type, d) => {
+          if (type === 'quick_answer' && d?.text) out.answer = { text: d.text, url: d.url || null, site: d.site || '', server: d.server || '' };
+          if (items && type === 'results' && !d.isError && (d.kind || 'ok') === 'ok' && !d.offTopic && d.view?.kind === 'items')
+            for (const it of d.view.items) {
+              if (out.items.length >= items) break;
+              if (it.url && it.title && !out.items.some((x) => x.url === it.url || x.title === it.title)) out.items.push({ title: it.title, url: it.url, site: it.site || '', date: it.date || '' });
+            }
+        },
+      });
+    } catch {}
+    clearTimeout(timer);
+    return out;
+  };
+  // Articles only: a front page ("cnn.com/world") or a social post isn't a headline.
+  const article = (u) => {
+    try {
+      const x = new URL(u);
+      if (/(?:^|\.)(?:bsky\.app|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|youtube\.com|news\.google\.com)$/.test(x.hostname)) return false;
+      const parts = x.pathname.split('/').filter(Boolean);
+      // (a topic, tag or team page lists stories: it isn't one)
+      if (parts.some((p) => /^(?:topics?|tags?|team|teams|category|categories|section|author|people)$/i.test(p))) return false;
+      return parts.length >= 3 || parts.some((p) => p.length >= 20);
+    } catch {
+      return false;
+    }
+  };
+  // Well-known newsrooms first; the rest keep their order.
+  const known = /(?:^|\.)(?:reuters\.com|apnews\.com|bbc\.(?:com|co\.uk)|npr\.org|nytimes\.com|theguardian\.com|washingtonpost\.com|wsj\.com|bloomberg\.com|cnbc\.com|cnn\.com|nbcnews\.com|abcnews\.go\.com|cbsnews\.com|axios\.com|politico\.com|ft\.com|economist\.com|aljazeera\.com|dw\.com|france24\.com|euronews\.com|news\.un\.org|latimes\.com|usatoday\.com|theverge\.com|techcrunch\.com)$/;
+  const host = (u) => {
+    try {
+      return new URL(u).hostname;
+    } catch {
+      return '';
+    }
+  };
+  const foreignEdition = (u) => {
+    try {
+      const x = new URL(u);
+      return /\.(?:br|it|de|fr|es|nl|pt|pl|ru|jp|cn|kr|tr|ar|mx|se|no|dk|fi|cz|hu|ro|gr)$/.test(x.hostname) || /^\/(?:nl|de|fr|es|it|pt|pt-br|ja|zh|ko|ru|tr|pl|ar)(?:\/|$)/i.test(x.pathname);
+    } catch {
+      return false;
+    }
+  };
+  // Headlines: articles only, well-known newsrooms first, the rest in their order.
+  const headlines = (items, n) =>
+    items
+      .filter((it) => article(it.url) && !/breaking news|latest news|top stories|headlines/i.test(it.title))
+      .map((it, i) => ({ it, i, k: known.test(host(it.url)) ? 0 : 1 }))
+      .sort((a, b) => a.k - b.k || a.i - b.i)
+      .map((x) => x.it)
+      .slice(0, n);
+  // "Your topics" on Today: the latest headlines about one topic, kept 20 minutes.
+  const topicCache = new Map();
+  async function topicNews(topic) {
+    const key = topic.toLowerCase();
+    const hit = topicCache.get(key);
+    if (hit && Date.now() - hit.at < 20 * 60e3) return hit.data;
+    const r = await todayOne(`${topic} latest news`, { items: 15 });
+    // In the topic's language, dated, one story per site and one site per story.
+    const lang = langOf(topic) || 'en';
+    const seen = new Set();
+    const lead = (t) => String(t).toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').split(/\s+/).slice(0, 6).join(' ');
+    const picked = headlines(r.items, 15).filter((it) => {
+      if (langOf(it.title) !== lang && langOf(it.title)) return false;
+      // (an English topic: an edition in another language is another language's news)
+      if (lang === 'en' && foreignEdition(it.url)) return false;
+      const k1 = host(it.url).replace(/^www\./, '');
+      const k2 = lead(it.title);
+      if (seen.has(k1) || seen.has(k2)) return false;
+      seen.add(k1).add(k2);
+      return true;
+    });
+    const items = [...picked.filter((it) => it.date), ...picked.filter((it) => !it.date)].slice(0, 3);
+    const data = { topic, items, at: new Date().toISOString() };
+    topicCache.set(key, { at: Date.now(), data });
+    if (topicCache.size > 50) topicCache.delete(topicCache.keys().next().value);
+    return data;
+  }
   // "Today" on the start page: the weather where you are, the market, the headlines.
   // Three ordinary searches (free mode works), kept for 10 minutes per city.
   const todayCache = new Map();
@@ -380,61 +467,14 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const key = city.toLowerCase();
     const hit = todayCache.get(key);
     if (hit && Date.now() - hit.at < 10 * 60e3) return hit.data;
-    const one = async (query, { items = 0 } = {}) => {
-      const out = { query, answer: null, items: [] };
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 15000);
-      try {
-        await engine.agent.search(query, {
-          signal: ac.signal,
-          direct: true,
-          emit: (type, d) => {
-            if (type === 'quick_answer' && d?.text) out.answer = { text: d.text, url: d.url || null, site: d.site || '', server: d.server || '' };
-            if (items && type === 'results' && !d.isError && (d.kind || 'ok') === 'ok' && !d.offTopic && d.view?.kind === 'items')
-              for (const it of d.view.items) {
-                if (out.items.length >= items) break;
-                if (it.url && it.title && !out.items.some((x) => x.url === it.url || x.title === it.title)) out.items.push({ title: it.title, url: it.url, site: it.site || '', date: it.date || '' });
-              }
-          },
-        });
-      } catch {}
-      clearTimeout(timer);
-      return out;
-    };
     // Dated news searches return articles; "latest news" returns news sites' front pages.
     const day = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const [weather, market, news] = await Promise.all([
-      city ? one(`weather in ${city}`) : null,
-      one('SPY stock price today'),
-      one(`news ${day}`, { items: 12 }),
+      city ? todayOne(`weather in ${city}`) : null,
+      todayOne('SPY stock price today'),
+      todayOne(`news ${day}`, { items: 12 }),
     ]);
-    // Articles only: a front page ("cnn.com/world") or a social post isn't a headline.
-    const article = (u) => {
-      try {
-        const x = new URL(u);
-        if (/(?:^|\.)(?:bsky\.app|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|youtube\.com|news\.google\.com)$/.test(x.hostname)) return false;
-        const parts = x.pathname.split('/').filter(Boolean);
-        return parts.length >= 3 || parts.some((p) => p.length >= 20);
-      } catch {
-        return false;
-      }
-    };
-    // Well-known newsrooms first; the rest keep their order.
-    const known = /(?:^|\.)(?:reuters\.com|apnews\.com|bbc\.(?:com|co\.uk)|npr\.org|nytimes\.com|theguardian\.com|washingtonpost\.com|wsj\.com|bloomberg\.com|cnbc\.com|cnn\.com|nbcnews\.com|abcnews\.go\.com|cbsnews\.com|axios\.com|politico\.com|ft\.com|economist\.com|aljazeera\.com|dw\.com|france24\.com|euronews\.com|news\.un\.org|latimes\.com|usatoday\.com|theverge\.com|techcrunch\.com)$/;
-    const host = (u) => {
-      try {
-        return new URL(u).hostname;
-      } catch {
-        return '';
-      }
-    };
-    if (news)
-      news.items = news.items
-        .filter((it) => article(it.url) && !/breaking news|latest news|top stories|headlines/i.test(it.title))
-        .map((it, i) => ({ it, i, k: known.test(host(it.url)) ? 0 : 1 }))
-        .sort((a, b) => a.k - b.k || a.i - b.i)
-        .map((x) => x.it)
-        .slice(0, 5);
+    if (news) news.items = headlines(news.items, 5);
     const data = { city, weather, market, news, at: new Date().toISOString() };
     todayCache.set(key, { at: Date.now(), data });
     if (todayCache.size > 20) todayCache.delete(todayCache.keys().next().value);
@@ -569,6 +609,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         res.end();
       }
     },
+    'GET /api/today/topic': async (req, res, url) => {
+      const topic = String(url.searchParams.get('q') || '').replace(/[^\p{L}\p{N} &.'+-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (topic.length < 2) return json(res, 400, { error: 'topic required' });
+      json(res, 200, await topicNews(topic));
+    },
     'GET /api/today': async (req, res, url) => {
       const city = String(url.searchParams.get('city') || '').replace(/[^\p{L}\p{N} ,.'-]/gu, '').trim().slice(0, 60);
       json(res, 200, await today(city));
@@ -599,8 +644,16 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/card': async (req, res) => {
       const b = await readJson(req);
       const q = String(b.query || '').slice(0, 200);
-      const pair = detectPair(q);
-      const entity = pair ? null : detectEntity(q);
+      // Cards ask a fixed set of vetted servers on their own, so: only with the setting on,
+      // and never a server the user switched off.
+      const settings = engine.settings || {};
+      const off = settings.serverOverrides || {};
+      const cardServers = (ids) => {
+        const r = resolveServers(ids.filter((id) => off[id] !== false));
+        return { ...r, reason: 'answer card' };
+      };
+      const pair = settings.answerCards === false ? null : detectPair(q);
+      const entity = pair || settings.answerCards === false ? null : detectEntity(q);
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
       const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
       if (pair) {
@@ -608,7 +661,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         res.on('close', () => ac.abort());
         emit('card_pair', { type: pair[0].type, titles: pair.map((e) => e.title) });
         try {
-          await Promise.all(pair.map((e, side) => runCard(engine.agent, e, { emit, signal: ac.signal, resolveServers, side })));
+          await Promise.all(pair.map((e, side) => runCard(engine.agent, e, { emit, signal: ac.signal, resolveServers: cardServers, side })));
         } catch (e) {
           if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
         } finally {
@@ -624,7 +677,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const ac = new AbortController();
       res.on('close', () => ac.abort());
       try {
-        await runCard(engine.agent, entity, { emit, signal: ac.signal, resolveServers });
+        await runCard(engine.agent, entity, { emit, signal: ac.signal, resolveServers: cardServers });
       } catch (e) {
         if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
       } finally {
@@ -961,7 +1014,8 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/watches': async (req, res) => {
       const b = await readJson(req);
       try {
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilRe: b.untilRe, untilAbout: b.untilAbout, when: b.when });
+        // (the "it happened" pattern is built here from the word; a client's regex is never run)
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {
@@ -972,12 +1026,27 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/track/parse': async (req, res) => {
       const b = await readJson(req);
       const p = parseTrack(String(b.text || '').slice(0, 300));
-      json(res, p ? 200 : 400, p || { error: 'Start with “tell me when …”, e.g. “tell me when NVDA drops below 200”.' });
+      if (!p || p.error) return json(res, 400, { error: p?.error || 'Start with “tell me when …”, e.g. “tell me when NVDA drops below 200”.' });
+      // A threshold: read the figure now, so the preview can show it (and say if it's already past the line).
+      if (p.kind === 'threshold') {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 15000);
+        try {
+          const r = await engine.agent.search(p.query, { signal: ac.signal, direct: true, emit: () => {} });
+          const value = figureIn(r?.quickAnswer?.text || '', { unit: p.when.unit });
+          p.nowChecked = true;
+          if (value != null) p.now = { value, text: String(r.quickAnswer.text).slice(0, 200), met: p.when.op !== 'reach' && thresholdMet(p.when, value) };
+        } catch {
+          /* the preview just doesn't show it */
+        }
+        clearTimeout(timer);
+      }
+      json(res, 200, p);
     },
     'POST /api/watches/update': async (req, res) => {
       const b = await readJson(req);
       try {
-        json(res, 200, engine.watches.view(engine.watches.update(String(b.id), { every: b.every, label: b.label, seen: b.seen === true })));
+        json(res, 200, engine.watches.view(engine.watches.update(String(b.id), { every: b.every, label: b.label, seen: b.seen === true, notifiedAt: b.notifiedAt })));
       } catch (e) {
         json(res, 400, { error: errMsg(e) });
       }

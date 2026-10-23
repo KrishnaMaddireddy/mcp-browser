@@ -149,16 +149,31 @@ test('review fix: a save failure never throws out of the scheduler', async () =>
 });
 
 test('"tell me when": thresholds, things happening, anything new', async () => {
-  const { parseTrack, figureIn, thresholdMet, saysItHappened } = await import('../src/track.js');
+  const { parseTrack, figureIn, thresholdMet, saysItHappened, saidPattern } = await import('../src/track.js');
   const t = parseTrack('tell me when NVDA drops below 200');
   assert.deepEqual([t.kind, t.query, t.when], ['threshold', 'NVDA stock price today', { op: 'below', value: 200 }]);
   assert.equal(parseTrack('notify me if bitcoin goes above 100k').when.value, 100000);
   assert.equal(parseTrack('tell me when USD to JPY is above 160').query, 'USD to JPY exchange rate');
   const ev = parseTrack('tell me when GTA 6 is out');
   assert.equal(ev.kind, 'until');
-  assert.equal(saysItHappened('GTA 6 is expected to be released in 2026.', ev.untilRe, ev.untilAbout), null);
-  assert.equal(saysItHappened('GTA 5 was released in 2013.', ev.untilRe, ev.untilAbout), null);
-  assert.ok(saysItHappened('Big news. GTA 6 was released on May 26 to huge sales.', ev.untilRe, ev.untilAbout));
+  const re = saidPattern(ev.until);
+  assert.equal(ev.untilRe, undefined); // (the pattern is the server's, never sent to or from the page)
+  assert.equal(saysItHappened('GTA 6 is expected to be released in 2026.', re, ev.untilAbout), null);
+  assert.equal(saysItHappened('GTA 5 was released in 2013.', re, ev.untilAbout), null);
+  assert.ok(saysItHappened('Big news. GTA 6 was released on May 26 to huge sales.', re, ev.untilAbout));
+  for (const s of ['GTA 6 trailer 3 is out now.', 'GTA 6 is now available for pre-order.', 'GTA 6 fans: GTA 5 was released on PS5 and is out now.']) assert.equal(saysItHappened(s, re, ev.untilAbout), null, s);
+  // the review's misparses
+  assert.equal(parseTrack('tell me about the french revolution'), null);
+  assert.equal(parseTrack('tell me if I need a visa for Japan'), null);
+  assert.ok(parseTrack('tell me when 🚀 is out').error);
+  assert.equal(parseTrack('tell me when the temperature in London is below 0').query, 'weather in London');
+  assert.deepEqual(parseTrack('tell me when mortgage rates go above 7%').when, { op: 'above', value: 7, unit: '%' });
+  assert.equal(parseTrack('tell me when mortgage rates go above 7%').query, 'mortgage rates today');
+  assert.equal(parseTrack('tell me when apple stock hits 300').when.op, 'reach');
+  assert.ok(parseTrack('tell me when Bitcoin drops 10%').note);
+  for (const [t, v] of [['As of Oct 23, NVIDIA trades at 212.21 USD', 212.21], ['1 USD = 152.3 JPY', 152.3], ['Top 10 stocks: NVDA at 212', 212], ['As of October 23, 2026 the price is 212.21', 212.21]]) assert.equal(figureIn(t), v, t);
+  assert.equal(figureIn('The 30-year fixed mortgage rate averaged 6.2%'), null);
+  assert.equal(figureIn('The 30-year fixed mortgage rate averaged 6.2%', { unit: '%' }), 6.2);
   assert.equal(parseTrack('tell me about new recalls for Kia Sorento').kind, 'new');
   assert.equal(parseTrack('what is the weather'), null);
   assert.equal(figureIn('NVIDIA Corporation (NVDA): 212.21 USD (1-day change -4.4%)'), 212.21);
@@ -180,4 +195,27 @@ test('a threshold watch stops once the figure crosses its line', async () => {
   assert.equal(after.met.value, 212.21);
   assert.equal(after.nextRunAt, Number.MAX_SAFE_INTEGER);
   assert.equal(after.lastValue.value, 212.21);
+});
+
+test('a price watch only has news when it crosses; a wild reading is ignored; no client regex runs', async () => {
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler } = await import('../src/watches.js');
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-tw-')), 'w.json') });
+  const w = store.add({ query: 'NVDA stock price today', when: { op: 'below', value: 200 }, every: 'hourly', untilRe: '^(a+)+$' });
+  assert.equal(w.untilRe, undefined);
+  let n = 0;
+  const answers = ['NVIDIA Corporation (NVDA): 212.21 USD', 'NVIDIA Corporation (NVDA): 211.80 USD', 'As of Oct 23, the page says 23', 'NVIDIA Corporation (NVDA): 52.00 USD'];
+  const agent = { search: async () => ({ mode: 'direct', answer: '', sources: [{ url: `https://news.example/${n}`, title: 'story' }], quickAnswer: { text: answers[n++] } }) };
+  const sch = new WatchScheduler({ store, agent });
+  for (let i = 0; i < 4; i++) {
+    store.get(w.id).nextRunAt = 0;
+    await sch.run(w.id);
+  }
+  const after = store.get(w.id);
+  assert.equal(after.unseen, 0); // new sources every run, but no crossing: no news
+  assert.ok(!after.met); // 52 is too far from 211.80 to believe
+  assert.equal(after.lastValue.value, 211.8);
+  assert.equal(after.lastMiss.value, 52);
 });

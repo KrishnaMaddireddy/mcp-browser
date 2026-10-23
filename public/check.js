@@ -27,15 +27,21 @@
     $('[data-ck-examples]').innerHTML = EXAMPLES.map((x) => `<button type="button" data-ck-ex="${esc(x)}">${esc(x)}</button>`).join('');
     let ac = null;
 
+    let runId = 0;
     async function run(claim) {
       ac?.abort();
       ac = new AbortController();
+      const my = ++runId;
+      hooks.onClaim?.(claim);
       const out = $('[data-ck-out]');
       const ev = [];
       out.innerHTML = `<p class="ck-wait">Asking web search, Wikipedia and specialist servers, then reading what each one says…</p>`;
       let verdict = null;
       let error = null;
+      let progress = null;
       const render = () => {
+        // (a check that was replaced by a newer one doesn't draw over it)
+        if (my !== runId) return;
         const groups = GROUPS.map(([k, label]) => {
           const list = ev.filter((e) => e.stance === k);
           if (!list.length) return '';
@@ -50,15 +56,26 @@
         const head = verdict
           ? `<div class="ck-verdict" data-v="${esc(verdict.verdict)}"><b>${esc(verdict.label)}</b><p>${verdict.judged === 'ai' ? 'An AI model read each quoted sentence.' : 'Each source’s own sentence, matched on the figures and names in your claim. Copies of the same page count once; forums count as mentions.'} Read the quotes: they are the evidence.</p></div>`
           : '';
-        out.innerHTML = error ? `<p class="lr-fail">${esc(error)}</p>` : head + (groups || (verdict ? '<p class="hint">No source said anything about it. Try wording it the way a reference page would.</p>' : ''));
+        const wait = verdict || error ? '' : `<p class="ck-wait">${progress ? `${progress.replies} server${progress.replies === 1 ? '' : 's'} replied (last: ${esc(progress.server)}). Reading what each source says…` : 'Asking web search, Wikipedia and specialist servers, then reading what each one says…'}</p>`;
+        out.innerHTML = error ? `<p class="lr-fail">${esc(error)}</p>` : head + wait + (groups || (verdict ? '<p class="hint">No source said anything about it. Try wording it the way a reference page would.</p>' : ''));
       };
       let res;
       try {
         res = await fetch('/api/crosscheck', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ claim }), signal: ac.signal });
       } catch (e) {
-        out.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
+        if (my === runId && e.name !== 'AbortError') out.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
         return;
       }
+      // A refused claim comes back as JSON ("Write the claim as a sentence …"), not a stream.
+      if (!res.ok || !/event-stream/.test(res.headers.get('content-type') || '')) {
+        let msg = `The check failed (${res.status}).`;
+        try {
+          msg = (await res.json()).error || msg;
+        } catch {}
+        if (my === runId) out.innerHTML = `<p class="lr-fail">${esc(msg)}</p>`;
+        return;
+      }
+      let last = 0;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
@@ -74,8 +91,21 @@
           const raw = /^data: (.*)$/m.exec(block)?.[1];
           if (!type || !raw) continue;
           const d = JSON.parse(raw);
-          if (type === 'check_source') ev.push(d);
-          else if (type === 'check_verdict') verdict = d;
+          if (type === 'check_source') {
+            ev.push(d);
+            // sources as they come in, a few times a second at most
+            if (Date.now() - last > 250) {
+              last = Date.now();
+              render();
+            }
+          }
+          else if (type === 'check_progress') {
+            progress = d;
+            if (Date.now() - last > 250) {
+              last = Date.now();
+              render();
+            }
+          } else if (type === 'check_verdict') verdict = d;
           else if (type === 'error') error = d.message;
         }
       }

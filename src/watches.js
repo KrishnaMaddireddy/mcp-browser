@@ -1,7 +1,7 @@
 // Watches: saved searches that re-run on a schedule while the app is open and
 // report what changed since last time (new sources, a different answer).
 import { runPipeline, pipelineText } from './pipelines.js';
-import { figureIn, thresholdMet, saysItHappened } from './track.js';
+import { figureIn, thresholdMet, saysItHappened, saidPattern, plausibleReading } from './track.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -31,14 +31,6 @@ export function cleanAdhoc(adhoc, servers = []) {
     .map((a) => ({ id: String(a.id).slice(0, 200), title: String(a.title || a.id).slice(0, 120), description: String(a.description || '').slice(0, 400), url: String(a.url), transport: a.transport === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] }));
 }
 
-function validPattern(p) {
-  try {
-    new RegExp(String(p));
-    return String(p).length <= 400;
-  } catch {
-    return false;
-  }
-}
 
 export class WatchStore {
   constructor({ file = path.join(dataDir(), 'watches.json'), now = () => Date.now() } = {}) {
@@ -73,7 +65,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilRe, untilAbout }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout }) {
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('query required');
     if (!EVERY[every]) throw new Error('every must be hourly, daily or weekly');
@@ -92,10 +84,13 @@ export class WatchStore {
       // A pipeline on a schedule (pipelines.js); "until": stop once its result says this.
       ...(pipeline ? { pipeline, input: String(input || '').slice(0, 200), ...(pipeAdhoc && Array.isArray(pipeAdhoc) ? { pipeAdhoc: cleanAdhoc(pipeAdhoc, pipeAdhoc.map((a) => a?.id)) } : {}) } : {}),
       ...(String(until || '').trim() ? { until: String(until).trim().slice(0, 120) } : {}),
-      // "Tell me when it happened": a pattern that has to match in a sentence naming the thing.
-      ...(untilRe && validPattern(untilRe) ? { untilRe: String(untilRe).slice(0, 400), untilAbout: (Array.isArray(untilAbout) ? untilAbout : []).slice(0, 6).map((w) => String(w).toLowerCase().slice(0, 40)) } : {}),
-      // A threshold on the answer's figure: { op: 'below' | 'above', value }.
-      ...(when && ['below', 'above'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value) } } : {}),
+      // "Tell me when it happened": the words that say so (built from the word, never sent in),
+      // in a sentence naming the thing (plain words only).
+      ...(Array.isArray(untilAbout) && untilAbout.length && saidPattern(String(until || '').trim().toLowerCase())
+        ? { untilRe: saidPattern(String(until).trim().toLowerCase()), untilAbout: untilAbout.slice(0, 6).map((w) => String(w).toLowerCase().slice(0, 40)).filter((w) => /^[\p{L}\p{N}]+$/u.test(w)) }
+        : {}),
+      // A threshold on the answer's figure: { op: 'below' | 'above' | 'reach', value, unit? }.
+      ...(when && ['below', 'above', 'reach'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value), ...(when.unit === '%' ? { unit: '%' } : {}) } } : {}),
       createdAt: this.now(),
       nextRunAt: this.now(), // first run as soon as the scheduler ticks
       lastRun: null,
@@ -119,6 +114,7 @@ export class WatchStore {
     }
     if (patch.label !== undefined) w.label = String(patch.label).trim().slice(0, 200);
     if (patch.seen) w.unseen = 0;
+    if (Number.isFinite(Number(patch.notifiedAt)) && Number(patch.notifiedAt) > (w.notifiedAt || 0)) w.notifiedAt = Math.min(Number(patch.notifiedAt), this.now());
     this.save();
     return w;
   }
@@ -148,7 +144,9 @@ export class WatchStore {
     const text = mode === 'llm' ? answer : results.map((r) => `${r.serverTitle}\n${r.text}`).join('\n\n');
     const prevText = w.lastRun?.text || '';
     const sim = first || error ? 1 : similarity(prevText, text);
-    const changed = !first && !error && (newSources.length > 0 || sim < 0.75);
+    // A watch that waits for one thing (a price line, a release) only has news when that happens.
+    const alertOnly = Boolean(w.when || w.untilRe);
+    const changed = !alertOnly && !first && !error && (newSources.length > 0 || sim < 0.75);
     for (const s of newSources) seen.add(s.url);
     w.seenUrls = [...seen].slice(-MAX_SEEN);
     w.lastRun = error
@@ -225,7 +223,10 @@ export class WatchScheduler {
     if (!w.until || w.met) return;
     let snippet;
     if (w.untilRe) {
-      snippet = saysItHappened(text, w.untilRe, w.untilAbout || []);
+      // (always the server's own pattern for the word, whatever an older file holds)
+      const re = saidPattern(String(w.until).toLowerCase());
+      if (!re) return;
+      snippet = saysItHappened(text, re, w.untilAbout || []);
       if (!snippet) return;
     } else {
       const i = String(text).toLowerCase().indexOf(w.until.toLowerCase());
@@ -241,10 +242,18 @@ export class WatchScheduler {
   /** "Tell me when it drops below 200": the answer's figure, checked against the line. */
   _threshold(w, answer) {
     if (!w.when || w.met) return;
-    const value = figureIn(answer);
-    if (value == null) return;
+    const value = figureIn(answer, { unit: w.when.unit });
+    // A figure far from the last reading is a misread or a stale page: noted, not acted on.
+    if (value == null || !plausibleReading(value, w.lastValue?.value)) {
+      w.lastMiss = { at: this.store.now(), text: String(answer).slice(0, 200), value: value ?? null };
+      this.store.trySave();
+      return;
+    }
+    // "reaches 300": toward the line from the first reading
+    if (w.when.op === 'reach') w.when = { ...w.when, op: value < w.when.value ? 'above' : 'below', reach: true };
     w.lastValue = { value, at: this.store.now(), text: String(answer).slice(0, 200) };
-    if (thresholdMet(w.when, value)) {
+    delete w.lastMiss;
+    if (thresholdMet(w.when, value) || (w.when.reach && value === w.when.value)) {
       w.met = { at: this.store.now(), snippet: String(answer).slice(0, 240), value };
       w.nextRunAt = Number.MAX_SAFE_INTEGER;
       w.unseen = (w.unseen || 0) + 1;

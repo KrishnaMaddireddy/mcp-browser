@@ -481,5 +481,15 @@ test('official, primary and own-site sources are labelled and come first', async
   assert.equal(sourceKind('https://www.nvidia.com/', 'best gpu'), null);
   assert.equal(sourceKind('https://measles-facts.example.com/'), null);
   const v = orderItems({ kind: 'items', items: [{ title: 'Measles symptoms explained', url: 'https://blog.example.com/m', text: 'measles symptoms' }, { title: 'Measles symptoms', url: 'https://www.cdc.gov/measles', text: 'measles symptoms and complications' }] }, 'symptoms of measles');
-  assert.equal(v.items[0].kind, 'official');
+  assert.equal(v.items[0].srcKind, 'official');
+  // the review: look-alikes, unrelated questions, whole publishers and package registries
+  assert.equal(sourceKind('https://paypal.co/', 'paypal login'), null);
+  assert.equal(sourceKind('https://nvidia.io/', 'nvidia drivers'), null);
+  assert.equal(sourceKind('https://www.paypal.com/', 'paypal login'), 'own');
+  assert.equal(sourceKind('https://www.apple.com/', 'apple pie recipe'), null);
+  assert.equal(sourceKind('https://www.oracle.com/', 'oracle of delphi'), null);
+  assert.equal(sourceKind('https://www.nature.com/news/some-story'), null);
+  assert.equal(sourceKind('https://www.nature.com/articles/s41586-024-0001'), 'primary');
+  assert.equal(sourceKind('https://www.npmjs.com/package/left-pad'), 'package');
+  assert.equal(sourceKind('https://arxiv.org/abs/2401.00001'), 'preprint');
 });

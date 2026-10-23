@@ -34,9 +34,19 @@ test('each card asks several named servers at once', () => {
 test('"A vs B" of one kind gets two cards side by side', async () => {
   const { detectPair } = await import('../src/cards.js');
   assert.deepEqual(detectPair('Nvidia vs AMD').map((e) => e.title), ['Nvidia', 'AMD']);
-  assert.deepEqual(detectPair('Lisbon or Madrid').map((e) => e.type), ['place', 'place']);
+  assert.deepEqual(detectPair('Lisbon vs Madrid').map((e) => e.type), ['place', 'place']);
+  assert.equal(detectPair('Lisbon or Madrid'), null); // ("or" is a question word: it stays a search)
   assert.equal(detectPair('Paris vs Nvidia'), null);
   assert.equal(detectPair('iPhone vs Pixel'), null);
+});
+
+test('card detection: accented names, question words, file names', async () => {
+  const { detectEntity } = await import('../src/cards.js');
+  assert.equal(detectEntity('são paulo').title, 'São Paulo');
+  assert.equal(detectEntity('what are the log4j vulnerabilities').value, 'log4j');
+  assert.equal(detectEntity('is node.js safe'), null);
+  assert.equal(detectEntity('check readme.md'), null);
+  assert.equal(detectEntity('is example.com safe').type, 'website');
 });
 
 test('other languages are told apart from short English headlines', async () => {

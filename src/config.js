@@ -26,6 +26,7 @@ export const DEFAULTS = Object.freeze({
   discovery: false, // also route to community servers found in the registry
   discoveryMax: 2, // how many community servers may join one query
   alwaysWebSearch: true, // keep a general web search server in the mix
+  answerCards: true, // a question that names one company, city, website or CVE also asks a few vetted servers for a card
   semanticRouting: true, // local embedding model for meaning-based routing (if installed)
   serverOverrides: {}, // { [serverId]: true | false } user enable/disable
   serverAuth: {}, // { [serverId]: { url?, header?, value? } } keys for servers that need one
@@ -114,7 +115,7 @@ export function saveSettings(patch) {
       next[k] = Math.min(hi, Math.max(lo, Math.round(n)));
     } else if (k === 'provider') {
       if (['auto', 'anthropic', 'openai', 'none'].includes(v)) next[k] = v;
-    } else if (k === 'discovery' || k === 'alwaysWebSearch' || k === 'semanticRouting') {
+    } else if (k === 'discovery' || k === 'alwaysWebSearch' || k === 'semanticRouting' || k === 'answerCards') {
       next[k] = Boolean(v);
     } else if (k === 'serverOverrides') {
       if (v && typeof v === 'object') {

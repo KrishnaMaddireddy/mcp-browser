@@ -479,7 +479,21 @@ const WANTS_NEW = /\b(?:latest|newest|recent(?:ly)?|new|today|this (?:week|month
 // Governments, intergovernmental bodies, standards bodies and primary registries.
 const OFFICIAL = /(?:^|\.)(?:gov|mil|gouv\.fr|gc\.ca|canada\.ca|gov\.uk|gov\.au|govt\.nz|gov\.in|gov\.sg|go\.jp|go\.kr|gob\.mx|gov\.br|bund\.de|admin\.ch|europa\.eu|who\.int|un\.org|unesco\.org|worldbank\.org|imf\.org|oecd\.org|wto\.org|ietf\.org|w3\.org|iso\.org|cve\.org|nist\.gov|ecb\.europa\.eu|federalreserve\.gov|bankofengland\.co\.uk|nhs\.uk|parliament\.uk|legislation\.gov\.uk|congress\.gov|supremecourt\.gov|courts\.gov)$/;
 // Registries of record for papers and code.
-const PRIMARY = /(?:^|\.)(?:pubmed\.ncbi\.nlm\.nih\.gov|ncbi\.nlm\.nih\.gov|clinicaltrials\.gov|doi\.org|arxiv\.org|nature\.com|science\.org|thelancet\.com|nejm\.org|bmj\.com|cochranelibrary\.com|sec\.gov|npmjs\.com|pypi\.org|crates\.io)$/;
+const PRIMARY = /(?:^|\.)(?:pubmed\.ncbi\.nlm\.nih\.gov|clinicaltrials\.gov|doi\.org|cochranelibrary\.com|sec\.gov)$/;
+// Journals are primary only on their article pages (their news, opinion and careers pages aren't).
+const JOURNAL_ARTICLE = [
+  [/(?:^|\.)nature\.com$/, /^\/articles\/s?\d/],
+  [/(?:^|\.)science\.org$/, /^\/doi\//],
+  [/(?:^|\.)nejm\.org$/, /^\/doi\//],
+  [/(?:^|\.)thelancet\.com$/, /^\/journals\/[^/]+\/article\//],
+  [/(?:^|\.)bmj\.com$/, /^\/content\/\d/],
+  [/(?:^|\.)ncbi\.nlm\.nih\.gov$/, /^\/pmc\/articles\//],
+];
+// Anyone can publish here: a package page, a preprint. Labelled for what they are, not as authority.
+const PACKAGES = /(?:^|\.)(?:npmjs\.com|pypi\.org|crates\.io|rubygems\.org|pkg\.go\.dev|packagist\.org|nuget\.org)$/;
+const PREPRINTS = /(?:^|\.)(?:arxiv\.org|biorxiv\.org|medrxiv\.org|ssrn\.com|osf\.io)$/;
+// What a company question can add to the name and still be about the company ("paypal login").
+const COMPANY_CONTEXT = new Set('official site website homepage home page login log in sign in account support help contact customer service drivers download downloads app apps products store shop investor investors relations careers jobs press newsroom news stock shares price earnings ceo headquarters hq inc corp corporation company'.split(' '));
 
 /**
  * What kind of source a link is: 'official' (a government or international body),
@@ -494,19 +508,35 @@ export function sourceKind(url, query = '') {
     return null;
   }
   if (PRIMARY.test(h)) return 'primary';
+  let pathname = '';
+  try {
+    pathname = new URL(url).pathname;
+  } catch {}
+  if (JOURNAL_ARTICLE.some(([host, p]) => host.test(h) && p.test(pathname))) return 'primary';
+  if (PACKAGES.test(h)) return 'package';
+  if (PREPRINTS.test(h)) return 'preprint';
   if (OFFICIAL.test(h)) return 'official';
-  // "Nvidia …" → nvidia.com is the company's own site.
+  // "Nvidia drivers" → nvidia.com is the company's own site. Only <name>.com (paypal.co and
+  // nvidia.io are someone else's), and only when the question is about the company
+  // ("apple pie recipe" isn't, "oracle of delphi" isn't).
   const low = String(query).toLowerCase();
-  const sld = h.split('.').slice(-2, -1)[0] || '';
-  if (sld.length >= 3 && /\.(?:com|co|io|ai|net|org|dev|app)$/.test(h)) {
-    for (const name of Object.keys(COMPANY_TICKERS)) if (name.replace(/[^a-z]/g, '') === sld && new RegExp(`\\b${name}\\b`).test(low)) return 'own';
+  const m = /^([a-z0-9-]{3,})\.com$/.exec(h);
+  if (m) {
+    for (const name of (COMPANY_NAMES ||= Object.keys(COMPANY_TICKERS))) {
+      if (name.replace(/[^a-z0-9]/g, '') !== m[1].replace(/-/g, '')) continue;
+      const i = low.indexOf(name);
+      if (i < 0 || !new RegExp(`(?:^|[^a-z])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^a-z])`).test(low)) continue;
+      const rest = (low.slice(0, i) + ' ' + low.slice(i + name.length)).match(/[a-z]+/g) || [];
+      if (rest.every((w) => COMPANY_CONTEXT.has(w) || /^(?:the|s|is|of|for|my|to|how|where|what|a|an)$/.test(w))) return 'own';
+    }
   }
   return null;
 }
 
+let COMPANY_NAMES = null;
 export function orderItems(view, query) {
   if (view?.kind !== 'items' || view.items.length < 2) {
-    if (view?.kind === 'items') for (const it of view.items) if (it.url && sourceKind(it.url, query)) it.kind = sourceKind(it.url, query);
+    if (view?.kind === 'items') for (const it of view.items) if (it.url && sourceKind(it.url, query)) it.srcKind = sourceKind(it.url, query);
     return view;
   }
   // The same page twice (same link, or same site saying the same thing) shows once.
@@ -532,7 +562,7 @@ export function orderItems(view, query) {
   // Official and primary sources first among the on-topic ones (shown with a label).
   for (const x of scored) {
     const k = x.it.url ? sourceKind(x.it.url, query) : null;
-    if (k) x.it.kind = k;
+    if (k) x.it.srcKind = k;
     x.off = k ? 1 : 0;
   }
   const byDate = WANTS_NEW.test(String(query)) && dated >= view.items.length / 2;
@@ -558,7 +588,7 @@ const SCRIPTS = [
 // (no "in", "an", "on", "a": other languages use them too)
 const EN_SMALL = new Set('the and of to is for with are was by at from that its it this be or has have will new how what why who your you can more about after over into than not'.split(' '));
 // Small words of German, Spanish, French, Portuguese, Italian and Dutch that English doesn't use.
-const FOREIGN_SMALL = new Set('der die das und mit auf bei ist sind von zu im den des dem nicht ein eine einen auch nach wie el la los las del y que por para con una les et est du au le pour dans sur sont pas os em com uma nao não il di che per della dei degli het een van voor niet ook zijn'.split(' '));
+const FOREIGN_SMALL = new Set('der die das und mit auf bei ist sind von zu im den des dem nicht ein eine einen auch nach wie el la los las del y que por para con una les et est du au le pour dans sur sont pas os em com uma nao não il di che per della dei degli gli dall dalla nel nella nei sul sulla alla alle agli sono anche na nas aan het een van voor niet ook zijn'.split(' '));
 export function langOf(text) {
   const letters = (text.match(/\p{L}/gu) || []).length;
   if (letters < 4) return null;
