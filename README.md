@@ -305,6 +305,8 @@ desktop web tab): its lockfile, or else its manifest, is read through the Page F
 (one per ecosystem, so a repo with Cargo.lock and uv.lock gets both; a sub-folder link also
 looks for the workspace's lockfile at the root). The page server reads up to 100,000
 characters, so a very long lockfile is checked from its first part, and the page says so.
+**Tell me about new advisories** on a repo makes a watch that reads the repo again each day,
+so a bump to a vulnerable version is news as well as a new advisory.
 
 ## Today
 
