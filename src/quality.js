@@ -930,11 +930,23 @@ function plainWeatherAnswer(results, query) {
     if (!/°|\b(?:rain|snow|sunny|cloud|wind|showers?|clear|storm|dry|drizzle)/i.test(text)) continue;
     // "Using Paris, Île-de-France Region, France (there are others …). Say the state if …" →
     // "Paris, Île-de-France Region, France: <the weather sentences>".
-    const sentences = text.split(/(?<=[.!?])\s+/);
+    // ("03:30 to tomorrow 03:30: mild, dry …" → "mild, dry …": the window is just "the next day")
+    const sentences = text.split(/(?<=[.!?])\s+/).map((x) => x.replace(/^\d{1,2}:\d{2}\s+to\s+(?:tomorrow\s+)?\d{1,2}:\d{2}:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase()));
     const place = (/^Using ([^(.]+?)\s*(?:\(|\.)/.exec(text) || [])[1];
     const body = sentences.filter((x) => !/^Using |^Say |^Tell me|^Add /i.test(x) && !/jacket|coat|layer|\bhat\b|umbrella|shorts|pants|sunscreen|boots|sweater|hoodie|gloves/i.test(x) && /°|\b(?:rain|snow|sunny|cloud|wind|showers?|clear|storm|dry|drizzle|cool|warm|cold|hot|mild)\b/i.test(x)).slice(0, 2).join(' ');
     if (!body) continue;
-    return { text: place ? `${place.trim()}: ${body}` : body, url: null, site: '', title: '', server: r.serverTitle };
+    // "Dry all day." says nothing about warmth: add the temperatures the reply gives
+    // elsewhere ("13° to 21°", or "58° air" right now).
+    let extra = '';
+    if (!/°/.test(body)) {
+      const raw = String(r.text || '').slice(0, 6000);
+      const range = /(-?\d{1,3}°)\s*(?:to|–|-)\s*(-?\d{1,3}°)/.exec(raw);
+      const now = /(-?\d{1,3}°)\s*air\b/.exec(raw) || /\b(?:temperature|temp|now|currently)\b[^.]{0,20}?(-?\d{1,3}°)/i.exec(raw);
+      if (range) extra = ` ${range[1]} to ${range[2]}.`;
+      else if (now) extra = ` ${now[1]} now.`;
+    }
+    const said = `${body}${extra}`;
+    return { text: place ? `${place.trim()}: ${said}` : said, url: null, site: '', title: '', server: r.serverTitle };
   }
   return null;
 }

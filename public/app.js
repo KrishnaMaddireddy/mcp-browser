@@ -474,12 +474,90 @@
     }
     attachSuggest(input);
     renderRecent(tab, el);
+    renderToday(tab, el);
     renderDiscover(tab, el);
     renderSearchEngine(el);
     renderSetup(el);
     renderTemplates(tab, el);
     setTimeout(() => tab === active && input.focus(), 0);
     return el;
+  }
+
+  // ---------- start page: today (weather where you are, the market, headlines) ----------
+  // Your city stays in this browser only. Off until you add one.
+  const TODAY_KEY = 'mcpb.today.city';
+  const todayCity = {
+    get() {
+      try {
+        return localStorage.getItem(TODAY_KEY);
+      } catch {
+        return null;
+      }
+    },
+    set(v) {
+      try {
+        if (v == null) localStorage.removeItem(TODAY_KEY);
+        else localStorage.setItem(TODAY_KEY, v);
+      } catch {}
+    },
+  };
+  async function renderToday(tab, el) {
+    const box = $('[data-today]', el);
+    const city = todayCity.get();
+    box.hidden = false;
+    if (city == null) {
+      box.innerHTML = `<form class="today-ask" data-today-form><span>See your weather, the market and today’s headlines here:</span><input type="text" data-today-city placeholder="Your city" aria-label="Your city" maxlength="60"><button type="submit">Show</button><button type="button" class="link-btn" data-today-no>No thanks</button></form>`;
+      $('[data-today-form]', box).addEventListener('submit', (e) => {
+        e.preventDefault();
+        const v = $('[data-today-city]', box).value.trim();
+        if (!v) return;
+        todayCity.set(v);
+        renderToday(tab, el);
+      });
+      $('[data-today-no]', box).addEventListener('click', () => {
+        todayCity.set('');
+        box.hidden = true;
+      });
+      return;
+    }
+    if (city === '') {
+      box.hidden = true;
+      return;
+    }
+    const card = (title, q, body) => `<div class="today-card"><h3><button type="button" class="link-btn" data-today-q="${esc(q)}">${esc(title)}</button></h3>${body}</div>`;
+    box.innerHTML = `<div class="today-grid">${card(`Weather in ${city}`, `weather in ${city}`, '<p class="today-wait">Checking…</p>')}${card('Market', 'S&P 500 today', '<p class="today-wait">Checking…</p>')}${card('Today’s news', 'latest news', '<p class="today-wait">Checking…</p>')}</div><p class="today-foot"><button type="button" class="link-btn" data-today-change>Change city</button> · <button type="button" class="link-btn" data-today-off>Hide this</button></p>`;
+    const wire = () => {
+      box.querySelectorAll('[data-today-q]').forEach((b) => b.addEventListener('click', () => open(b.dataset.todayQ, tab)));
+      $('[data-today-change]', box).addEventListener('click', () => (todayCity.set(null), renderToday(tab, el)));
+      $('[data-today-off]', box).addEventListener('click', () => (todayCity.set(''), (box.hidden = true)));
+    };
+    wire();
+    let d;
+    try {
+      d = await api.get(`/api/today?city=${encodeURIComponent(city)}`);
+    } catch {
+      d = null;
+    }
+    const cards = box.querySelectorAll('.today-card');
+    const say = (a, none, short = (t) => t) => (a?.answer ? `<p class="today-a">${esc(short(a.answer.text))}</p><p class="today-src">${esc(a.answer.server || a.answer.site || '')}</p>` : `<p class="today-wait">${esc(none)}</p>`);
+    // "San Francisco, CA: Dry all day. 58° now." → "Dry all day. 58° now." (the title names the city)
+    const weatherShort = (t) => t.replace(/^[^:]{2,80}:\s+/, '');
+    // "SPDR S&P 500 ETF (SPY): 763.96 USD (1-day change -1.18%); extended hours …" → "SPY 763.96 USD, -1.18% today"
+    const quoteShort = (t) => {
+      const m = /\(([A-Z.^-]{1,10})\):\s*([\d.,]+\s*[A-Z]{3})\s*\(1-day change ([-+]?[\d.]+%)\)/.exec(t);
+      return m ? `${m[1]} ${m[2]}, ${m[3].startsWith('-') ? m[3].replace('-', '−') : `+${m[3].replace('+', '')}`} today` : t;
+    };
+    cards[0].querySelector('.today-wait')?.remove();
+    cards[0].insertAdjacentHTML('beforeend', say(d?.weather, 'No forecast found. Click the title to search.', weatherShort));
+    cards[1].querySelector('.today-wait')?.remove();
+    cards[1].insertAdjacentHTML('beforeend', say(d?.market, 'No quote found right now.', quoteShort));
+    cards[2].querySelector('.today-wait')?.remove();
+    cards[2].insertAdjacentHTML(
+      'beforeend',
+      d?.news?.items?.length
+        ? `<ul class="today-news">${d.news.items.map((it) => `<li><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span>${esc(it.site)}</span></li>`).join('')}</ul>`
+        : '<p class="today-wait">No headlines found right now.</p>'
+    );
   }
 
   // ---------- start page: recent searches, things to discover ----------

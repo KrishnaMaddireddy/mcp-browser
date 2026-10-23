@@ -370,6 +370,74 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   // What the start page offers to discover: servers you can ask right now (newest
   // first), popular servers, and how many of each. Cached per catalog file.
   let discoverCache = null;
+  // "Today" on the start page: the weather where you are, the market, the headlines.
+  // Three ordinary searches (free mode works), kept for 10 minutes per city.
+  const todayCache = new Map();
+  async function today(city) {
+    const key = city.toLowerCase();
+    const hit = todayCache.get(key);
+    if (hit && Date.now() - hit.at < 10 * 60e3) return hit.data;
+    const one = async (query, { items = 0 } = {}) => {
+      const out = { query, answer: null, items: [] };
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 15000);
+      try {
+        await engine.agent.search(query, {
+          signal: ac.signal,
+          direct: true,
+          emit: (type, d) => {
+            if (type === 'quick_answer' && d?.text) out.answer = { text: d.text, url: d.url || null, site: d.site || '', server: d.server || '' };
+            if (items && type === 'results' && !d.isError && (d.kind || 'ok') === 'ok' && !d.offTopic && d.view?.kind === 'items')
+              for (const it of d.view.items) {
+                if (out.items.length >= items) break;
+                if (it.url && it.title && !out.items.some((x) => x.url === it.url || x.title === it.title)) out.items.push({ title: it.title, url: it.url, site: it.site || '', date: it.date || '' });
+              }
+          },
+        });
+      } catch {}
+      clearTimeout(timer);
+      return out;
+    };
+    // Dated news searches return articles; "latest news" returns news sites' front pages.
+    const day = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const [weather, market, news] = await Promise.all([
+      city ? one(`weather in ${city}`) : null,
+      one('SPY stock price today'),
+      one(`news ${day}`, { items: 12 }),
+    ]);
+    // Articles only: a front page ("cnn.com/world") or a social post isn't a headline.
+    const article = (u) => {
+      try {
+        const x = new URL(u);
+        if (/(?:^|\.)(?:bsky\.app|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|youtube\.com|news\.google\.com)$/.test(x.hostname)) return false;
+        const parts = x.pathname.split('/').filter(Boolean);
+        return parts.length >= 3 || parts.some((p) => p.length >= 20);
+      } catch {
+        return false;
+      }
+    };
+    // Well-known newsrooms first; the rest keep their order.
+    const known = /(?:^|\.)(?:reuters\.com|apnews\.com|bbc\.(?:com|co\.uk)|npr\.org|nytimes\.com|theguardian\.com|washingtonpost\.com|wsj\.com|bloomberg\.com|cnbc\.com|cnn\.com|nbcnews\.com|abcnews\.go\.com|cbsnews\.com|axios\.com|politico\.com|ft\.com|economist\.com|aljazeera\.com|dw\.com|france24\.com|euronews\.com|news\.un\.org|latimes\.com|usatoday\.com|theverge\.com|techcrunch\.com)$/;
+    const host = (u) => {
+      try {
+        return new URL(u).hostname;
+      } catch {
+        return '';
+      }
+    };
+    if (news)
+      news.items = news.items
+        .filter((it) => article(it.url) && !/breaking news|latest news|top stories|headlines/i.test(it.title))
+        .map((it, i) => ({ it, i, k: known.test(host(it.url)) ? 0 : 1 }))
+        .sort((a, b) => a.k - b.k || a.i - b.i)
+        .map((x) => x.it)
+        .slice(0, 5);
+    const data = { city, weather, market, news, at: new Date().toISOString() };
+    todayCache.set(key, { at: Date.now(), data });
+    if (todayCache.size > 20) todayCache.delete(todayCache.keys().next().value);
+    return data;
+  }
+
   function discover() {
     const c = loadCatalog();
     if (!c) return null;
@@ -485,6 +553,10 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         clearInterval(ping);
         res.end();
       }
+    },
+    'GET /api/today': async (req, res, url) => {
+      const city = String(url.searchParams.get('city') || '').replace(/[^\p{L}\p{N} ,.'-]/gu, '').trim().slice(0, 60);
+      json(res, 200, await today(city));
     },
     'GET /api/discover': async (req, res) => {
       const d = discover();
