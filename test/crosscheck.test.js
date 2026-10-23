@@ -337,3 +337,15 @@ test('a fact sheet about the place: the title names it, the labelled line names 
   // (a sheet about another country says nothing about Spain)
   assert.notEqual(judgeText(claimParts('Lisbon is the capital of Spain'), sheet).stance, 'supports');
 });
+
+test('final live run: "replaced X as capital", nicknames, one kind of a thing, a name in an aside, social posts', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.notEqual(st('Lagos is the capital of Nigeria', "Abuja replaced Lagos as Nigeria's capital in 1991."), 'supports');
+  assert.notEqual(st('Lagos is the capital of Nigeria', 'There are no plans to replace Abuja with Lagos as Nigeria’s capital city.'), 'supports');
+  assert.notEqual(st('Osaka is the capital of Japan', 'Osaka, the culinary capital of Japan!'), 'supports');
+  assert.equal(st('Canberra is the capital of Australia', 'Canberra is the federal capital of Australia.'), 'supports');
+  assert.notEqual(st('A spider has six legs', 'Surely you noticed the black widow spider has only 6 legs, not 8.'), 'supports');
+  assert.notEqual(st('Marie Curie won two Nobel Prizes', 'As of 2026, 70 Nobel Prizes have been awarded to 69 women (Marie Curie has been honoured twice).'), 'differs');
+  const ev = evidenceFrom(claimParts('Auckland is the capital of New Zealand'), [{ serverTitle: 'Web', serverId: 'w', text: 'Title: post\nURL: https://bsky.app/profile/x/post/1\nMaunganui Bluff is about 160km northwest of Auckland, New Zealand’s capital.' }]);
+  assert.ok(!ev.some((e) => e.stance === 'supports'));
+});

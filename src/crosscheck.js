@@ -309,7 +309,15 @@ function judgeCore(parts, sentence) {
     const key = anchorWords.filter((w) => EXACT.has(w));
     const inClause = (cl, need) => need.filter((n) => ws.some((w, i) => ids[i] === cl && matches(n, w))).length;
     const lead = parts.owner || [];
+    // ("70 Nobel Prizes have been awarded to 69 women (Marie Curie …)": a name in brackets after
+    // the figure is an aside, not whose figure it is)
+    const asideAfter = (g) => {
+      const open = sentence.indexOf('(', g.end ?? g.at);
+      return open < 0 ? null : [open, sentence.indexOf(')', open) < 0 ? sentence.length : sentence.indexOf(')', open)];
+    };
     const aboutIt = (g) => {
+      const aside = asideAfter(g);
+      if (aside && parts.subjectWords.length && orig.some((o, i) => matches(parts.subjectWords[0], ws[i]) && o.at > aside[0] && o.at < aside[1]) && !orig.some((o, i) => parts.subjectWords.some((n) => matches(n, ws[i])) && (o.at < aside[0] || o.at > aside[1]) && clauseAtChar(orig, ids, g.at) === ids[i])) return false;
       const cl = clauseAtChar(orig, ids, g.at);
       // (all of a name: "the Curie family" isn't "Marie Curie")
       if (key.length) return inClause(cl, key) >= 1 && (!parts.subjectWords.length || inClause(cl, parts.subjectWords) >= Math.ceil(parts.subjectWords.length * 0.6));
@@ -362,6 +370,8 @@ function judgeCore(parts, sentence) {
       const noun = fold(generic[1].toLowerCase()).replace(/s$/, '');
       const sw = ws.findIndex((w) => matches(noun, w));
       if (sw >= 0 && /\b(?:some|one|this|that|my|certain|few|only|particular|individual)\b/.test(ws.slice(Math.max(0, sw - 3), sw).join(' '))) return { stance: 'mentions', sentence };
+      // ("the black widow spider has only 6 legs": one kind of spider, not spiders)
+      if (sw >= 0 && ws.slice(Math.max(0, sw - 2), sw).some((w) => !/^(?:the|a|an|all|every|each|any|adult|typical|normal|average|true|real|most|many|of|and|or|in|on|that|which|regular|standard|common|ordinary|single|whole|full|complete|simple|convex|martian|solar|calendar|earth|healthy|human|grown|usual)$/.test(w) && !/^\d/.test(w) && !parts.words.includes(w))) return { stance: 'mentions', sentence };
     }
     if (match) {
       const g = figs.find((x) => same(match, x));
@@ -503,7 +513,12 @@ function judgeCore(parts, sentence) {
     // (a rank or "one of" a few words before; "state", "former", "dwarf" right before the head:
     // "a state capital", but not "a sovereign state in East Africa")
     const close = ws.slice(Math.max(0, headAt - 2), headAt).join(' ');
+    const clauseTextAt = (i) => orig.filter((_, k) => ids[k] === ids[i]).map((x) => x.w).join(' ');
     if (parts.be && (/\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|second-largest|third-largest)\b/.test(lead) || /\b(?:provincial|regional|state|former|deputy|co|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(close))) return { stance: 'differs', sentence };
+    // ("the culinary capital of Japan", "the financial capital": a nickname, not the claim)
+    if (parts.be && /\b(?:culinary|cultural|financial|economic|commercial|fashion|gastronomic|gastronomical|food|tech|technology|entertainment|music|film|art|arts|party|gambling|wine|beer|coffee|sports?|spiritual|religious|historic|historical|ancient|old|summer|winter|shopping|design|startup|industrial|cycling|surf|ski|adventure|literary)$/.test(ws[headAt - 1] || '') && !parts.words.includes(ws[headAt - 1])) return { stance: 'mentions', sentence };
+    // ("Abuja replaced Lagos as Nigeria's capital": who it is now is the other one)
+    if (parts.be && /\b(?:replac\w*|succeed\w*|instead of|in place of|in favou?r of)\b/i.test(clauseTextAt(headAt))) return { stance: 'mentions', sentence };
     const tail = ws.slice(headAt, headAt + 2 * obj.length + 4).join(' ');
     // ("the capital of Kyoto Prefecture": only for a role "of" a place; "is in Tanzania, in the
     // Kilimanjaro Region of East Africa" says where inside it)
@@ -821,7 +836,7 @@ export function sourceKey(site) {
   return parts.slice(two ? -3 : -2).join('.');
 }
 const norm = (t) => String(t).toLowerCase().replace(/\[[^\]]*\]|\([^)]*\)|[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
-const FORUM = /(?:^|\.)(?:reddit\.com|quora\.com|answers\.com|stackexchange\.com|x\.com|twitter\.com|facebook\.com|tiktok\.com|pinterest\.com|brainly\.\w+|chegg\.com|coursehero\.com|studocu\.com)$/;
+const FORUM = /(?:^|\.)(?:bsky\.app|threads\.net|mastodon\.social|reddit\.com|quora\.com|answers\.com|stackexchange\.com|x\.com|twitter\.com|facebook\.com|tiktok\.com|pinterest\.com|brainly\.\w+|chegg\.com|coursehero\.com|studocu\.com)$/;
 export function evidenceFrom(parts, results) {
   const out = new Map();
   const sentences = new Map(); // the same sentence (copied around the web) is one source
