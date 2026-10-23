@@ -397,6 +397,7 @@ export function fixVersion(version, vulns) {
   return { version: need, unfixed: false };
 }
 
+const AUDIT_CHUNK = 100;
 const SEV = { CRITICAL: 4, HIGH: 3, MODERATE: 2, MEDIUM: 2, LOW: 1 };
 
 /**
@@ -425,7 +426,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       return null;
     }
   })();
-  const auditEcos = new Set();
+  const auditOk = new Set(); // (eco:name the audit service answered for)
   // 1. Advisories, from two publishers of OSV data at once.
   // (one package per call: a batch with many advisories comes back paged, a few rows at a time)
   const osvOne = async (p) => {
@@ -461,14 +462,24 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       : null,
     pinned.length
       ? timed('audit', async () => {
-          // (one call per ecosystem: it audits one registry at a time)
+          // (one registry per call, 100 packages at a time, each part tried twice: a whole
+          // lockfile in one call can time out; a package counts only if its part answered)
           const out = [];
+          let answered = 0;
           for (const eco of [...new Set(pinned.map((p) => p.ecosystem))]) {
-            const r = sc(await callTool(DEP_SERVERS.audit, 'audit_dependencies', { ecosystem: ECO[eco].audit, dependencies: pinned.filter((p) => p.ecosystem === eco).map((p) => ({ name: p.name, version: p.version })) }));
-            if (r) auditEcos.add(eco);
-            for (const f of r?.findings || []) out.push({ ...f, ecosystem: eco });
-            for (const n of r?.packages_not_found || []) out.push({ name: typeof n === 'string' ? n : n?.name, ecosystem: eco, notFound: true });
+            const list = pinned.filter((p) => p.ecosystem === eco).map((p) => ({ name: p.name, version: p.version }));
+            for (let i = 0; i < list.length; i += AUDIT_CHUNK) {
+              const part = list.slice(i, i + AUDIT_CHUNK);
+              let r = null;
+              for (let t = 0; t < 2 && !r; t++) r = sc(await callTool(DEP_SERVERS.audit, 'audit_dependencies', { ecosystem: ECO[eco].audit, dependencies: part }).catch(() => null));
+              if (!r) continue;
+              answered++;
+              for (const q of part) auditOk.add(`${eco}:${q.name.toLowerCase()}`);
+              for (const f of r.findings || []) out.push({ ...f, ecosystem: eco });
+              for (const n of r.packages_not_found || []) out.push({ name: typeof n === 'string' ? n : n?.name, ecosystem: eco, notFound: true });
+            }
           }
+          if (!answered) throw new Error('no answers');
           return out;
         })
       : null,
@@ -527,13 +538,13 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
     });
     const countA = a && !a.error ? (a.partial ? a.vulnCount : uniq.length) : null;
     // Did any server actually answer for this package? Without one, it's "not checked", never "none known".
-    const answeredB = Boolean(audits) && auditEcos.has(p.ecosystem);
+    const answeredB = Boolean(audits) && auditOk.has(k);
     // The other server lists raw ids: the ones that are aliases of one advisory count once.
     const idsB = b && !b.notFound ? b.vulnerability_ids || [] : [];
     const groupsB = new Set(idsB.map((x) => seen.get(x) || x));
     // (its id list stops at 20: past that only its own count is known)
     const fullB = idsB.length && idsB.length >= (b?.vulnerability_count ?? 0);
-    const countB = b && !b.notFound ? (fullB ? groupsB.size : b.vulnerability_count ?? idsB.length) : b?.notFound ? null : audits ? 0 : null;
+    const countB = b && !b.notFound ? (fullB ? groupsB.size : b.vulnerability_count ?? idsB.length) : b?.notFound ? null : answeredB ? 0 : null;
     for (const v of uniq) delete v.all;
     const fixAll = uniq.length ? fixVersion(p.version, uniq) : { version: null, unfixed: false };
     for (const v of uniq) v.fixedVersions = v.fixedVersions.slice(0, 4); // (shown; the fix above used them all)

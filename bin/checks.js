@@ -45,7 +45,7 @@ function findDependencyFile(dir) {
 }
 
 // Terminal text: the Markdown with its table and escapes made plain.
-const plain = (m) => m.replace(/\\([\\`*_[\]<>!|#])/g, '$1').replace(/\*\*/g, '').replace(/^#+ /gm, '');
+const plain = (m) => m.replace(/\[([^\]\n]*)\]\((https?:[^)\s]+)\)/g, '$1 ($2)').replace(/\\([\\`*_[\]<>!|#])/g, '$1').replace(/\*\*/g, '').replace(/^#+ /gm, '');
 
 export async function main(argv) {
   const [cmd, ...args] = argv;

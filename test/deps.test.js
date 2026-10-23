@@ -167,3 +167,20 @@ test('review: lockfile edge cases (slow input, pnpm 7 peers, aliases, local pack
   const classic = parseManifest('# yarn lockfile v1\n\n\nexpress@4.17.1:\n  version "4.17.1"\n  dependencies:\n    accepts "~1.3.7"\n\naccepts@~1.3.7:\n  version "1.3.8"\n');
   assert.deepEqual(classic.map((p) => [p.name, p.indirect, (p.via || []).join()]), [['express', false, ''], ['accepts', true, 'express']]);
 });
+
+test('audit service: 100 packages per call, one retry, a failed part stays "not answered"', async () => {
+  const pkgs = parseManifest(Array.from({ length: 150 }, (_, i) => `p${i}@1.0.0`).join('\n'));
+  const calls = [];
+  const callTool = async (id, tool, args) => {
+    if (id !== DEP_SERVERS.audit) throw new Error('off');
+    calls.push(args.dependencies.length);
+    if (args.dependencies[0].name === 'p100') throw new Error('timeout'); // (the second part never answers)
+    return { structuredContent: { findings: [], packages_not_found: [] } };
+  };
+  const rows = [];
+  await runDeps(pkgs, { callTool, emit: (t, d) => (t === 'deps_row' ? rows.push(d) : null) });
+  assert.deepEqual(calls, [100, 50, 50]);
+  assert.equal(rows.find((r) => r.name === 'p5').counts.audit, 0);
+  assert.equal(rows.find((r) => r.name === 'p5').checked, true);
+  assert.equal(rows.find((r) => r.name === 'p120').checked, false);
+});
