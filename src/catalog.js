@@ -224,6 +224,7 @@ export class Catalog {
         const tested = this.tests?.servers.get(r.server.id);
         if (tested && this.health?.get(r.server.id)?.status !== 'ok') {
           if (tested === 'a') w *= 1.25;
+          else if (tested === 'm') w *= s.freeMode ? 0.3 : 1.2; // answered with AI-written inputs
           else if (tested === 'i' && s.freeMode) w *= 0.3;
           else if (tested === 'f') w *= 0.35;
         } else if (tested === 'a') w *= 1.1;

@@ -278,6 +278,22 @@
     if (row[F.deprecated]) out.push(['bad', 'Marked deprecated in the registry.']);
     if (row[F.pushed] && Date.now() - Date.parse(row[F.pushed]) > 365 * 864e5) out.push(['warn', `No code pushed since ${row[F.pushed]}.`]);
     if (row[F.stars] >= 0 && row[F.stars] < 5 && row[F.downloads] < 100) out.push(['info', 'Few users so far: test it before depending on it.']);
+    // Our own test: started for real in a throwaway machine and asked its sample question.
+    const tested = F.tested != null && row[F.tested];
+    if (tested) {
+      const [code, day, , why] = tested;
+      const w = String(why || '').replace(/[.\s]+$/, '');
+      const T = {
+        a: ['ok', `We asked it a sample question on ${day}: it answered.`],
+        m: ['ok', `We asked it a sample question on ${day}: it answered once an AI model filled in its inputs (free mode can’t use it).`],
+        s: ['info', `It started in our test on ${day} but didn’t answer the sample question${w ? ` (${w})` : ''}.`],
+        n: ['warn', `It started in our test on ${day} but offered no tools.`],
+        f: ['bad', `It didn’t start in our test on ${day}${w ? `: ${w}` : ''}.`],
+        k: ['warn', `It needs a key or sign-in${w ? `: ${w}` : ''}.`],
+        g: ['warn', `It needs startup arguments${w ? `: ${w}` : ''}.`],
+      }[code];
+      if (T) out.push(T);
+    }
     if (!out.some(([l]) => l !== 'ok' && l !== 'info')) out.push(['ok', 'No warning signs found in the registry, GitHub and our probes.']);
     return out;
   }

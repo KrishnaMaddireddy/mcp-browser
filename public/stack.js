@@ -72,6 +72,7 @@
           ${s.downloads ? `<span class="cat-tag">${fmt(s.downloads.count)} ${esc(s.downloads.source)} / mo</span>` : ''}
           ${it.installedIn.length ? `<span class="cat-state ok">Installed in ${esc(it.installedIn.join(', '))}</span>` : '<span class="cat-state warn">Not installed yet</span>'}
           ${it.runnable ? '<span class="cat-state ok">Works in MCP Browser now</span>' : localReady ? '<span class="cat-state ok">Runs on this Mac</span>' : ''}
+          ${s.tested ? `<span class="cat-state ${s.tested.ok ? 'ok' : 'warn'}" title="${esc(s.tested.detail || '')}">Tested ${esc(s.tested.on)}: ${esc(s.tested.status)}</span>` : ''}
           ${it.trust && !it.trust.trusted ? '<span class="cat-state bad">Warning signs</span>' : ''}
           ${warn.length ? `<span class="cat-state warn" title="${esc(warn.map((w) => w.replace(/^\w+: /, '')).join('\n'))}">${warn.length} thing${warn.length > 1 ? 's' : ''} to check</span>` : ''}
         </p>

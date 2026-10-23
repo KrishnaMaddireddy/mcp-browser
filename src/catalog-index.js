@@ -112,8 +112,8 @@ export function describe(r, { full = false } = {}) {
 
 /** Our test run of a package server, in words: { status, on, tools, detail, version }. */
 export function testedView([code, on, tools, why, version]) {
-  const status = { a: 'starts and answers', s: 'starts', n: 'starts but has no tools', f: 'didn’t start', k: 'needs a key to test', g: 'needs arguments to test' }[code] || 'unknown';
-  return { status, ok: code === 'a' || code === 's', on, tools, detail: why || '', version: version || '' };
+  const status = { a: 'starts and answers', m: 'answers when an AI model fills in its inputs', s: 'starts', n: 'starts but has no tools', f: 'didn’t start', k: 'needs a key to test', g: 'needs arguments to test' }[code] || 'unknown';
+  return { status, ok: code === 'a' || code === 'm' || code === 's', on, tools, detail: why || '', version: version || '' };
 }
 
 /** Setup snippets for one or more catalog rows. client: code | desktop | cursor | vscode | all */

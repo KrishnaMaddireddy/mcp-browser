@@ -380,9 +380,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const brief = (r) => ({ id: r[F.name], title: r[F.title] || r[F.name].split('/').pop(), desc: String(r[F.desc]).slice(0, 140), category: cat(r), stars: r[F.stars], downloads: r[F.downloads], added: r[F.added] });
     const day = 864e5;
     const now = Date.now();
+    // (servers that answered their sample question in our tests come first)
+    const answered = (r) => (F.tested != null && r[F.tested]?.[0] === 'a' ? 1 : 0);
     const askable = rows
-      .filter((r) => ok(r) && catalogRunnable(r, F) && r[F.reach] === 1 && ((F.prompts != null && r[F.prompts]) || []).length)
-      .sort((a, b) => (b._pop || 0) - (a._pop || 0));
+      .filter((r) => ok(r) && catalogRunnable(r, F) && r[F.reach] === 1 && ((F.prompts != null && r[F.prompts]) || []).length && !(F.tested != null && ['f', 'k'].includes(r[F.tested]?.[0])))
+      .sort((a, b) => answered(b) - answered(a) || (b._pop || 0) - (a._pop || 0));
     // The best-known servers that answer without a key, one per category so the list isn't six of a kind.
     const seenCat = new Set();
     const tryNow = [];

@@ -90,7 +90,7 @@
         if (f === 'noenv' && r[F.required] > 0) return false;
         if (f === 'bulk' && r[F.pubCount] >= 100) return false;
         // Started (and listed tools) when we ran it in a test machine; hosted servers count if they answered our probe.
-        if (f === 'works' && !(F.tested != null && ['a', 's'].includes(r[F.tested]?.[0])) && !(runnable(r) && r[F.reach] === 1)) return false;
+        if (f === 'works' && !(F.tested != null && ['a', 'm', 's'].includes(r[F.tested]?.[0])) && !(runnable(r) && r[F.reach] === 1)) return false;
       }
       if (range) {
         const d = r[F[range.field]] || '';
@@ -234,7 +234,7 @@
       const tested = F.tested != null && r[F.tested];
       if (tested) {
         const [code, day, nTools, why] = tested;
-        const T = { a: ['ok', 'Tested: starts and answers'], s: ['ok', 'Tested: starts'], n: ['warn', 'Tested: no tools'], f: ['bad', 'Tested: didn’t start'], k: ['', 'Needs a key to test'], g: ['', 'Needs arguments to test'] }[code];
+        const T = { a: ['ok', 'Tested: answers'], m: ['ok', 'Tested: answers with an AI model'], s: ['ok', 'Tested: starts'], n: ['warn', 'Tested: no tools'], f: ['bad', 'Tested: didn’t start'], k: ['', 'Needs a key to test'], g: ['', 'Needs arguments to test'] }[code];
         if (T) tags.push(`<span class="cat-state ${T[0]}" title="${esc(`Tested ${day}${nTools ? `, ${nTools} tools` : ''}${why ? `: ${why}` : ''}`)}">${T[1]}</span>`);
       }
       else if (localApproved) tags.unshift(`<span class="cat-state warn">Needs ${esc(localApproved.missing.join(', '))} again</span>`);

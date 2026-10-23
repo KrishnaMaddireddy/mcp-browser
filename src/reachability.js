@@ -13,7 +13,8 @@ export const UNREACHABLE = new Set(['dead', 'auth', 'blocked', 'paid']);
 const TESTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'answer-tests.json');
 /**
  * Which servers answered a real sample question when tested (scripts/probe-hosted.mjs,
- * scripts/probe-packages.mjs): id → a (answered) | s (connected, nothing useful) |
+ * scripts/probe-packages.mjs, scripts/probe-ai-args.mjs): id → a (answered) |
+ * m (answered with inputs an AI model wrote) | s (connected, nothing useful) |
  * i (its tools need an AI model) | f (failed). A newer copy in the data dir wins.
  */
 export function loadAnswerTests(files = [TESTS, path.join(dataDir(), 'answer-tests.json')]) {

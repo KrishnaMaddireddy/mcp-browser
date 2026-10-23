@@ -23,6 +23,7 @@ import { CATEGORIES, categorize } from './catalog/categories.mjs';
 import { classifyNeighbours } from './catalog/neighbours.mjs';
 import { probeTools, listable } from './catalog/tools.mjs';
 import { samplePrompts } from './catalog/prompts.mjs';
+import { ERROR_REPLY } from '../src/quality.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -122,10 +123,10 @@ function promptsFor(s, cat) {
 
 // Package servers tested for real in a throwaway machine (scripts/probe-packages.mjs):
 // a=answers s=starts n=no tools f=fails k=needs a key g=needs arguments.
-const PROBE_CODE = { answers: 'a', starts: 's', 'no-tools': 'n', fails: 'f', 'needs-key': 'k', 'needs-args': 'g' };
+const PROBE_CODE = { answers: 'a', 'answers-ai': 'm', starts: 's', 'no-tools': 'n', fails: 'f', 'needs-key': 'k', 'needs-args': 'g' };
 const probe = {};
-const RANK = { a: 6, s: 5, n: 4, k: 3, g: 2, f: 1 };
-const probeFiles = (process.env.MCPB_PROBE_FILES || [file('package-probe.jsonl'), file('hosted-probe.jsonl')].join(',')).split(',');
+const RANK = { a: 7, m: 6, s: 5, n: 4, k: 3, g: 2, f: 1 };
+const probeFiles = (process.env.MCPB_PROBE_FILES || [file('package-probe.jsonl'), file('hosted-probe.jsonl'), file('ai-probe.jsonl')].join(',')).split(',');
 const answerTests = {}; // for routing: id → a | s | i | f
 for (const probeFile of probeFiles) {
   if (!fs.existsSync(probeFile)) continue;
@@ -135,11 +136,18 @@ for (const probeFile of probeFiles) {
     try {
       const r = JSON.parse(line);
       if (!PROBE_CODE[r.status]) continue;
-      const why = r.status === 'fails' ? r.error : r.status === 'answers' ? r.call?.preview : r.call?.error || r.note || r.error || '';
+      // Graded again with today's rules: a reply that only reports a failure isn't an answer.
+      if (r.status === 'answers' && ERROR_REPLY.test(String(r.call?.preview || '').slice(0, 200))) Object.assign(r, { status: 'starts', note: 'replied with an error for the sample question' });
+      // A failed AI-inputs try only counts when it shows a key is needed (the registry didn't say).
+      if (r.status === 'fails-ai') {
+        if (!/api[ _-]?key|token|not authenticated|unauthori[sz]ed|bearer|sign[ -]?in|credentials/i.test(r.error || '')) continue;
+        Object.assign(r, { status: 'needs-key', error: 'it needs a key or sign-in the registry doesn’t list' });
+      }
+      const why = r.status === 'fails' ? r.error : r.status === 'answers' ? r.call?.preview : r.status === 'answers-ai' ? `${r.tool}: ${r.preview}` : r.call?.error || r.note || r.error || '';
       const rec = [PROBE_CODE[r.status], r.testedAt || '', r.tools || 0, clean(String(why || '')).slice(0, 140), r.version || ''];
       // A later run of the same server replaces an earlier one; across files the better result wins.
       if (!probe[r.id] || probe[r.id].file === probeFile || RANK[rec[0]] > RANK[probe[r.id][0]]) probe[r.id] = Object.assign(rec, { file: probeFile });
-      answerTests[r.id] = r.status === 'answers' ? 'a' : r.status === 'fails' ? 'f' : /AI model/.test(r.note || '') ? 'i' : r.status === 'starts' ? 's' : answerTests[r.id];
+      answerTests[r.id] = r.status === 'answers' ? 'a' : r.status === 'answers-ai' ? (answerTests[r.id] === 'a' ? 'a' : 'm') : r.status === 'fails' ? 'f' : /AI model/.test(r.note || '') ? 'i' : r.status === 'starts' ? 's' : answerTests[r.id];
       n++;
     } catch {
       /* skip a broken line */

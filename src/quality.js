@@ -6,6 +6,9 @@
 import { tokenize, parseJsonLenient } from './util.js';
 import { resultBlocks } from './format.js';
 
+// Replies that only report a failure (checked on short replies only).
+export const ERROR_REPLY = /^\W{0,4}(?:error|exception|traceback)\b|^\W{0,4}(?:failed|failure)(?: to\b|:)|\b(?:failed to (?:connect|resolve|fetch|load|reach|authenticate|open)|connection (?:refused|reset|timed out)|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|not connected|no active session|unable to connect|could not connect|is not running|is not reachable|errno \d+|internal server error|service unavailable|bad gateway)\b/i;
+
 const NO_RESULT = [
   /\bno (?:results?|matches|matching|listed|items?|records?|data|stocks?|companies|entries|hits|articles|papers|documents)\b/i,
   /\bno (?:[\w/-]+ ){0,3}(?:were |was )?(?:found|match|matches|matched|available)\b/i, // "No stored diagrams match …"
@@ -116,6 +119,9 @@ export function classifyResult(text, query = '', { general = false } = {}) {
     if (bare && w && /unknown (?:ticker|symbol|token|entity|company|place|location)|not in (?:canonical )?registry/i.test(JSON.stringify(top[w])) && json.facts <= 3) return { kind: 'empty', reason: 'no results' };
   }
   const record = json && json.facts >= 3 && json.textFacts >= 1;
+  // A short reply that is only a failure: the server couldn't reach what it fronts, or needs
+  // a session or device first ("Failed to connect to MikroTik device", "No active session").
+  if (!record && words.length < 60 && ERROR_REPLY.test(s.slice(0, 200))) return { kind: 'empty', reason: 'error reply' };
   if (!record && NO_RESULT.some((re) => re.test(s.slice(0, 150))) && words.length < 60) return { kind: 'empty', reason: 'no results' };
   if (!record && words.length < 20 && NO_RESULT.some((re) => re.test(s))) return { kind: 'empty', reason: 'no results' };
   if (!record && words.length < 3) return { kind: 'empty', reason: 'only repeated the question' };
