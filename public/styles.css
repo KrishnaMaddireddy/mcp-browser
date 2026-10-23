@@ -1083,3 +1083,18 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 @keyframes ac-pulse { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .ac-wait span { animation: none; } }
 .turn.has-card .notice { display: none; }
+
+/* "Tell me when …" */
+.tw-form { display: flex; gap: 10px; margin: 0 0 10px; }
+.tw-form input { flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 16px; }
+.tw-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tw-examples button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.tw-examples button:hover { color: var(--ink); border-color: var(--signal); }
+.tw-preview { border: 1px solid var(--signal); border-radius: 12px; background: var(--surface); padding: 12px 14px; margin-bottom: 18px; }
+.tw-preview p { margin: 0 0 10px; }
+.tw-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; }
+.tw-acts select { margin-left: 4px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.watch-line { font-size: 13.5px; margin: 2px 0; }
+@media (max-width: 600px) { .tw-form { flex-direction: column; } }
+.acard header .ac-track { margin-left: auto; font-size: 13px; color: var(--muted); }
+.acard header .ac-track .link-btn { font-size: 13px; }

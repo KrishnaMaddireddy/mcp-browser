@@ -147,3 +147,37 @@ test('review fix: a save failure never throws out of the scheduler', async () =>
   await assert.doesNotReject(sched.tick());
   assert.ok(store.get(w.id).lastRun);
 });
+
+test('"tell me when": thresholds, things happening, anything new', async () => {
+  const { parseTrack, figureIn, thresholdMet, saysItHappened } = await import('../src/track.js');
+  const t = parseTrack('tell me when NVDA drops below 200');
+  assert.deepEqual([t.kind, t.query, t.when], ['threshold', 'NVDA stock price today', { op: 'below', value: 200 }]);
+  assert.equal(parseTrack('notify me if bitcoin goes above 100k').when.value, 100000);
+  assert.equal(parseTrack('tell me when USD to JPY is above 160').query, 'USD to JPY exchange rate');
+  const ev = parseTrack('tell me when GTA 6 is out');
+  assert.equal(ev.kind, 'until');
+  assert.equal(saysItHappened('GTA 6 is expected to be released in 2026.', ev.untilRe, ev.untilAbout), null);
+  assert.equal(saysItHappened('GTA 5 was released in 2013.', ev.untilRe, ev.untilAbout), null);
+  assert.ok(saysItHappened('Big news. GTA 6 was released on May 26 to huge sales.', ev.untilRe, ev.untilAbout));
+  assert.equal(parseTrack('tell me about new recalls for Kia Sorento').kind, 'new');
+  assert.equal(parseTrack('what is the weather'), null);
+  assert.equal(figureIn('NVIDIA Corporation (NVDA): 212.21 USD (1-day change -4.4%)'), 212.21);
+  assert.ok(thresholdMet({ op: 'below', value: 220 }, 212.21));
+  assert.ok(!thresholdMet({ op: 'above', value: 220 }, 212.21));
+});
+
+test('a threshold watch stops once the figure crosses its line', async () => {
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler } = await import('../src/watches.js');
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-tw-')), 'w.json') });
+  const w = store.add({ query: 'NVDA stock price today', when: { op: 'below', value: 220 }, every: 'hourly' });
+  const agent = { search: async () => ({ mode: 'direct', answer: '', quickAnswer: { text: 'NVIDIA Corporation (NVDA): 212.21 USD (1-day change -4.4%)' } }) };
+  const sch = new WatchScheduler({ store, agent });
+  await sch.run(w.id);
+  const after = store.get(w.id);
+  assert.equal(after.met.value, 212.21);
+  assert.equal(after.nextRunAt, Number.MAX_SAFE_INTEGER);
+  assert.equal(after.lastValue.value, 212.21);
+});

@@ -266,8 +266,14 @@
     <section class="page panel watches">
       <header class="panel-head">
         <h1>Watches</h1>
-        <p class="panel-lede">Saved searches that run again on a schedule while MCP Browser is open, and tell you when something changed: new sources, or a different answer. Use Watch on any search to add one.</p>
+        <p class="panel-lede">Saved searches that run again on a schedule while MCP Browser is open, and tell you when something changed: new sources, a different answer, a price crossing your line, or the news you were waiting for. They run on your computer; nothing is sent to an account.</p>
       </header>
+      <form class="tw-form" data-tw-form>
+        <input type="text" data-tw-text placeholder="Tell me when NVDA drops below 200" aria-label="Tell me when" maxlength="300">
+        <button type="submit" class="st-dl-btn">Set it up</button>
+      </form>
+      <div class="tw-examples" data-tw-examples></div>
+      <div class="tw-preview" data-tw-preview hidden></div>
       <ul class="watch-list" data-watch-list></ul>
     </section>
   </template>

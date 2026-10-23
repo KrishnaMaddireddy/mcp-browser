@@ -334,6 +334,8 @@
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
     if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
     if (/^mcp:\/\/check/i.test(s)) return navigate(tab, { kind: 'check' });
+    // "tell me when …", "notify me if …" → set up a watch.
+    if (/^(?:please\s+)?(?:tell|notify|alert|ping)\s+me\s+(?:when|if|whenever|once|about)\s+\S|^let me know (?:when|if)\s+\S/i.test(s)) return navigate(tab, { kind: 'watches', track: s });
     // "is it true that …", "fact check: …", "true or false: …" → Cross-check.
     const claim = /^(?:is it true that|is it true|fact[- ]?check:?|true or false:?|verify:?|check:)\s+(.{6,300}?)\??$/i.exec(s);
     if (claim) {
@@ -462,6 +464,48 @@
     badge.hidden = !status.watchesUnseen;
     $('#openWatches').title = status.watchesUnseen ? `Watches: ${status.watchesUnseen} with changes` : 'Watches';
   }
+  // ---------- desktop notifications for watches ----------
+  // While the app is open, a watch that changed or hit its line shows a notification
+  // (once per change; remembered in this browser).
+  const NOTIFIED = 'mcpb.watch.notified';
+  function askNotify() {
+    try {
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    } catch {}
+  }
+  async function checkWatchNews() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    let data;
+    try {
+      data = await api.get('/api/watches');
+    } catch {
+      return;
+    }
+    let seen = {};
+    try {
+      seen = JSON.parse(localStorage.getItem(NOTIFIED) || '{}');
+    } catch {}
+    for (const w of data.watches || []) {
+      const h = w.history?.[0];
+      const at = w.met?.at || (h?.changed ? h.at : 0);
+      if (!at || seen[w.id] >= at) continue;
+      seen[w.id] = at;
+      const body = w.met ? w.met.snippet : `${h.newSources?.length || 0} new source${h.newSources?.length === 1 ? '' : 's'}${h.newSources?.[0] ? `: ${h.newSources[0].title}` : ''}`;
+      try {
+        const n = new Notification(w.label || w.query, { body: String(body).slice(0, 180), tag: `watch-${w.id}` });
+        n.onclick = () => {
+          window.focus();
+          newTab({ kind: 'watches' });
+        };
+      } catch {}
+    }
+    try {
+      localStorage.setItem(NOTIFIED, JSON.stringify(seen));
+    } catch {}
+  }
+  setInterval(checkWatchNews, 60_000);
+  setTimeout(checkWatchNews, 8000);
+
   function statsLine() {
     if (!status?.registry.syncedAt) return 'Ask a question. It goes to the few MCP servers that know the answer.';
     const n = status.registry.answering || status.registry.keyless;
@@ -539,6 +583,17 @@
         } else if (type === 'card_section') {
           sections.set(d.key, d);
           render();
+          // A price in the card: one click to be told when it crosses a line (5% away).
+          if (d.key === 'quote' && d.answer && box.dataset.type === 'company' && !box.querySelector('[data-ac-track]')) {
+            const m = /\(([A-Z.]{1,6})\)\s*:\s*([\d,.]+)/.exec(d.answer);
+            if (m) {
+              const p = Number(m[2].replace(/,/g, ''));
+              const down = Math.round(p * 0.95 * 100) / 100;
+              const up = Math.round(p * 1.05 * 100) / 100;
+              box.querySelector('header').insertAdjacentHTML('beforeend', `<span class="ac-track" data-ac-track>Tell me when it <button type="button" class="link-btn" data-ac-tw="tell me when ${esc(m[1])} drops below ${down}">drops below ${down}</button> or <button type="button" class="link-btn" data-ac-tw="tell me when ${esc(m[1])} goes above ${up}">goes above ${up}</button></span>`);
+              box.querySelectorAll('[data-ac-tw]').forEach((b) => b.addEventListener('click', () => newTab({ kind: 'watches', track: b.dataset.acTw })));
+            }
+          }
         } else if (type === 'card_done') {
           for (const k2 of order) if (!sections.has(k2)) sections.set(k2, { key: k2, empty: true });
           render();
@@ -794,6 +849,7 @@
         // A follow-up re-runs on its own (without the earlier turns), so it gets its own label.
         const firstTurn = entry.turns.length === 0 || entry.query === query;
         await api.post('/api/watches', { query, every, discovery: Boolean(entry.discovery), label: firstTurn ? entry.label || '' : '', ...(firstTurn && entry.servers ? { servers: entry.servers, adhoc: entry.adhoc } : {}) });
+        askNotify();
         pick.hidden = true;
         toggle.hidden = true;
         done.hidden = false;
@@ -815,9 +871,57 @@
     return new Date(t).toLocaleDateString();
   }
 
-  function buildWatches() {
+  function buildWatches(entry = {}) {
     const el = $('#tpl-watches').content.firstElementChild.cloneNode(true);
     const list = $('[data-watch-list]', el);
+    // "Tell me when …": parse the sentence, show what will be watched, then save it.
+    const twText = $('[data-tw-text]', el);
+    const twPrev = $('[data-tw-preview]', el);
+    const TW_EX = ['Tell me when NVDA drops below 200', 'Tell me when bitcoin goes above 100k', 'Tell me when USD to JPY is above 160', 'Tell me when GTA 6 is out', 'Tell me about new recalls for Kia Sorento', 'Tell me about new papers on solid-state batteries'];
+    $('[data-tw-examples]', el).innerHTML = TW_EX.map((x) => `<button type="button" data-tw-ex="${esc(x)}">${esc(x)}</button>`).join('');
+    async function propose(text) {
+      let p;
+      try {
+        p = await api.post('/api/track/parse', { text });
+      } catch (e) {
+        twPrev.hidden = false;
+        twPrev.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
+        return;
+      }
+      const what = p.kind === 'threshold' ? `When the figure in the answer to <q>${esc(p.query)}</q> goes <b>${esc(p.when.op)} ${esc(p.when.value.toLocaleString())}</b>, you get a notification and it stops.` : p.kind === 'until' ? `When a source says <b>${esc(p.label.split(': ')[0])}</b> has been ${esc(p.until)} (not just expected), you get a notification and it stops.` : `Each new source about <q>${esc(p.query)}</q> is news: you get a notification when there are new ones.`;
+      twPrev.hidden = false;
+      twPrev.innerHTML = `<p>${what}</p><div class="tw-acts"><label>Check <select data-tw-every><option value="hourly">every hour</option><option value="daily">every day</option><option value="weekly">every week</option></select></label><button type="button" class="la-btn" data-tw-save>Start watching</button><button type="button" class="link-btn" data-tw-cancel>Cancel</button></div>`;
+      $('[data-tw-every]', twPrev).value = p.every;
+      $('[data-tw-cancel]', twPrev).onclick = () => (twPrev.hidden = true);
+      $('[data-tw-save]', twPrev).onclick = async () => {
+        try {
+          await api.post('/api/watches', { query: p.query, label: p.label, every: $('[data-tw-every]', twPrev).value, until: p.until, untilRe: p.untilRe, untilAbout: p.untilAbout, when: p.when });
+        } catch (e) {
+          twPrev.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
+          return;
+        }
+        askNotify();
+        twPrev.hidden = true;
+        twText.value = '';
+        load();
+      };
+    }
+    $('[data-tw-form]', el).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const t = twText.value.trim();
+      if (t) propose(/^(?:tell|notify|alert|track|watch|let)\b/i.test(t) ? t : `tell me when ${t}`);
+    });
+    el.addEventListener('click', (e) => {
+      const ex = e.target.closest('[data-tw-ex]');
+      if (ex) {
+        twText.value = ex.dataset.twEx;
+        propose(ex.dataset.twEx);
+      }
+    });
+    if (entry.track) {
+      twText.value = entry.track;
+      propose(entry.track);
+    }
     async function load() {
       let data;
       try {
@@ -853,8 +957,9 @@
       li.innerHTML = `
         <div class="watch-main">
           <div class="watch-title">${w.unseen ? '<span class="new-pill">New</span>' : ''}${esc(w.label || w.query)}</div>
-          ${w.met ? `<div class="watch-met"><b>Found “${esc(w.until)}”</b> ${esc(timeAgo(w.met.at))}, so it stopped: …${esc(w.met.snippet)}…</div>` : ''}
-          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? ` · stops when it mentions “${esc(w.until)}”` : ''}</div>
+          ${w.met ? (w.when ? `<div class="watch-met"><b>${esc(w.when.op === 'below' ? 'Below' : 'Above')} ${esc(w.when.value.toLocaleString())}</b> ${esc(timeAgo(w.met.at))}, so it stopped: ${esc(w.met.snippet)}</div>` : `<div class="watch-met"><b>Found “${esc(w.until)}”</b> ${esc(timeAgo(w.met.at))}, so it stopped: …${esc(w.met.snippet)}…</div>`) : ''}
+          ${w.when && !w.met ? `<div class="watch-line">Tells you when it goes ${esc(w.when.op)} <b>${esc(w.when.value.toLocaleString())}</b>${w.lastValue ? ` · last ${esc(Number(w.lastValue.value).toLocaleString())} (${esc(timeAgo(w.lastValue.at))})` : ''}</div>` : ''}
+          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? (w.untilRe ? ` · stops when a source says it’s ${esc(w.until)}` : ` · stops when it mentions “${esc(w.until)}”`) : ''}</div>
           <details class="watch-hist">
             <summary>History (${w.history.length})</summary>
             <ol></ol>

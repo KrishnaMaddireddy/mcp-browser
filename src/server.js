@@ -21,6 +21,7 @@ import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
 import { detectEntity, runCard } from './cards.js';
+import { parseTrack } from './track.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
@@ -944,12 +945,18 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'POST /api/watches': async (req, res) => {
       const b = await readJson(req);
       try {
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group });
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilRe: b.untilRe, untilAbout: b.untilAbout, when: b.when });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {
         json(res, 400, { error: errMsg(e) });
       }
+    },
+    // "tell me when NVDA drops below 200" → a proposed watch to confirm.
+    'POST /api/track/parse': async (req, res) => {
+      const b = await readJson(req);
+      const p = parseTrack(String(b.text || '').slice(0, 300));
+      json(res, p ? 200 : 400, p || { error: 'Start with “tell me when …”, e.g. “tell me when NVDA drops below 200”.' });
     },
     'POST /api/watches/update': async (req, res) => {
       const b = await readJson(req);

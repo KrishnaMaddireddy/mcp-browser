@@ -1,6 +1,7 @@
 // Watches: saved searches that re-run on a schedule while the app is open and
 // report what changed since last time (new sources, a different answer).
 import { runPipeline, pipelineText } from './pipelines.js';
+import { figureIn, thresholdMet, saysItHappened } from './track.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -28,6 +29,15 @@ export function cleanAdhoc(adhoc, servers = []) {
     .slice(0, 5)
     .filter((a) => a && typeof a === 'object' && servers.includes(String(a.id)) && /^https:\/\/[^\s{}]+$/i.test(String(a.url || '')) && String(a.url).length < 500)
     .map((a) => ({ id: String(a.id).slice(0, 200), title: String(a.title || a.id).slice(0, 120), description: String(a.description || '').slice(0, 400), url: String(a.url), transport: a.transport === 'sse' ? 'sse' : 'streamable-http', source: 'registry', trust: 'community', tags: [] }));
+}
+
+function validPattern(p) {
+  try {
+    new RegExp(String(p));
+    return String(p).length <= 400;
+  } catch {
+    return false;
+  }
 }
 
 export class WatchStore {
@@ -63,7 +73,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilRe, untilAbout }) {
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('query required');
     if (!EVERY[every]) throw new Error('every must be hourly, daily or weekly');
@@ -82,6 +92,10 @@ export class WatchStore {
       // A pipeline on a schedule (pipelines.js); "until": stop once its result says this.
       ...(pipeline ? { pipeline, input: String(input || '').slice(0, 200), ...(pipeAdhoc && Array.isArray(pipeAdhoc) ? { pipeAdhoc: cleanAdhoc(pipeAdhoc, pipeAdhoc.map((a) => a?.id)) } : {}) } : {}),
       ...(String(until || '').trim() ? { until: String(until).trim().slice(0, 120) } : {}),
+      // "Tell me when it happened": a pattern that has to match in a sentence naming the thing.
+      ...(untilRe && validPattern(untilRe) ? { untilRe: String(untilRe).slice(0, 400), untilAbout: (Array.isArray(untilAbout) ? untilAbout : []).slice(0, 6).map((w) => String(w).toLowerCase().slice(0, 40)) } : {}),
+      // A threshold on the answer's figure: { op: 'below' | 'above', value }.
+      ...(when && ['below', 'above'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value) } } : {}),
       createdAt: this.now(),
       nextRunAt: this.now(), // first run as soon as the scheduler ticks
       lastRun: null,
@@ -209,13 +223,33 @@ export class WatchScheduler {
   /** Loops: once the result says what you were waiting for, stop running and flag it. */
   _until(w, text) {
     if (!w.until || w.met) return;
-    const i = String(text).toLowerCase().indexOf(w.until.toLowerCase());
-    if (i < 0) return;
-    const t = String(text);
-    w.met = { at: this.store.now(), snippet: t.slice(Math.max(0, i - 80), i + w.until.length + 120).replace(/\s+/g, ' ').trim() };
+    let snippet;
+    if (w.untilRe) {
+      snippet = saysItHappened(text, w.untilRe, w.untilAbout || []);
+      if (!snippet) return;
+    } else {
+      const i = String(text).toLowerCase().indexOf(w.until.toLowerCase());
+      if (i < 0) return;
+      snippet = String(text).slice(Math.max(0, i - 80), i + w.until.length + 120).replace(/\s+/g, ' ').trim();
+    }
+    w.met = { at: this.store.now(), snippet };
     w.nextRunAt = Number.MAX_SAFE_INTEGER;
     w.unseen = (w.unseen || 0) + 1;
     this.store.save();
+  }
+
+  /** "Tell me when it drops below 200": the answer's figure, checked against the line. */
+  _threshold(w, answer) {
+    if (!w.when || w.met) return;
+    const value = figureIn(answer);
+    if (value == null) return;
+    w.lastValue = { value, at: this.store.now(), text: String(answer).slice(0, 200) };
+    if (thresholdMet(w.when, value)) {
+      w.met = { at: this.store.now(), snippet: String(answer).slice(0, 240), value };
+      w.nextRunAt = Number.MAX_SAFE_INTEGER;
+      w.unseen = (w.unseen || 0) + 1;
+    }
+    this.store.trySave();
   }
 
   async _run(id) {
@@ -249,6 +283,7 @@ export class WatchScheduler {
       const r = await Promise.race([this.agent.search(w.query, { emit, discovery: w.discovery, signal: ac.signal, servers: w.servers, adhoc: w.adhoc }), timeout]);
       const rec = this.store.record(id, { mode: r.mode, answer: r.answer || '', results, sources: r.sources || [] });
       this._until(w, [r.answer || '', ...results.map((x) => x.text)].join('\n'));
+      this._threshold(w, r.quickAnswer?.text || r.answer || '');
       return rec;
     } catch (e) {
       log.warn('watch failed', errMsg(e));
