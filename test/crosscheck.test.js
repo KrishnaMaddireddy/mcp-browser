@@ -367,26 +367,14 @@ test('a dotted capital İ (İstanbul) keeps words and their positions lined up',
   assert.equal(judgeSentence(claimParts('Istanbul is in Turkey'), 'İstanbul is in Turkey, on the Bosphorus.')?.stance, 'supports');
 });
 
-test('"It …" is read as the subject only when nothing else could be "it"', () => {
+test('a sentence starting with "It" is never read as the claim\'s subject', () => {
   const st = (c, t) => judgeText(claimParts(c), t)?.stance ?? null;
-  // read with the subject
-  assert.equal(st('The Thames flows through London', 'The River Thames is the longest river in England. It flows through London.'), 'supports');
-  assert.equal(st('The Panama Canal opened in 1930', 'The Panama Canal is an artificial waterway. It opened in 1914.'), 'differs');
-  assert.equal(st('The Titanic sank in 1912', 'The Titanic was a British ocean liner. It sank in 1912.'), 'supports');
-  assert.equal(st('Oxygen has the symbol O', 'Oxygen is a chemical element; it has the symbol O and atomic number 8.'), 'supports');
-  // not: a cleft, another name before, a name that only contains the subject, a different thing
-  const no = [
+  for (const [c, t] of [
+    ['Mars is made mostly of carbon dioxide', 'Mars has a thin atmosphere. It is made mostly of carbon dioxide.'],
     ['Thomas Edison invented the telephone', 'Thomas Edison was a prolific American inventor. It was Alexander Graham Bell who invented the telephone.'],
-    ['Canberra is the largest city in Australia', 'Canberra is the capital, but Sydney is bigger. It is the largest city in Australia.'],
-    ['Canberra is the largest city in Australia', 'Canberra lies inland from Sydney. It is the largest city in Australia.'],
-    ['York is the largest city in the United States', 'New York is a city on the East Coast. It is the largest city in the United States.'],
-    ['The Titanic sank in 1915', 'The Titanic exhibit tells of the Lusitania too. It sank in 1915.'],
-    ['Paris is the largest country in Western Europe', 'Paris is the capital of France. It is the largest country in Western Europe.'],
-    ['The Amazon is the longest river in the world', 'The Amazon is shorter than the Nile. It is the longest river in the world.'],
-    ['Mars has three moons', 'Mars is the fourth planet. It may have three moons, some say.'],
-    ['The Danube flows through Paris', 'The Danube flows through ten countries. "It flows through Paris," the guide joked.'],
-  ];
-  for (const [c, t] of no) assert.notEqual(st(c, t), 'supports', c);
+    ['Istanbul has a population of 85 million', 'Istanbul is the largest city in Turkey. It has a population of 85 million.'],
+    ['The Colosseum was built in 2010', 'The Colosseum has a new floor. It was built in 2010.'],
+  ]) assert.notEqual(st(c, t), 'supports', c);
 });
 
 test('"The Sun is orbited by the Earth" does not back "The Sun orbits the Earth"', () => {
@@ -394,8 +382,14 @@ test('"The Sun is orbited by the Earth" does not back "The Sun orbits the Earth"
   assert.equal(judgeSentence(claimParts('Jeff Bezos founded Amazon'), 'Amazon was founded by Jeff Bezos in 1994.')?.stance, 'supports');
 });
 
-test('recall: the claim\'s own "into", "<work> is a novel by <maker>"; no echoes in quotes, no "the myth of <title>"', () => {
+test('recall: the claim\'s own "into"; no echoes in quotes, no "the myth of <Title>"', () => {
   const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  // (the claim's preposition only with the claim's own next word)
+  assert.notEqual(st('The Rhine flows into the Black Sea', 'The Rhine flows into the North Sea and the Danube flows into the Black Sea.'), 'supports');
+  assert.notEqual(st('The Mayflower sailed from America to England', 'The Mayflower sailed from England to America in 1620.'), 'supports');
+  // (myths about something are still denials)
+  assert.notEqual(st('Vaccines cause autism', 'Among the myths about vaccines, the most harmful is that vaccines cause autism.'), 'supports');
+  assert.notEqual(st('The Earth is flat', 'Myths about the Earth: the Earth is flat.'), 'supports');
   assert.equal(st('The Danube flows into the Black Sea', 'The Danube River flows into the Black Sea through the vast Danube Delta.'), 'supports');
   assert.notEqual(st('The Volga flows into the Black Sea', 'The Volga flows into the Caspian Sea.'), 'supports');
   assert.equal(st('Henry Ford invented the automobile', 'Henry Ford invented the assembly line for the automobile.'), 'mentions');

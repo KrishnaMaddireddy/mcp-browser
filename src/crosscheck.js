@@ -230,12 +230,10 @@ export function claimParts(claim) {
 // Hearsay, quizzes and stories report a claim, they don't make it ("many people assume Toronto is …").
 const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out|conceiv\w*|imagin\w*|envision\w*|if|unless|whether)\b)/iu;
 // A source that calls it a myth or false is saying no.
-const MYTH_NOUN = /\b(?:the\s+)?(?:\p{L}+\s+)?myths?\s+(?:of|about|surrounding|around)\s+(?!(?:the\s+)?(?:that|how|why)\b)/giu;
 const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
 const COUNTRY_NAMES = 'Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Czechia|Denmark|Djibouti|Dominican Republic|Ecuador|Egypt|El Salvador|Eritrea|Estonia|Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Mauritania|Mauritius|Mexico|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|Oman|Pakistan|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saudi Arabia|Senegal|Serbia|Sierra Leone|Singapore|Slovakia|Slovenia|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tunisia|Turkey|Turkmenistan|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe|England|Scotland|Wales';
 const COUNTRY = new RegExp(`^(?:${COUNTRY_NAMES})$`);
-// ("flows into the (red or Mediterranean) sea": a choice to make, as in a quiz)
-const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b|\b(?:the|an?|is|was|into|in|of)\s+\([^()]{1,40}\s(?:or|\/)\s[^()]{1,40}\)/i;
+const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;
 // Page titles and headlines name a topic; they aren't statements ("Discovery of penicillin - Wikipedia").
 const isHeading = (s, { prose = false } = {}) => {
   const words = s.split(/\s+/);
@@ -257,35 +255,25 @@ export function judgeSentence(parts, sentence, { prose = false } = {}) {
   let j = judgeCore(parts, sentence);
   if (!j) return j;
   if (QUIZ.test(sentence)) return { stance: 'mentions', sentence };
+  // ("flows into the (red or Mediterranean) sea": a choice to make, as in a quiz, when one of the
+  // choices is the claim's own word; not "a (false or misleading) claim")
+  const choice = /\b(?:the|an?|is|was|into|in|of)\s+\(([^()]{1,40}\s(?:or|\/)\s[^()]{1,40})\)/i.exec(sentence);
+  if (choice && wordsAt(choice[1]).some((w) => parts.words.some((n) => matches(n, w)))) return { stance: 'mentions', sentence };
   // (the claim itself in quotes: «…», "…": someone repeating the question, not answering it)
   if (!MYTH.test(sentence) && new RegExp(`[«"“„'‘]\\s*${parts.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')}[.?!]?\\s*[»"”'’]`, 'i').test(sentence)) return { stance: 'mentions', sentence };
-  // ("the myth of Nineteen Eighty-Four", "Greek myths": a story's name, not a denial)
-  if (MYTH.test(sentence.replace(MYTH_NOUN, '')) && (j.stance !== 'mentions' || has(parts, sentence) >= 0.6)) j = { stance: 'differs', sentence };
+  // ("the myth of Nineteen Eighty-Four": a title, not a denial; only "the myth of <Title>" when the
+  // title isn't the claim's subject — never "myths about vaccines", "the myth of Napoleon being short")
+  const subjHead = String(parts.subject || '').replace(/^the\s+/i, '').split(/\s+/)[0] || '\u0000';
+  const titled = sentence.replace(/\b(?:the\s+)?myths?\s+of\s+(?=\p{Lu})(?!(?:The\s+)?(?:That|How|Why)\b)/gu, (m, at) => (sentence.slice(at + m.length).startsWith(subjHead) ? m : ''));
+  if (MYTH.test(titled) && (j.stance !== 'mentions' || has(parts, sentence) >= 0.6)) j = { stance: 'differs', sentence };
   else if (j.stance === 'mentions') return j;
   else if (isHeading(sentence, { prose }) || HEDGE.test(sentence)) return { stance: 'mentions', sentence };
   // "Canberra is not the capital": a source saying it is, says otherwise.
   if (parts.negated && j.stance !== 'mentions') return j.stance === 'supports' ? { stance: 'differs', sentence } : j.other || j.figure ? { stance: 'mentions', sentence } : { stance: 'supports', sentence };
   if (j.stance === 'supports' && narrowedSuperlative(parts, sentence)) return { stance: 'mentions', sentence };
-  // "Nineteen Eighty-Four is a dystopian novel by George Orwell" says "George Orwell wrote …".
-  if (j.stance === 'mentions' && workBy(parts, sentence)) return { stance: 'supports', sentence };
   // "The Sun is orbited by the Earth" turns "The Sun orbits the Earth" around.
   if (j.stance === 'supports' && reversedPassive(parts, sentence)) return { stance: 'mentions', sentence };
   return j;
-}
-// A maker and the thing made: "<work> is a novel by <maker>".
-const MAKERS = /^(?:wrote|painted|composed|directed|designed|sculpted|created|drew|authored)$/i;
-const WORK_NOUN = 'novel|book|play|poem|story|essay|memoir|series|painting|portrait|fresco|mural|sculpture|statue|song|symphony|concerto|opera|ballet|album|film|movie|building|bridge|tower|church|cathedral|house|museum|work|masterpiece';
-function workBy(parts, sentence) {
-  if (parts.passive || parts.negated || !parts.subject || !MAKERS.test(String(parts.relation || ''))) return false;
-  const at = parts.text.search(new RegExp(`\\b${parts.relation}\\b`, 'i'));
-  const work = parts.text.slice(at + parts.relation.length).trim().replace(/^the\s+/i, '');
-  if (!work || NEGATION.test(sentence) || HEDGE.test(sentence) || QUIZ.test(sentence)) return false;
-  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const maker = parts.subject.replace(/^the\s+/i, '');
-  // (the work opens the sentence; "is/was a … <noun> by" then, within a few words, the maker,
-  // with nothing but titles and descriptions in between: "by English writer George Orwell")
-  const re = new RegExp(`^["“'‘]?(?:the\\s+)?${esc(work)}["”'’]?[^;]{0,90}?\\b(?:is|was)\\s+(?:an?|the)\\s+(?:[\\p{L}-]+\\s+){0,4}?(?:${WORK_NOUN})\\s+by\\s+(?:(?!(?:of|and|with|for|the\\s+(?:son|wife|husband|daughter|friend|student|rival)s?)\\b)(?:\\p{Ll}[\\p{L}-]*|\\p{Lu}\\p{Ll}+(?:ish|ian|an|ese|ic|ch))\\s+){0,3}${esc(maker)}\\b`, 'iu');
-  return re.test(sentence.trim());
 }
 /** The claim's subject followed by "is <relation>ed by": the roles are the other way round. */
 function reversedPassive(parts, sentence) {
@@ -316,11 +304,12 @@ function narrowedSuperlative(parts, sentence) {
   }
   return narrowed;
 }
-// (the claim's own words, all of them: "flows into" keeps its "into")
-const claimWordCache = new WeakMap();
-function claimWordSet(parts) {
-  if (!claimWordCache.has(parts)) claimWordCache.set(parts, new Set(wordsAt(parts.text)));
-  return claimWordCache.get(parts);
+// (the claim's own preposition counts, but only with the claim's own next word: "into the Black
+// Sea" for "flows into the Black Sea", never "into the North Sea … the Black Sea", and never
+// "from England to America" for "from America to England")
+function claimPrepPair(parts, prep, next) {
+  const cw = wordsAt(parts.text).filter((x) => !/^(?:the|a|an)$/.test(x));
+  return cw.some((x, k) => x === prep && cw[k + 1] && next && (cw[k + 1] === next || matches(cw[k + 1], next)));
 }
 /** The share of the claim's words a sentence has. */
 function has(parts, sentence) {
@@ -830,7 +819,7 @@ function judgeCore(parts, sentence) {
     // The thing comes after the verb, in its clause, with no other doer's verb in between
     // ("Shakespeare wrote Hamlet around the time Cervantes wrote Don Quixote").
     // (the verb's own object: not "the assembly line for the automobile", "the thermoscope and improved the telescope")
-    const objAt = objHitsAll.find((i) => i > verbAt && ids[i] === ids[verbAt] && i - verbAt <= 2 * obj.length + 4 && !ws.slice(verbAt + 1, i).some((w) => (/^(?:for|of|to|with|from|about|into|than|on)$/.test(w) && !claimWordSet(parts).has(w)) || (/(?:ed|en)$/.test(w) && w.length > 4 && !relWords.some((n) => matches(n, w)))));
+    const objAt = objHitsAll.find((i) => i > verbAt && ids[i] === ids[verbAt] && i - verbAt <= 2 * obj.length + 4 && !ws.slice(verbAt + 1, i).some((w, k, rest) => (/^(?:for|of|to|with|from|about|into|than|on)$/.test(w) && !claimPrepPair(parts, w, rest.slice(k + 1).find((x) => !/^(?:the|a|an)$/.test(x)) ?? ws[i])) || (/(?:ed|en)$/.test(w) && w.length > 4 && !relWords.some((n) => matches(n, w)))));
     if (relWords.length) {
       if (objAt == null) return loose();
       const v2 = verbHits.filter((v) => v > verbAt && v < objAt).pop();
@@ -846,74 +835,19 @@ function judgeCore(parts, sentence) {
 
 const RANK = { supports: 3, differs: 2, mentions: 1 };
 
-// The verbs a sentence about a thing starts with ("The Thames flows …", "Oxygen is …").
-const IT_VERB = 'is|was|are|were|has|had|have|became|becomes|remains|remained|lies|lay|sits|stands|stood|flows|flowed|runs|ran|rises|rose|covers|borders|orbits|contains|forms|serves|opened|began|reaches|measures|includes|holds';
-// ("It" then a verb; not "It may …", "It seems …": those say less than the claim)
-const IT_SENTENCE = /^It\s+(?!(?:may|might|could|would|should|must|can|seems?|appears?|depends|remains to)\b)\p{Ll}/u;
-// "It was Bell who …", "It is in London that …": a cleft points at something else.
-const CLEFT = /^It\s+(?:is|was|'s)\b.{0,90}?\b(?:who|whom|whose|that|which|where|when)\b/i;
-const PLACE = new RegExp(`^(?:${COUNTRY_NAMES})$`);
-const BREAKS = /;|\b(?:but|while|whereas|although|though|however|unlike|instead)\b/i;
-/**
- * The sentence with "It" read as the claim's subject, or null when anything else could be "it".
- * Only when the sentence before starts with the subject itself ("The Thames is …", not "The
- * Thames Barrier …" or "New York …"), right before its verb, names no other proper noun (no
- * "Sydney", "Bell"), has no "but"/"while" turn, and the "It …" sentence isn't a cleft.
- * Also "<subject> is …; it has …" within one sentence, by the same rules.
- */
-export function itMeansSubject(parts, before, s) {
-  // (the claim's subject, or the name it starts with: "The Titanic sank in 1912")
-  const lead = /^(?:The\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})/u.exec(String(parts.text || ''))?.[1] || '';
-  const subj = String(parts.subject || lead).replace(/^the\s+/i, '').trim();
-  if (!subj || !/^\p{Lu}/u.test(subj)) return null;
-  const esc = subj.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const opens = new RegExp(`^(?:The\\s+)?(?:River\\s+|Lake\\s+)?${esc}(?=[\\s,])`);
-  const own = new Set(wordsAt(parts.text));
-  const aboutSubject = (t) => {
-    const flat = String(t || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!opens.test(flat) || BREAKS.test(flat)) return false;
-    const rest = flat.replace(opens, '').trim();
-    if (!new RegExp(`^(?:${IT_VERB})\\b`).test(rest)) return false;
-    // Any other proper noun could be what "it" means ("lies inland from Sydney"), except a
-    // country, continent or Earth after "in"/"on" ("the longest river in England") and a
-    // people's adjective ("a Nordic island country").
-    const names = [...rest.matchAll(/(?:^|[\s,"“(])((?:(in|on|of)\s+(?:the\s+)?)?)(\p{Lu}[\p{L}'’-]*(?:\s+\p{Lu}[\p{L}'’-]*)*)/gu)];
-    return !names.some((m) => {
-      const name = m[3];
-      if (wordsAt(name).every((w) => own.has(w))) return false;
-      if (m[2] && m[2].trim() !== "of" && (PLACE.test(name) || /^(?:Earth|Europe|Asia|Africa|Antarctica|Oceania|North America|South America|Central America|the Americas)$/.test(name))) return false;
-      return !/^\p{Lu}\p{Ll}+(?:ic|an|ian|ish|ese)$/u.test(name);
-    });
-  };
-  const free = (t) => IT_SENTENCE.test(t) && !CLEFT.test(t) && !/["“”]/.test(t);
-  const said = /^the\s/i.test(parts.text) ? `The ${subj}` : subj;
-  if (free(s) && aboutSubject(before)) return s.replace(/^It\b/, said);
-  const m = /^(.+?);\s+it\s+(.+)$/.exec(s);
-  if (m && aboutSubject(m[1]) && free(`It ${m[2]}`)) return `${said} ${m[2]}`;
-  return null;
-}
-
 /** The best sentence from one source's text: the strongest stance, then the most claim words. */
 export function judgeText(parts, text) {
   let best = null;
   // Markdown links and footnote marks read as their words ("343 [m/s](./Metre per second)" is "343 m/s").
   const plain = String(text || '').replace(/\[([^\]]{1,80})\]\([^)]{0,300}\)/g, '$1').replace(/\[(\d{1,3}|[a-z])\]/g, '').replace(/\[([^\]]{1,40})\]/g, '$1');
-  let prev = '';
   for (const raw of plain.split(SENTENCE)) {
     const s = raw.replace(/\s+/g, ' ').trim();
-    const before = prev;
-    prev = s;
-    if (s.length < (/^It\s/.test(s) ? 12 : 20) || s.length > 400) continue;
+    if (s.length < 20 || s.length > 400) continue;
     // A question asks, it doesn't say ("Did Thomas Edison invent the telephone?").
     if (/\?[\s.]*$/.test(s) || /\?\s+[-–|]/.test(s) || /^(?:did|does|do|is|was|are|were|can|who|what|when|where|which|how|why)\b/i.test(s)) continue;
-    let j = judgeSentence(parts, s);
-    // "The Thames is a river in England. It flows through London.": read with the subject, only
-    // when nothing else could be "it" (see itMeansSubject). The quote stays as written.
-    if (!j || j.stance === 'mentions') {
-      const bound = itMeansSubject(parts, before, s);
-      const k = bound && judgeSentence(parts, bound, { prose: true });
-      if (k && k.stance !== 'mentions') j = { ...k, sentence: s, bound: true };
-    }
+    // (a sentence starting with "It" is never read as the claim's subject: two careful tries
+    // still let false claims through — "Mars has a thin atmosphere. It is made of …")
+    const j = judgeSentence(parts, s);
     if (!j) continue;
     const score = RANK[j.stance] * 10 + tokenize(s).filter((w) => parts.words.includes(w)).length;
     if (!best || score > best.score) best = { ...j, score };
