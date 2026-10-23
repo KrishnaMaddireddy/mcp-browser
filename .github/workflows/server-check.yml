@@ -67,6 +67,17 @@ jobs:
             if [ "$failed" != "0" ]; then echo '```'; grep '^FAIL' "$RUNNER_TEMP/pipelines.txt" | cut -c1-120; echo '```'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: server-check
+          path: |
+            ${{ runner.temp }}/services.md
+            ${{ runner.temp }}/services.json
+            ${{ runner.temp }}/pipelines.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
       - name: Keep one issue up to date
         if: github.event_name == 'schedule' || inputs.issue
         env:
