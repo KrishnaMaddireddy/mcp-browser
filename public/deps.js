@@ -43,7 +43,7 @@
           const s = done.summary;
           const both = done.sources.osv && done.sources.audit;
           const agreeLine = both && s.agreed + s.disagreed > 0 ? (s.disagreed ? `The two OSV servers disagree on ${s.disagreed} package${s.disagreed === 1 ? '' : 's'}: both counts are shown.` : `Two OSV servers from different publishers agree on ${s.agreed === s.checked ? `all ${s.agreed}` : `${s.agreed} of ${s.checked}`}.`) : 'Only one OSV server had answers, so nothing was double-checked.';
-          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
+          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-watch>Tell me about new advisories</button> · <button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
         } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
         const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
         const ranged = rows.some((r) => /^[\^~>]/.test(r.range || '')) ? '<p class="hint">For ranges like ^4.17.15 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
@@ -108,6 +108,20 @@
         }
       }
       render();
+      // Checked again each day: a new advisory for one of these versions is news.
+      const wb = out.querySelector('[data-dp-watch]');
+      if (wb && my === runId && done)
+        wb.onclick = async () => {
+          const st = out.querySelector('[data-dp-copied]');
+          try {
+            const r = await fetch('/api/watches', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ every: 'daily', deps: rows.filter((r) => r.version).map((r) => ({ name: r.name, version: r.version, ecosystem: r.ecosystem })) }) });
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `failed (${r.status})`);
+            if (st) st.textContent = 'Watching: checked every day, on the Watches page';
+            hooks.watching?.();
+          } catch (e) {
+            if (st) st.textContent = `Couldn’t start watching: ${e.message}`;
+          }
+        };
       // A table to paste into a pull request, an issue or a chat.
       const btn = out.querySelector('[data-dp-copy]');
       if (btn && my === runId && done)
@@ -162,7 +176,11 @@
       const cve = e.target.closest('[data-dp-cve]');
       if (cve) hooks.search?.(cve.dataset.dpCve);
     });
-    setTimeout(() => ta.focus(), 0);
+    // (opened from a watch: its packages, checked right away)
+    if (hooks.text) {
+      ta.value = hooks.text;
+      run(hooks.text);
+    } else setTimeout(() => ta.focus(), 0);
   }
 
   window.MCPDeps = { mount };

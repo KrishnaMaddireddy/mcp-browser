@@ -13,6 +13,7 @@ import { errMsg, mapLimit, log } from './util.js';
 import { EmbeddingIndex } from './embeddings.js';
 import { runRank, rankScores, loadRank, SUITES } from './rank.js';
 import { WatchStore, WatchScheduler } from './watches.js';
+import { loadCatalog, adhocFor } from './catalog-index.js';
 import { LocalServers } from './local-servers.js';
 
 function isLocalHostUrl(url) {
@@ -64,8 +65,21 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
   };
   const agent = new SearchAgent({ catalog, pool, health, getSettings: () => settings, getProvider });
 
+  /**
+   * Call one tool of a catalog server by id (for features that ask a fixed, vetted server:
+   * Dependency check). A server switched off in Settings is never called.
+   */
+  async function callCatalogTool(id, tool, args, { signal, timeoutMs = 30000 } = {}) {
+    if (settings.serverOverrides?.[id] === false) throw new Error('switched off in Settings');
+    const c = loadCatalog();
+    const server = catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
+    if (!server) throw new Error('not in the catalog');
+    const r = await pool.callTool(server, tool, args, { timeoutMs, signal });
+    if (r?.isError) throw new Error(String(r.content?.[0]?.text || 'the server returned an error').slice(0, 200));
+    return r;
+  }
   const watches = new WatchStore();
-  const scheduler = new WatchScheduler({ store: watches, agent });
+  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool });
   const sync = { running: false, progress: null, error: null, last: null };
   const rank = { running: false, category: null, progress: null, error: null };
   const stars = new StarsStore();
@@ -82,6 +96,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
   return {
     catalog,
     pool,
+    callCatalogTool,
     oauth,
     stars,
     /** GitHub stars for a server: { repo, url, stars, pushedAt, archived, fork, sharedWith } or null. */

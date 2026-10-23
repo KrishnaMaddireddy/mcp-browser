@@ -219,3 +219,29 @@ test('a price watch only has news when it crosses; a wild reading is ignored; no
   assert.equal(after.lastValue.value, 211.8);
   assert.equal(after.lastMiss.value, 52);
 });
+
+test('a dependency watch: each advisory is a source, so a new one is news', async () => {
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler } = await import('../src/watches.js');
+  const { DEP_SERVERS } = await import('../src/deps.js');
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-dw-')), 'w.json') });
+  const w = store.add({ deps: [{ name: 'lodash', version: '4.17.15', ecosystem: 'npm' }, { name: 'bad name!', version: '1', ecosystem: 'npm' }, { name: 'x', version: '1', ecosystem: 'maven' }] });
+  assert.deepEqual(w.deps.map((p) => p.name), ['lodash']);
+  assert.equal(w.query, 'Dependencies: lodash');
+  let ids = ['GHSA-1'];
+  const callTool = async (id) => {
+    if (id === DEP_SERVERS.osv) return { structuredContent: { results: [{ name: 'lodash', ecosystem: 'npm', version: '4.17.15', vulns: ids.map((x) => ({ id: x, summary: `issue ${x}`, aliases: [], severityLabel: 'HIGH', fixedVersions: ['4.17.21'] })) }] } };
+    throw new Error('off');
+  };
+  const sch = new WatchScheduler({ store, agent: { search: async () => ({}) }, callTool });
+  await sch.run(w.id);
+  assert.equal(store.get(w.id).unseen, 0); // the first run is the baseline
+  ids = ['GHSA-1', 'GHSA-2'];
+  store.get(w.id).nextRunAt = 0;
+  await sch.run(w.id);
+  const after = store.get(w.id);
+  assert.equal(after.unseen, 1);
+  assert.equal(after.history[0].newSources[0].url, 'https://osv.dev/vulnerability/GHSA-2');
+});

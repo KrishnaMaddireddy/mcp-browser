@@ -661,16 +661,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const ac = new AbortController();
       res.on('close', () => ac.abort());
       const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
-      const c = loadCatalog();
-      const off = engine.settings.serverOverrides || {};
-      const callTool = async (id, tool, args) => {
-        if (off[id] === false) throw new Error('switched off in Settings');
-        const server = engine.catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
-        if (!server) throw new Error('not in the catalog');
-        const r = await engine.pool.callTool(server, tool, args, { timeoutMs: 30000, signal: ac.signal });
-        if (r?.isError) throw new Error(String(r.content?.[0]?.text || 'the server returned an error').slice(0, 200));
-        return r;
-      };
+      const callTool = (id, tool, args) => engine.callCatalogTool(id, tool, args, { signal: ac.signal });
       try {
         await runDeps(pkgs, { callTool, titleOf, emit });
       } catch (e) {
@@ -1055,7 +1046,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const b = await readJson(req);
       try {
         // (the "it happened" pattern is built here from the word; a client's regex is never run)
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when });
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when, deps: b.deps });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {

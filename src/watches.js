@@ -2,6 +2,7 @@
 // report what changed since last time (new sources, a different answer).
 import { runPipeline, pipelineText } from './pipelines.js';
 import { figureIn, thresholdMet, saysItHappened, saidPattern, plausibleReading } from './track.js';
+import { runDeps } from './deps.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -65,7 +66,13 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps }) {
+    // Packages to re-check for new advisories: names and versions only.
+    const pkgs = (Array.isArray(deps) ? deps : [])
+      .slice(0, 150)
+      .map((p) => ({ name: String(p?.name || '').slice(0, 214), version: p?.version ? String(p.version).slice(0, 40) : null, ecosystem: String(p?.ecosystem || '') }))
+      .filter((p) => /^[@\w][\w.@/-]*$/.test(p.name) && ['npm', 'pypi', 'cargo'].includes(p.ecosystem) && (!p.version || /^[\w.+-]+$/.test(p.version)));
+    if (pkgs.length && !String(query || '').trim()) query = `Dependencies: ${pkgs.slice(0, 4).map((p) => p.name).join(', ')}${pkgs.length > 4 ? ` +${pkgs.length - 4}` : ''}`;
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('query required');
     if (!EVERY[every]) throw new Error('every must be hourly, daily or weekly');
@@ -89,6 +96,7 @@ export class WatchStore {
       ...(Array.isArray(untilAbout) && untilAbout.length && saidPattern(String(until || '').trim().toLowerCase())
         ? { untilRe: saidPattern(String(until).trim().toLowerCase()), untilAbout: untilAbout.slice(0, 6).map((w) => String(w).toLowerCase().slice(0, 40)).filter((w) => /^[\p{L}\p{N}]+$/u.test(w)) }
         : {}),
+      ...(pkgs.length ? { deps: pkgs } : {}),
       // A threshold on the answer's figure: { op: 'below' | 'above' | 'reach', value, unit? }.
       ...(when && ['below', 'above', 'reach'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value), ...(when.unit === '%' ? { unit: '%' } : {}) } } : {}),
       createdAt: this.now(),
@@ -176,9 +184,10 @@ export class WatchStore {
  * and the first run after adding all go through one queue.
  */
 export class WatchScheduler {
-  constructor({ store, agent, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
+  constructor({ store, agent, callTool = null, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
     this.store = store;
     this.agent = agent;
+    this.callTool = callTool;
     this.intervalMs = intervalMs;
     this.runTimeoutMs = runTimeoutMs;
     this.timer = null;
@@ -280,6 +289,15 @@ export class WatchScheduler {
           reject(new Error('the search took longer than 5 minutes'));
         }, this.runTimeoutMs);
       });
+      // Packages: each advisory is a source, so a new one is news.
+      if (w.deps) {
+        if (!this.callTool) throw new Error('dependency checks are not available here');
+        const rows = [];
+        await Promise.race([runDeps(w.deps, { callTool: (id, tool, args) => this.callTool(id, tool, args, { signal: ac.signal }), emit: (t, d) => t === 'deps_row' && rows.push(d) }), timeout]);
+        const sources = rows.flatMap((r) => r.vulns.map((v) => ({ url: `https://osv.dev/vulnerability/${encodeURIComponent(v.id)}`, title: `${r.name} ${r.version}: ${v.summary || v.id}`.slice(0, 200) })));
+        const text = rows.map((r) => `${r.name} ${r.version || ''}: ${r.vulns.length ? r.vulns.map((v) => v.id).join(', ') : r.counts.audit ? `${r.counts.audit} known` : 'none known'}${r.deprecated ? ' (deprecated)' : ''}`).join('\n');
+        return this.store.record(id, { mode: 'llm', answer: text, results: [], sources });
+      }
       if (w.pipeline) {
         const resolveServers = (ids) => ({ servers: ids, adhoc: (w.pipeAdhoc || []).filter((a) => ids.includes(a.id)) });
         const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers }), timeout]);
