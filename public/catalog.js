@@ -89,8 +89,9 @@
         if (f === 'rank' && !r[F.rank]) return false;
         if (f === 'noenv' && r[F.required] > 0) return false;
         if (f === 'bulk' && r[F.pubCount] >= 100) return false;
-        // Started (and listed tools) when we ran it in a test machine; hosted servers count if they answered our probe.
-        if (f === 'works' && !(F.tested != null && ['a', 'm', 's'].includes(r[F.tested]?.[0])) && !(runnable(r) && r[F.reach] === 1)) return false;
+        // Answered a real question when we ran it in a test machine (on its own, or with
+        // inputs an AI model filled in). Merely connecting isn't "working".
+        if (f === 'works' && !(F.tested != null && ['a', 'm'].includes(r[F.tested]?.[0]))) return false;
       }
       if (range) {
         const d = r[F[range.field]] || '';
