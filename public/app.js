@@ -674,8 +674,16 @@
     const box = $('[data-today]', el);
     const city = todayCity.get();
     box.hidden = false;
+    // (the topics you follow show with or without a city)
+    const topicsOnly = () => {
+      if (!myTopics.get().length) return false;
+      box.innerHTML = '<div class="today-topics" data-today-topics></div>';
+      renderTopics(tab, $('[data-today-topics]', box));
+      return true;
+    };
     if (city == null) {
-      box.innerHTML = `<form class="today-ask" data-today-form><span>See your weather, the market and today’s headlines here:</span><input type="text" data-today-city placeholder="Your city" aria-label="Your city" maxlength="60"><button type="submit">Show</button><button type="button" class="link-btn" data-today-no>No thanks</button></form>`;
+      box.innerHTML = `<form class="today-ask" data-today-form><span>See your weather, the market, today’s headlines and topics you follow here:</span><input type="text" data-today-city placeholder="Your city" aria-label="Your city" maxlength="60"><button type="submit">Show</button><button type="button" class="link-btn" data-today-no>No thanks</button></form><div class="today-topics" data-today-topics></div>`;
+      if (myTopics.get().length) renderTopics(tab, $('[data-today-topics]', box));
       $('[data-today-form]', box).addEventListener('submit', (e) => {
         e.preventDefault();
         const v = $('[data-today-city]', box).value.trim();
@@ -685,12 +693,12 @@
       });
       $('[data-today-no]', box).addEventListener('click', () => {
         todayCity.set('');
-        box.hidden = true;
+        if (!topicsOnly()) box.hidden = true;
       });
       return;
     }
     if (city === '') {
-      box.hidden = true;
+      if (!topicsOnly()) box.hidden = true;
       return;
     }
     const card = (title, q, body) => `<div class="today-card"><h3><button type="button" class="link-btn" data-today-q="${esc(q)}">${esc(title)}</button></h3>${body}</div>`;
@@ -751,7 +759,7 @@
   function renderTopics(tab, host) {
     const list = myTopics.get();
     const topicCard = (t) => `<div class="today-card today-topic" data-topic="${esc(t)}"><h3><button type="button" class="link-btn" data-topic-q="${esc(t)}">${esc(t)}</button><span class="tt-acts"><button type="button" class="link-btn" data-topic-watch="${esc(t)}" title="Get a notification when there are new stories">Notify me</button><button type="button" class="link-btn tt-x" data-topic-rm="${esc(t)}" aria-label="Stop following ${esc(t)}">×</button></span></h3><p class="today-wait">Checking…</p></div>`;
-    host.innerHTML = `${list.length ? `<div class="today-tgrid">${list.map(topicCard).join('')}</div>` : ''}<form class="today-tform" data-topic-form>${list.length < 5 ? `<input type="text" data-topic-in maxlength="60" placeholder="${list.length ? 'Follow another topic' : 'Follow a topic: a team, a company, a subject…'}" aria-label="Follow a topic"><button type="submit">Follow</button>` : '<span>Following 5 topics (the most there’s room for).</span>'}</form>`;
+    host.innerHTML = `${list.length ? `<div class="today-tgrid">${list.map(topicCard).join('')}</div>` : ''}<form class="today-tform" data-topic-form>${list.length < 5 ? `<input type="text" data-topic-in maxlength="60" placeholder="${list.length ? 'Follow another topic' : 'Follow a topic: a team, a company, a subject…'}" aria-label="Follow a topic"><button type="submit">Follow</button>` : '<span>Following 5 topics (the most there’s room for).</span>'}</form><p class="today-note">Your topics are kept in this browser. To find their stories they’re sent as searches to web-search servers.</p>`;
     host.onclick = (e) => {
       const q = e.target.closest('[data-topic-q]');
       if (q) return open(`${q.dataset.topicQ} news`, tab);

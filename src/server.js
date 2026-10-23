@@ -429,7 +429,8 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   // Headlines: articles only, well-known newsrooms first, the rest in their order.
   const headlines = (items, n) =>
     items
-      .filter((it) => article(it.url) && !/breaking news|latest news|top stories|headlines/i.test(it.title))
+      // (a section page lists its sections: "News, Results, Fixtures, Scores, Stats")
+      .filter((it) => article(it.url) && !/breaking news|latest news|top stories|headlines/i.test(it.title) && (String(it.title).match(/\b(?:news|results|fixtures|scores|stats|highlights|schedule|standings|rumou?rs|videos?|games|roster|tables?)\b/gi) || []).length < 3)
       .map((it, i) => ({ it, i, k: known.test(host(it.url)) ? 0 : 1 }))
       .sort((a, b) => a.k - b.k || a.i - b.i)
       .map((x) => x.it)
@@ -440,7 +441,13 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const key = `${topic.toLowerCase()}|${readerLang}`;
     const hit = topicCache.get(key);
     if (hit && Date.now() - hit.at < 20 * 60e3) return hit.data;
-    const r = await todayOne(`${topic} latest news`, { items: 15 });
+    // Dated news searches return articles (the "latest news" form returns front pages): both, merged.
+    const day = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const [r1, r2] = await Promise.all([todayOne(`${topic} news ${day}`, { items: 15 }), todayOne(`${topic} latest news`, { items: 15 })]);
+    const r = { items: [...r1.items, ...r2.items.filter((x) => !r1.items.some((y) => y.url === x.url))] };
+    // (fresh only: a story from months ago isn't the latest)
+    const week = Date.now() - 8 * 86400e3;
+    r.items = r.items.filter((it) => !it.date || !(Date.parse(it.date) < week));
     // In the topic's language, dated, one story per site and one site per story.
     const lang = (langOf(topic) || 'en') === 'en' && readerLang !== 'en' ? 'any' : langOf(topic) || 'en';
     const seen = new Set();
