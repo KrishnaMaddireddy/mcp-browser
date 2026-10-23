@@ -52,6 +52,22 @@ jobs:
           ls -lh dist/*.dmg dist/*.zip
           shasum -a 256 dist/*.dmg dist/*.zip | tee dist/SHA256SUMS.txt
 
+      - name: Open the app once
+        # (the packaged app starts, its local server answers, and it can list servers)
+        run: |
+          app="$(ls -d dist/mac-arm64/*.app | head -1)"
+          export MCPB_DATA_DIR="$RUNNER_TEMP/mcpb-smoke" PORT=7799
+          "$app/Contents/MacOS/MCP Browser" > "$RUNNER_TEMP/app.log" 2>&1 &
+          pid=$!
+          ok=
+          for i in $(seq 1 60); do
+            if curl -sf -H 'x-mcpb: 1' "http://127.0.0.1:$PORT/api/templates" > /dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          kill $pid 2>/dev/null || true
+          if [ -z "$ok" ]; then echo "::error::The app didn't start"; tail -40 "$RUNNER_TEMP/app.log"; exit 1; fi
+          echo "the app started and answered"
+
       - uses: actions/upload-artifact@v4
         with:
           name: mac-arm64
