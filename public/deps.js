@@ -148,9 +148,9 @@
         wb.onclick = async () => {
           const st = out.querySelector('[data-dp-copied]');
           try {
-            const r = await fetch('/api/watches', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ every: 'daily', deps: rows.filter((r) => r.version).map((r) => ({ name: r.name, version: r.version, ecosystem: r.ecosystem })) }) });
+            const r = await fetch('/api/watches', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify(source ? { every: 'daily', repo: `https://github.com/${source.repo}${source.ref && source.ref !== 'HEAD' ? `/tree/${source.ref}${source.dir ? `/${source.dir}` : ''}` : source.dir ? `/tree/HEAD/${source.dir}` : ''}` } : { every: 'daily', deps: rows.filter((r) => r.version).map((r) => ({ name: r.name, version: r.version, ecosystem: r.ecosystem })) }) });
             if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `failed (${r.status})`);
-            if (st) st.textContent = 'Watching: checked every day, on the Watches page';
+            if (st) st.textContent = source ? 'Watching: the repo is read again and checked every day, on the Watches page' : 'Watching: checked every day, on the Watches page';
             hooks.watching?.();
           } catch (e) {
             if (st) st.textContent = `Couldn’t start watching: ${e.message}`;

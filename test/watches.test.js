@@ -304,3 +304,33 @@ test('review 2: rates both ways, times and names, a real big move, and what coun
   }
   assert.equal(store.get(w.id).met?.value, 47);
 });
+
+test('a repo watch: the lockfile is read again each run, so a bump to a vulnerable version is news', async () => {
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler } = await import('../src/watches.js');
+  const { DEP_SERVERS, PAGE_FETCH } = await import('../src/deps.js');
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-rw-')), 'w.json') });
+  assert.throws(() => store.add({ repo: 'https://gitlab.com/a/b' }));
+  assert.throws(() => store.add({ repo: 'https://github.com/a/../b' }));
+  const w = store.add({ repo: 'https://github.com/o/r/tree/main/web' });
+  assert.deepEqual([w.repo, w.query], ['https://github.com/o/r/tree/main/web', 'Dependencies of o/r/web']);
+  let qs = '6.16.0';
+  const callTool = async (id, tool, args) => {
+    if (id === PAGE_FETCH) return args.url.endsWith('/web/package-lock.json') ? { structuredContent: { status: 'ok', markdown: JSON.stringify({ lockfileVersion: 3, packages: { '': { dependencies: { qs: qs } }, 'node_modules/qs': { version: qs } } }) } } : { structuredContent: { status: 'skipped' } };
+    if (id === DEP_SERVERS.osv) {
+      const p = args.packages[0];
+      return { structuredContent: { results: [{ ...p, vulns: p.version === '6.7.0' ? [{ id: 'GHSA-qs', summary: 'prototype pollution', aliases: [], severityLabel: 'HIGH', fixedVersions: ['6.7.3'] }] : [] }] } };
+    }
+    throw new Error('off');
+  };
+  const sch = new WatchScheduler({ store, agent: { search: async () => ({}) }, callTool });
+  await sch.run(w.id);
+  assert.equal(store.get(w.id).unseen, 0);
+  qs = '6.7.0'; // (someone pinned an old version)
+  store.get(w.id).nextRunAt = 0;
+  await sch.run(w.id);
+  assert.equal(store.get(w.id).unseen, 1);
+  assert.match(store.get(w.id).history[0].newSources[0].title, /qs 6\.7\.0/);
+});

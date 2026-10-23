@@ -2,7 +2,7 @@
 // report what changed since last time (new sources, a different answer).
 import { runPipeline, pipelineText } from './pipelines.js';
 import { figureIn, thresholdMet, saysItHappened, saidPattern, plausibleReading } from './track.js';
-import { runDeps } from './deps.js';
+import { runDeps, repoOf, fetchRepoDeps } from './deps.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -85,7 +85,12 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page, repo }) {
+    // A public GitHub repo: its lockfile is read again each time, so a bump shows too.
+    const repoInfo = repo ? repoOf(String(repo)) : null;
+    if (repo && !repoInfo) throw new Error('only a public GitHub repo link can be watched');
+    const repoUrl = repoInfo ? `https://github.com/${repoInfo.owner}/${repoInfo.repo}${repoInfo.ref !== 'HEAD' || repoInfo.dir ? `/tree/${repoInfo.ref}${repoInfo.dir ? `/${repoInfo.dir}` : ''}` : ''}` : null;
+    if (repoUrl && !String(query || '').trim()) query = `Dependencies of ${repoInfo.owner}/${repoInfo.repo}${repoInfo.dir ? `/${repoInfo.dir}` : ''}`;
     // A public web page to watch for edits (http/https only, no credentials in it).
     let pageUrl = null;
     if (page) {
@@ -129,6 +134,7 @@ export class WatchStore {
         : {}),
       ...(pkgs.length ? { deps: pkgs } : {}),
       ...(pageUrl ? { page: pageUrl } : {}),
+      ...(repoUrl ? { repo: repoUrl } : {}),
       // A threshold on the answer's figure: { op: 'below' | 'above' | 'reach', value, unit? }.
       ...(when && ['below', 'above', 'reach'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value), ...(when.unit === '%' ? { unit: '%' } : {}) } } : {}),
       createdAt: this.now(),
@@ -337,10 +343,17 @@ export class WatchScheduler {
         return this.store.record(id, { mode: 'page', answer: text.slice(0, 20000), results: [{ serverTitle: 'page', text }], sources: [] });
       }
       // Packages: each advisory is a source, so a new one is news.
-      if (w.deps) {
+      if (w.deps || w.repo) {
         if (!this.callTool) throw new Error('dependency checks are not available here');
         const rows = [];
-        await Promise.race([runDeps(w.deps, { callTool: (id, tool, args) => this.callTool(id, tool, args, { signal: ac.signal }), emit: (t, d) => t === 'deps_row' && rows.push(d) }), timeout]);
+        const call = (id, tool, args) => this.callTool(id, tool, args, { signal: ac.signal });
+        let pkgs = w.deps;
+        if (w.repo) {
+          const got = await Promise.race([fetchRepoDeps(repoOf(w.repo), { callTool: call }), timeout]);
+          if (!got?.pkgs?.length) throw new Error(got?.error || 'the repo’s dependency files could not be read');
+          pkgs = got.pkgs;
+        }
+        await Promise.race([runDeps(pkgs, { callTool: (id, tool, args) => this.callTool(id, tool, args, { signal: ac.signal }), emit: (t, d) => t === 'deps_row' && rows.push(d) }), timeout]);
         const sources = rows.flatMap((r) => r.vulns.map((v) => ({ url: `https://osv.dev/vulnerability/${encodeURIComponent(v.id)}`, title: `${r.name} ${r.version}: ${v.summary || v.id}`.slice(0, 200) })));
         const text = rows.map((r) => `${r.name} ${r.version || ''}: ${r.vulns.length ? r.vulns.map((v) => v.id).join(', ') : r.counts.audit ? `${r.counts.audit} known` : 'none known'}${r.deprecated ? ' (deprecated)' : ''}`).join('\n');
         return this.store.record(id, { mode: 'llm', answer: text, results: [], sources });

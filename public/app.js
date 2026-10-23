@@ -521,7 +521,7 @@
       if (!at || at <= since || seen[w.id] >= at || (w.notifiedAt || 0) >= at) continue;
       seen[w.id] = at;
       api.post('/api/watches/update', { id: w.id, notifiedAt: at }).catch(() => {});
-      const what = w.deps ? ['new advisory', 'new advisories'] : ['new source', 'new sources'];
+      const what = w.deps || w.repo ? ['new advisory', 'new advisories'] : ['new source', 'new sources'];
       const body = w.met ? w.met.snippet : w.page ? `The page changed: ${h.added?.[0] || `${h.removedCount || 0} line(s) removed`}` : `${h.newSources?.length || 0} ${h.newSources?.length === 1 ? what[0] : what[1]}${h.newSources?.[0] ? `: ${h.newSources[0].title}` : ''}`;
       try {
         const n = new Notification(w.label || w.query, { body: String(body).slice(0, 180), tag: `watch-${w.id}` });
@@ -1076,7 +1076,7 @@
       const li = document.createElement('li');
       li.className = 'watch-row' + (w.unseen ? ' has-news' : '');
       const last = w.history[0];
-      const src = w.deps ? ['advisory', 'advisories'] : ['source', 'sources'];
+      const src = w.deps || w.repo ? ['advisory', 'advisories'] : ['source', 'sources'];
       const state = w.running
         ? 'Running now…'
         : !w.lastRun
@@ -1097,7 +1097,7 @@
           <div class="watch-title">${w.unseen ? '<span class="new-pill">New</span>' : ''}${esc(w.label || w.query)}</div>
           ${w.met ? (w.when ? `<div class="watch-met"><b>${esc(w.when.op === 'below' ? 'Below' : 'Above')} ${esc(w.when.value.toLocaleString())}</b> ${esc(timeAgo(w.met.at))}, so it stopped: ${esc(w.met.snippet)}</div>` : `<div class="watch-met"><b>Found “${esc(w.until)}”</b> ${esc(timeAgo(w.met.at))}, so it stopped: …${esc(w.met.snippet)}…</div>`) : ''}
           ${w.when && !w.met ? `<div class="watch-line">Tells you when it ${w.when.op === 'reach' ? 'reaches' : `goes ${esc(w.when.op)}`} <b>${esc(w.when.value.toLocaleString())}</b>${w.lastValue ? ` · last ${esc(Number(w.lastValue.value).toLocaleString())} (${esc(timeAgo(w.lastValue.at))})` : ''}${w.lastMiss ? ` · last reading ignored (${w.lastMiss.value == null ? 'no figure found' : `${esc(Number(w.lastMiss.value).toLocaleString())} looked wrong; taken if the next check agrees`})` : ''}</div>` : ''}
-          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : w.deps ? '<span class="cat-tag">Packages</span> ' : w.page ? '<span class="cat-tag">Page</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? (w.untilRe ? ` · stops when a source says it’s ${esc(w.until)}` : ` · stops when it mentions “${esc(w.until)}”`) : ''}</div>
+          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : w.repo ? '<span class="cat-tag">Repo</span> ' : w.deps ? '<span class="cat-tag">Packages</span> ' : w.page ? '<span class="cat-tag">Page</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? (w.untilRe ? ` · stops when a source says it’s ${esc(w.until)}` : ` · stops when it mentions “${esc(w.until)}”`) : ''}</div>
           <details class="watch-hist">
             <summary>History (${w.history.length})</summary>
             <ol></ol>
@@ -1160,6 +1160,7 @@
         const b = e.target.closest('button[data-act]');
         if (!b) return;
         if (b.dataset.act === 'open' && w.page) return navigate(active, { kind: 'web', url: w.page });
+        if (b.dataset.act === 'open' && w.repo) return navigate(active, { kind: 'deps', text: w.repo });
         if (b.dataset.act === 'open' && w.deps) return navigate(active, { kind: 'deps', text: w.deps.map((p) => (p.ecosystem === 'pypi' ? `${p.name}==${p.version}` : `${p.name}@${p.version}`)).join('\n') });
         if (b.dataset.act === 'open') return navigate(active, { kind: 'search', query: w.query, discovery: w.discovery, label: w.label });
         if (b.dataset.act === 'run') {
