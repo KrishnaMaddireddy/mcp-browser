@@ -311,7 +311,9 @@ function judgeCore(parts, sentence) {
       // (a figure before the subject is usually something else's: "At 828 m, the Burj Khalifa dwarfs the Eiffel Tower")
       const dist = (g) => Math.min(...anchors.map((a) => Math.abs(a - g.at) + (g.at < a ? 30 : 0)));
       const nearest = figs.reduce((a, b) => (dist(b) < dist(a) ? b : a));
-      figs = figs.filter((g) => g === nearest || (g.at > nearest.at && g.at - nearest.at <= 20 + nearest.raw.length));
+      // (the same amount in another unit stays: "687 Earth days, or roughly 1.88 Earth years")
+      const conv = (a, b) => /^[\s,;]*(?:or|i\.e\.|that is)?\s*(?:about|roughly|around|approximately|some)?\s*\(?\s*$/i.test(sentence.slice(a.end, b.at).replace(/^\s*(?:[\p{L}]+\s*){0,2}/u, ''));
+      figs = figs.filter((g) => g === nearest || (g.at > nearest.at && g.at - nearest.at <= 20 + nearest.raw.length) || (g.at < nearest.at && conv(g, nearest)));
     }
     // "The face on the Statue of Liberty measures 8 feet": the face's figure, not the statue's.
     const part = /^(?:the|a|an|its)\s+([a-z]+)\s+(?:of|on|in|at|atop|inside)\s+(?:the\s+)?/i.exec(sentence);
@@ -399,7 +401,7 @@ function judgeCore(parts, sentence) {
   const idsAnd = clausesOf(sentence, { and: true });
   // "Capital: Nairobi" — a labelled answer names the subject directly.
   const w0 = obj[0] || '';
-  const label = parts.be && w0 && new RegExp(`\\b[${w0[0].toUpperCase()}${w0[0]}]${w0.slice(1)}\\w*\\s*[:|–-]\\s*\\|?\\s*([A-Z][\\p{L}'’.-]+(?:\\s[A-Z][\\p{L}'’.-]+){0,3})`, 'u').exec(sentence);
+  const label = parts.be && w0 && new RegExp(`\\b[${w0[0].toUpperCase()}${w0[0]}]${w0.slice(1)}\\w*(?:\\s*[:|]\\s*|\\s+[–-]\\s+)\\|?\\s*([A-Z][\\p{L}'’.-]+(?:\\s[A-Z][\\p{L}'’.-]+){0,3})`, 'u').exec(sentence);
   if (label && parts.subjectWords.length) {
     const named = tokenize(label[1]);
     if (!parts.subjectWords.some((w) => named.includes(w))) return { stance: 'differs', sentence, other: label[1].trim().replace(/[.,;:]+$/, '') };
@@ -482,6 +484,9 @@ function judgeCore(parts, sentence) {
       for (let i = Math.max(a + 2, own + 1); i <= b; i++) if (BE_WORD.test(ws[i]) && /^\p{Lu}/u.test(orig[i - 1]?.w || '') && !subj.some((n) => matches(n, ws[i - 1]))) return true;
       return false;
     };
+    // "from Manchester", "in Nepal": the place has to come with that preposition ("regular
+    // visitors to Manchester" isn't "from Manchester")
+    const place = /\b(?:is|are|was|were|comes?|came)\s+(from|in|at|on)\s+(?:the\s+)?\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,2}$/u.exec(parts.text);
     for (const p of P) {
       // ("a fake Mount Fuji in China" isn't Mount Fuji)
       if (/^(?:fake|faux|replica|replicas|mock|imitation|copy|copies|model|toy|miniature|knockoff|lookalike|look-alike)$/.test(ws[Math.max(0, p - 1)] || '') || /^(?:fake|faux|replica|imitation|miniature)$/.test(ws[Math.max(0, p - 2)] || '')) continue;
@@ -541,6 +546,11 @@ function judgeCore(parts, sentence) {
       // ("the capital of Spain": the "of" right after the head, no new clause in between —
       // not "kept its status as a capital, it owed taxes to Spain's rulers")
       const between = hits ? sentence.slice(orig[hits[0]]?.at ?? 0, orig[hits.at(-1)]?.at ?? 0) : '';
+      if (hits && place) {
+        const pw = place[1].toLowerCase();
+        const lead2 = ws.slice(Math.max(0, hits[0] - 8), hits[0]);
+        if (!lead2.includes(pw) && !(pw === 'in' && lead2.some((w) => /^(?:located|situated|based|lies)$/.test(w)))) continue;
+      }
       const ofOk = !hits || !parts.ofHead || (new RegExp(`\\b${parts.ofPrep}\\b`, 'i').test(between) && !/[;:]|,\s*(?:it|he|she|they|we|which|who|whose|and|but|while|its|his|her|their|the|a|an)\b/i.test(between));
       // ("near the border with Kenya" doesn't put it in Kenya)
       if (hits && /\b(?:near|border|bordering|borders|close|outside|beyond|across|neighbou?ring|off)\b/.test(ws.slice(Math.max(last + 1, hits.at(-1) - 4), hits.at(-1)).join(' ')) && !/\b(?:near|border|close|outside|beyond|across|neighbou?r|off)\b/i.test(parts.text)) return { stance: 'mentions', sentence };

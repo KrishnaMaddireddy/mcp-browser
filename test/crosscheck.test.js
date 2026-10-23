@@ -191,3 +191,10 @@ test('what a figure counts: the next word, a whole name, no compounds or conditi
   assert.equal(stance('A spider has eight legs', 'Spiders normally have eight walking legs, arranged as four pairs.'), 'supports');
   assert.equal(stance('The human heart has four chambers', 'The human heart has four chambers: two atria and two ventricles.'), 'supports');
 });
+
+test('places keep their preposition; a unit conversion is the same amount; "Nepal-China" is no label', () => {
+  assert.notEqual(stance('The Beatles were from Manchester', 'But the Beatles were regular visitors to Manchester too, and this week marks the anniversary.'), 'supports');
+  assert.equal(stance('The Colosseum is in Rome', 'The Colosseum is an elliptical amphitheatre in the centre of the city of Rome, Italy.'), 'supports');
+  assert.equal(stance('A year on Mars lasts about 687 Earth days', 'A Martian year lasts about 687 Earth days, or roughly 1.88 Earth years.'), 'supports');
+  assert.notEqual(stance('Mount Everest is in Nepal', 'Mount Everest sits on the Nepal-China border, with its southern slope in Nepal and its northern slope in Tibet.'), 'differs');
+});
