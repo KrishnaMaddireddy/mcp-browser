@@ -475,6 +475,8 @@ function judgeCore(parts, sentence) {
       return false;
     };
     for (const p of P) {
+      // ("a fake Mount Fuji in China" isn't Mount Fuji)
+      if (/^(?:fake|faux|replica|replicas|mock|imitation|copy|copies|model|toy|miniature|knockoff|lookalike|look-alike)$/.test(ws[Math.max(0, p - 1)] || '') || /^(?:fake|faux|replica|imitation|miniature)$/.test(ws[Math.max(0, p - 2)] || '')) continue;
       // all of the subject is here
       const near = ws.slice(Math.max(0, p - 4), p + 4);
       if (subj.filter((n) => near.some((w) => matches(n, w))).length < Math.ceil(subj.length * 0.6)) continue;
@@ -505,18 +507,27 @@ function judgeCore(parts, sentence) {
           if (headAt > p) return settle(p, headAt);
         }
       }
-      // (a) subject … object, in order, one clause
-      let at = last;
-      let hits = [];
-      for (const n of obj) {
-        const i = ws.findIndex((w, k) => k > at && matches(n, w));
-        if (i < 0) {
-          hits = null;
-          break;
+      // (a) subject … object, in order, one clause: the tightest run of the object's words
+      // ("the third largest desert and the largest hot desert": the second one)
+      const runFrom = (start) => {
+        let at = start - 1;
+        const out = [];
+        for (const n of obj) {
+          const i = ws.findIndex((w, k) => k > at && matches(n, w));
+          if (i < 0) return null;
+          out.push(i);
+          at = i;
         }
-        hits.push(i);
-        at = i;
+        return out;
+      };
+      let hits = null;
+      for (let k = last + 1; k < ws.length; k++) {
+        if (!matches(obj[0], ws[k])) continue;
+        const r = runFrom(k);
+        if (r && ids[r.at(-1)] === ids[p] && (!hits || r.at(-1) - r[0] < hits.at(-1) - hits[0])) hits = r;
       }
+      if (!hits) hits = runFrom(last + 1);
+      let at = last;
       // (with "is", "serves as" or an appositive between: "Kyoto capital of Japan, was the phrase" isn't a statement)
       const linked = hits && (ws.slice(last + 1, hits[0]).some((w) => BE_WORD.test(w) || /^(?:as|been|lies|lie|sits|stands|located|situated|found)$/.test(w)) || /^\s*[,(]/.test(sentence.slice(orig[last].at + orig[last].w.length)));
       // ("the capital of Spain": the "of" right after the head, no new clause in between —
@@ -566,7 +577,7 @@ function judgeCore(parts, sentence) {
   // The first name in the sentence before the verb (skipping openers like "In 1876," or "The").
   const verbChar = verbAt >= 0 ? orig[verbAt].at : -1;
   const beforeTxt = verbChar > 0 ? sentence.slice(0, verbChar) : '';
-  const OPEN = /^(?:The|A|An|In|On|At|After|While|When|Although|But|And|So|Yes|No|Today|Last|This|That|It|By|For|From|During|Since|As|He|She|They|We|I|You|His|Her|Their|Its|Our)$/;
+  const OPEN = /^(?:The|A|An|In|On|At|After|While|When|Although|But|And|So|Yes|No|Today|Last|This|That|It|By|For|From|During|Since|As|He|She|They|We|I|You|His|Her|Their|Its|Our|January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/;
   let firstName = '';
   for (const m of beforeTxt.matchAll(/[\p{L}][\p{L}'’.-]*/gu)) {
     const w = m[0];
@@ -589,10 +600,14 @@ function judgeCore(parts, sentence) {
   // "a play based on Don Quixote, written by Shakespeare": made from the thing, not the thing.
   const derived = (i) => /\b(?:based on|inspired by|adapted from|adaptation of|version of|sequel to|prequel to|parody of|translation of|translated|about)\s*$/.test(ws.slice(Math.max(0, i - 3), i).join(' '));
   const by = byName();
-  if (by) {
+  // (the doer anywhere in the few words after "by": "by young Princeton graduate Jeff Bezos")
+  const byIdx = verbAt >= 0 ? ws.findIndex((w, i) => i > verbAt && i - verbAt <= 10 && w === 'by') : -1;
+  const doerNear = byIdx >= 0 && ws.slice(byIdx + 1, byIdx + 7).some((w) => subj.some((n) => matches(n, w)));
+  if (by || doerNear) {
     // "The telephone was invented by Alexander Graham Bell": the thing has to be before the verb, in its clause.
     const thingBefore = objHitsAll.some((i) => i < verbAt && verbAt - i <= 8 && ids[i] === ids[verbAt] && !derived(i));
-    const doer = wordsAt(by).some((w) => subj.some((n) => matches(n, w)));
+    // (a name right after "by" decides; only with no name there do the next few words)
+    const doer = by ? wordsAt(by).some((w) => subj.some((n) => matches(n, w))) : doerNear;
     if (thingBefore || !obj.length) {
       if (!doer) return { stance: 'differs', sentence, other: by };
       if (subjectOk) {
@@ -604,7 +619,8 @@ function judgeCore(parts, sentence) {
   }
   // (only a verb has a doer: "Pioneers in Tech: Guido van Rossum, creator of …" names no rival)
   const isVerb = verbAt >= 0 && (/(?:ed|es|s)$/.test(ws[verbAt]) || /^(?:won|wrote|built|made|led|bought|beat|ran|began|sold|took|gave|win|write|build|make|lead|buy)$/.test(ws[verbAt])) && !/(?:or|er|ion|ment|ure)s?$/.test(ws[verbAt]);
-  if (subjectOk && !doerOk && isVerb && relWords.length) return { stance: 'differs', sentence, other: firstName };
+  // (a passive claim's doer is after "by": the name before the verb is the thing made)
+  if (!parts.passive && subjectOk && !doerOk && isVerb && relWords.length) return { stance: 'differs', sentence, other: firstName };
   const subjAt = subj.length ? [...ws.keys()].filter((i) => subj.some((n) => matches(n, ws[i])) && i < verbAt).pop() ?? subjAt0 : -1;
   const subjectNear = subjectOk && subjAt >= 0 && doerOk && subjAt < verbAt && verbAt - subjAt <= 8 && ids[subjAt] === ids[verbAt];
   if (subjectNear) {

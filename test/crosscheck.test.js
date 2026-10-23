@@ -176,3 +176,10 @@ test('the capital of a state is not the capital of its country; "no animal has f
   assert.equal(stance('Canberra is the capital of Australia', 'Canberra, the capital of Australia, is a planned city.'), 'supports');
   assert.notEqual(stance('An octopus has five hearts', 'In reality, no animal has five hearts, but some have multiple circulatory systems.'), 'supports');
 });
+
+test('fakes, the tighter of two runs, dates before the verb, a described doer', () => {
+  assert.notEqual(stance('Mount Fuji is in China', 'The faux Mount Fuji, dubbed the Universe Fantasy Land, is situated in the Hebei province of northern China.'), 'supports');
+  assert.equal(stance('The Sahara is the largest hot desert in the world', 'The Sahara is the third largest desert and the largest hot desert in the world.'), 'supports');
+  assert.equal(stance('Amazon was founded by Jeff Bezos', 'On July 5, 1994, Amazon was officially founded under the name Cadabra by young Princeton graduate Jeff Bezos in his garage.'), 'supports');
+  assert.equal(stance('Tesla was founded by Elon Musk', 'Tesla was founded in 2003 by Martin Eberhard and Marc Tarpenning; Elon Musk joined as chairman in 2004.'), 'differs');
+});
