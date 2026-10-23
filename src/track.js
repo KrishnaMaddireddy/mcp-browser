@@ -38,6 +38,9 @@ export function saidPattern(word) {
       'in stock': '\\b(?:in stock|back in stock|available now)\\b',
       approved: '\\b(?:was|has been|were|got|received)\\s+(?:fda\\s+|full\\s+)?approv(?:ed|al)\\b',
       launched: '\\b(?:(?:was|has been|were|officially)\\s+launched|launched (?:today|yesterday|on))\\b',
+      delayed: '\\b(?:was|has been|is|were|have been|got)\\s+(?:officially\\s+)?(?:delayed|postponed|pushed back)\\b',
+      open: '\\b(?:(?:is|are|was|has been)\\s+(?:now\\s+)?open(?:ed)?|opened (?:today|yesterday|on|its doors)|now open)\\b',
+      opens: '\\b(?:(?:is|are|was|has been)\\s+(?:now\\s+)?open(?:ed)?|opened (?:today|yesterday|on|its doors)|now open)\\b',
     }[word] || (/^[a-z ]{2,20}$/.test(word) ? `\\b(?:was|has been|is now|were|have been)\\s+${word}\\b` : null)
   );
 }
@@ -103,14 +106,26 @@ export function parseTrack(text) {
  * Picks the quoted figure, not the first number: "As of Oct 23, NVDA trades at 212.21 USD"
  * is 212.21, "1 USD = 152.3 JPY" is 152.3, and "Top 10" or "30-year" are never it.
  */
-export function figureIn(text, { unit = '' } = {}) {
+const CUR = { $: 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', dollar: 'USD', 'us dollar': 'USD', euro: 'EUR', pound: 'GBP', 'british pound': 'GBP', yen: 'JPY', 'japanese yen': 'JPY', franc: 'CHF', 'swiss franc': 'CHF', rupee: 'INR', yuan: 'CNY' };
+const curOf = (x) => {
+  const v = String(x || '').trim().toLowerCase().replace(/s$/, '');
+  return /^[a-z]{3}$/.test(v) ? v.toUpperCase() : CUR[v] || CUR[String(x || '').trim()] || null;
+};
+export function figureIn(text, { unit = '', pair = null } = {}) {
   const t = String(text || '');
   // "NVIDIA Corporation (NVDA): 212.21 USD": the figure after the ticker comes first.
   const after = unit !== '%' && /\)\s*:\s*\$?\s*([\d,]+(?:\.\d+)?)/.exec(t);
   if (after) return Number(after[1].replace(/,/g, ''));
-  // "1 USD = 152.3 JPY", "1 EUR equals 1.08 USD"
-  const rate = unit !== '%' && /\b1(?:\.0+)?\s*[A-Z]{3}\s*(?:=|equals|is|to)\s*([\d,]+(?:\.\d+)?)\s*[A-Z]{3}\b/.exec(t);
-  if (rate) return Number(rate[1].replace(/,/g, ''));
+  // "1 USD = 152.3 JPY", "$1 = €0.8910", "1 US Dollar equals 152.30 Japanese Yen": the second
+  // figure, turned round when it's the other way from the pair asked about.
+  const rate = unit !== '%' && /(?:^|[^\d.,])([$€£¥])?\s*1(?:\.0+)?\s*([A-Z]{3}|[A-Za-z][A-Za-z ]{1,20}?)?\s*(?:=|equals|is worth)\s*([$€£¥])?\s*([\d,]*\.?\d+)\s*([A-Z]{3}|[A-Za-z][A-Za-z ]{1,20}?)?(?=[\s.,;)]|$)/.exec(t);
+  if (rate) {
+    const v = Number(rate[4].replace(/,/g, ''));
+    const from = curOf(rate[1] || rate[2]);
+    const to = curOf(rate[3] || rate[5]);
+    if (pair && from === pair[1] && to === pair[0] && v > 0) return 1 / v;
+    return v;
+  }
   const MONTH = /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*$/i;
   const cands = figuresOf(t).filter((f) => {
     if (f.year) return false;
@@ -148,7 +163,10 @@ export function thresholdMet(when, value) {
  */
 export function saysItHappened(text, re, about = []) {
   const pattern = new RegExp(re, 'i');
-  const NOT_YET = /\b(?:trailer|teaser|pre-?orders?|preorders?|beta|demo|expected|rumou?red|leak(?:ed|s)?|could|might|will|soon|delay(?:ed)?|postponed|if)\b|\bmay\s+(?:be|have|come|arrive|launch|release)\b/i;
+  const waitingForDelay = /delay|postpon/.test(re);
+  const NOT_YET = new RegExp(`\\b(?:trailer|teaser|pre-?orders?|preorders?|beta|demo|expected|rumou?red|leak(?:ed|s)?|could|might|will|soon|if|when|whether${waitingForDelay ? '' : '|delay(?:ed)?|postponed'})\\b|\\bmay\\s+(?:be|have|come|arrive|launch|release)\\b`, 'i');
+  // "is not available", "isn't out yet", "no longer"
+  const DENIED = /\b(?:not|n['’]t|never|no longer|yet to)\b/i;
   const word = (w) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^\\p{L}\\p{N}])`, 'u');
   for (const raw of String(text || '').split(/(?<=[.!?])\s+|\n+/)) {
     const s = raw.replace(/\s+/g, ' ').trim();
@@ -157,6 +175,12 @@ export function saysItHappened(text, re, about = []) {
     // the thing's words in the few words before the verb ("GTA 6 is out now"; not "GTA 6 fans: GTA 5 … is out now")
     const leadWords = s.slice(0, m.index).toLowerCase().split(/\s+/).filter(Boolean).slice(-(about.length + 2));
     const lead = leadWords.join(' ');
+    if (DENIED.test(lead.split(/\s+/).slice(-3).join(' ')) || DENIED.test(m[0])) continue;
+    // the thing itself, not "a case for the iPhone 18" or "the first photo of …"
+    const firstAbout = leadWords.findIndex((w) => word(about[0] || '').test(w));
+    const pre = s.slice(0, m.index).toLowerCase().split(/\s+/).filter(Boolean);
+    const at = pre.length - leadWords.length + Math.max(0, firstAbout);
+    if (/^(?:for|of|about|than|from|with|like|to|asked|when)$/.test(pre[at - 1] || '') || /^(?:the\s+)?(?:case|photo|image|render|version|copy|cheaper|leak|teaser|trailer|accessor\w*)$/.test(pre[at - 2] || '')) continue;
     // (another version number right there is another thing: "GTA 5 was released")
     const otherNumber = (lead.match(/\b\d+\b/g) || []).some((n) => !about.includes(n));
     if (!otherNumber && about.every((w) => word(w).test(lead))) return s.slice(0, 300);

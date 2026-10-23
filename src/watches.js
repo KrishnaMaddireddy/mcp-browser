@@ -285,18 +285,23 @@ export class WatchScheduler {
   /** "Tell me when it drops below 200": the answer's figure, checked against the line. */
   _threshold(w, answer) {
     if (!w.when || w.met) return;
-    const value = figureIn(answer, { unit: w.when.unit });
-    // A figure far from the last reading is a misread or a stale page: noted, not acted on.
-    if (value == null || !plausibleReading(value, w.lastValue?.value)) {
+    const pr = /^([A-Z]{3}) to ([A-Z]{3}) exchange rate$/.exec(w.query);
+    const value = figureIn(answer, { unit: w.when.unit, pair: pr ? [pr[1], pr[2]] : null });
+    // A figure far from the last reading is a misread or a stale page: noted, not acted on,
+    // unless the next reading says the same (a real move, or a bad first reading corrected).
+    const confirmsMiss = value != null && w.lastMiss?.value != null && plausibleReading(value, w.lastMiss.value) && Math.abs(value / w.lastMiss.value - 1) <= 0.1;
+    if (value == null || (!plausibleReading(value, w.lastValue?.value) && !confirmsMiss)) {
       w.lastMiss = { at: this.store.now(), text: String(answer).slice(0, 200), value: value ?? null };
       this.store.trySave();
       return;
     }
+    // The first reading only sets the start: a misread can't fire a watch on its own.
+    const first = !w.lastValue;
     // "reaches 300": toward the line from the first reading
     if (w.when.op === 'reach') w.when = { ...w.when, op: value < w.when.value ? 'above' : 'below', reach: true };
     w.lastValue = { value, at: this.store.now(), text: String(answer).slice(0, 200) };
     delete w.lastMiss;
-    if (thresholdMet(w.when, value) || (w.when.reach && value === w.when.value)) {
+    if (!first && (thresholdMet(w.when, value) || (w.when.reach && value === w.when.value))) {
       w.met = { at: this.store.now(), snippet: String(answer).slice(0, 240), value };
       w.nextRunAt = Number.MAX_SAFE_INTEGER;
       w.unseen = (w.unseen || 0) + 1;

@@ -1064,7 +1064,8 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         const timer = setTimeout(() => ac.abort(), 15000);
         try {
           const r = await engine.agent.search(p.query, { signal: ac.signal, direct: true, emit: () => {} });
-          const value = figureIn(r?.quickAnswer?.text || '', { unit: p.when.unit });
+          const pr = /^([A-Z]{3}) to ([A-Z]{3}) exchange rate$/.exec(p.query);
+          const value = figureIn(r?.quickAnswer?.text || '', { unit: p.when.unit, pair: pr ? [pr[1], pr[2]] : null });
           p.nowChecked = true;
           if (value != null) p.now = { value, text: String(r.quickAnswer.text).slice(0, 200), met: p.when.op !== 'reach' && thresholdMet(p.when, value) };
         } catch {

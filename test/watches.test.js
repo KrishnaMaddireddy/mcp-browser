@@ -191,6 +191,10 @@ test('a threshold watch stops once the figure crosses its line', async () => {
   const agent = { search: async () => ({ mode: 'direct', answer: '', quickAnswer: { text: 'NVIDIA Corporation (NVDA): 212.21 USD (1-day change -4.4%)' } }) };
   const sch = new WatchScheduler({ store, agent });
   await sch.run(w.id);
+  // (the first reading only sets the start: a misread can't fire it alone)
+  assert.equal(store.get(w.id).met, undefined);
+  store.get(w.id).nextRunAt = 0;
+  await sch.run(w.id);
   const after = store.get(w.id);
   assert.equal(after.met.value, 212.21);
   assert.equal(after.nextRunAt, Number.MAX_SAFE_INTEGER);
@@ -270,4 +274,33 @@ test('a page watch: any edited line is news, the reader’s own timestamps are n
   const after = store.get(w.id);
   assert.equal(after.unseen, 1);
   assert.deepEqual([after.history[0].added, after.history[0].removed, after.history[1].changed], [['Plan A: $15'], ['Plan A: $10'], false]);
+});
+
+test('review 2: rates both ways, times and names, a real big move, and what counts as "it happened"', async () => {
+  const { figureIn, saysItHappened, saidPattern, parseTrack } = await import('../src/track.js');
+  assert.ok(Math.abs(figureIn('As of 18:17 UTC, the mid-market USD to EUR rate is $1 = €0.8910.', { pair: ['EUR', 'USD'] }) - 1 / 0.891) < 1e-9);
+  assert.equal(figureIn('1 US Dollar equals 152.30 Japanese Yen', { pair: ['USD', 'JPY'] }), 152.3);
+  assert.equal(figureIn('Cloudy, clearing around 14:00. 12° now.'), 12);
+  assert.equal(figureIn('The S&P 500 fell 1.2% to 5,812.34'), 5812.34);
+  const re = saidPattern('available');
+  for (const s of ['The iPhone 18 is not available now.', 'A case for the iPhone 18 was released by Spigen and is available now.']) assert.equal(saysItHappened(s, re, ['iphone', '18']), null, s);
+  assert.ok(saysItHappened('The iPhone 18 is now available in stores.', re, ['iphone', '18']));
+  const d = parseTrack('tell me when GTA 6 is delayed');
+  assert.ok(saysItHappened('GTA 6 has been delayed to 2027.', saidPattern(d.until), d.untilAbout));
+  assert.ok(saidPattern('opens') && saysItHappened('The new Apple store is now open.', saidPattern('opens'), ['apple', 'store']));
+  // a real move of more than half, seen twice, is taken
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler } = await import('../src/watches.js');
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-gme-')), 'w.json') });
+  const w = store.add({ query: 'GME stock price today', when: { op: 'above', value: 40 }, every: 'hourly' });
+  const vals = ['20.10', '46.50', '47.00'];
+  let n = 0;
+  const sch = new WatchScheduler({ store, agent: { search: async () => ({ mode: 'direct', answer: '', quickAnswer: { text: `GameStop Corp. (GME): ${vals[n++]} USD` } }) } });
+  for (let i = 0; i < 3; i++) {
+    store.get(w.id).nextRunAt = 0;
+    await sch.run(w.id);
+  }
+  assert.equal(store.get(w.id).met?.value, 47);
 });
