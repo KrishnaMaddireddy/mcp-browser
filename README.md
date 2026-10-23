@@ -127,14 +127,23 @@ claude mcp add mcp-browser -- node /full/path/to/mcp-browser/bin/mcp-server.js
 }
 ```
 
-Claude then gets four read-only tools:
+The same config works in Cursor and VS Code. Claude (or any MCP client) then gets these read-only tools:
 
 | Tool | What it does |
 |---|---|
+| `quick_search` | one-shot search across the routed servers |
+| `cross_check` | is one claim true? each independent source's own sentence: says the same, says something different, only mentions it |
+| `check_paragraph` | each plain fact in a text (an AI answer, an article) checked on its own, up to 8 |
+| `check_dependencies` | a lockfile or manifest (by path or text) or a GitHub repo link, against two OSV.dev services |
 | `route` | picks the best servers for a question, connects, lists their tools |
 | `call_tool` | calls one read-only tool (results wrapped as untrusted, with sources) |
-| `quick_search` | one-shot search across the routed servers |
 | `find_servers` | searches the curated list + registry by topic |
+| `find_server_for_task`, `try_server`, `get_server_setup` | finds a registry server for a job, tries it live, gives its install config |
+
+Try asking Claude Code "check the dependencies in this repo with mcp-browser" or "fact-check
+your last answer with check_paragraph". `check_dependencies` reads only dependency files by
+path (package.json, lockfiles, requirements.txt, pyproject.toml, Cargo.toml), so a mistyped path
+can't send other file contents anywhere.
 
 All the browser's rules still apply: write tools hidden, paywalls and rate limits
 detected, registry servers only when Discovery is on, keys from the servers page.
