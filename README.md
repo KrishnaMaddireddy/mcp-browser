@@ -23,6 +23,10 @@ Free and open source under the [MIT License](LICENSE).
 | **Fact-check a paragraph** — each fact in an AI answer checked on its own | **Dependency check** — a lockfile or a GitHub link against two OSV services, and which direct dependency brings each problem in |
 | ![Tell me when NVDA drops below 150: the figure it reads now and how often it checks](docs/screenshots/tell-me-when.png) | ![Server catalog: 48,389 registry servers, 13,287 tested for real](docs/screenshots/server-catalog.png) |
 | **Tell me when** — prices, releases and pages watched on your computer | **Server catalog** — the whole MCP Registry, with which servers were tested and actually answer |
+| ![Pipelines: 106 tested, ready-to-run pipelines in 9 topics](docs/screenshots/pipelines.png) | ![A pipeline comparing EUR to GBP across the ECB, Fxpeek, AllRatesToday and web search](docs/screenshots/pipeline-run.png) |
+| **Pipelines** — 106 tested, ready-to-run chains of MCP servers, or build your own | **A pipeline run** — one exchange rate checked against the ECB and two other rate services, step by step |
+| ![Medical evidence review pipeline: Cochrane reviews, then PubMed trials, then guidelines](docs/screenshots/pipeline-research.png) | |
+| **Research pipelines** — Cochrane reviews, then PubMed trials, then guidelines, for any treatment question | |
 
 ```
  your question
