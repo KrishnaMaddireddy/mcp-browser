@@ -20,6 +20,8 @@ const ECO = {
 
 /** The plain version a range starts from: "^4.17.15" → "4.17.15"; null for "latest", git URLs, "*". */
 export function baseVersion(v) {
+  // (npm ">=1.2.0 <2" starts at 1.2.0; but a bare ">=" or "!=" pins nothing)
+  if (/^\s*(?:!=|<=?|>=?)\s*[\d.]+\s*$/.test(String(v || ''))) return null;
   const m = /^\s*(?:[\^~=v]|>=|==|~=)?\s*v?(\d+(?:\.\d+){0,3}(?:[-+][\w.-]+)?)\s*(?:$|[,<\s|])/.exec(String(v || ''));
   return m ? m[1] : null;
 }
@@ -51,11 +53,32 @@ export function parseManifest(text) {
     return out.slice(0, MAX_PACKAGES);
   }
   const pyHint = /==|~=|>=|^\s*-r\s|\[[\w,]+\]==/m.test(t);
+  // Only == (and ===) pins a version; ">=2.19" installs the latest, "!=1.24.1" excludes one.
+  const py = (name, op, ver) => add(name, op === '==' || op === '===' ? ver : op === '~=' ? `~${ver}` : `${op}${ver}`, 'pypi');
+  let section = null; // a TOML file: [dependencies], [tool.poetry.dependencies]…
   for (let line of t.split(/\r?\n/)) {
     line = line.replace(/\s+#.*$/, '').trim();
-    if (!line || /^[#;\[]/.test(line) || /^-/.test(line)) continue;
+    const head = /^\[([\w.-]+)\]$/.exec(line);
+    if (head) {
+      section = head[1].toLowerCase();
+      continue;
+    }
+    if (!line || /^[#;]/.test(line) || /^-/.test(line)) continue;
     let m;
-    if ((m = /^([A-Za-z0-9][\w.-]*)(?:\[[\w,\s-]+\])?\s*(==|~=|>=|<=|!=|===)\s*([^\s;,]+)/.exec(line))) add(m[1], m[3], 'pypi');
+    if (section !== null) {
+      // TOML: only dependency tables count ("name", "version", "edition" under [package] aren't packages)
+      if (!/(?:^|\.)(?:dev-|build-)?dependencies$|^workspace\.dependencies$|^tool\.poetry\.(?:dev-)?dependencies$|^tool\.poetry\.group\.[\w-]+\.dependencies$/.test(section)) {
+        // [project] dependencies = ["requests>=2.19", …]
+        for (const q of line.matchAll(/"([A-Za-z0-9][\w.-]*)(?:\[[\w,\s-]+\])?\s*(==|~=|>=|<=|!=|===)\s*([^"\s;,]+)[^"]*"/g)) py(q[1], q[2], q[3]);
+        continue;
+      }
+      const eco = section.startsWith('tool.poetry') ? 'pypi' : 'cargo';
+      if ((m = /^([\w.-]+)\s*=\s*"([^"]+)"/.exec(line)) || (m = /^([\w.-]+)\s*=\s*\{[^}]*\bversion\s*=\s*"([^"]+)"/.exec(line))) {
+        if (m[1].toLowerCase() !== 'python') add(m[1], m[2], eco);
+      } else if ((m = /^([\w.-]+)\s*=\s*\{/.exec(line))) add(m[1], '', eco);
+      continue;
+    }
+    if ((m = /^([A-Za-z0-9][\w.-]*)(?:\[[\w,\s-]+\])?\s*(==|~=|>=|<=|!=|===)\s*([^\s;,]+)/.exec(line))) py(m[1], m[2], m[3]);
     else if ((m = /^([\w-]+)\s*=\s*"([^"]+)"/.exec(line))) add(m[1], m[2], 'cargo');
     else if ((m = /^(@?[\w.-]+(?:\/[\w.-]+)?)@([\^~]?\d[\w.+-]*)$/.exec(line))) add(m[1], m[2], 'npm');
     else if ((m = /^(@?[\w.-]+(?:\/[\w.-]+)?)\s+v?(\d[\w.+-]*)$/.exec(line))) add(m[1], m[2], pyHint ? 'pypi' : 'npm');
@@ -66,6 +89,15 @@ export function parseManifest(text) {
 
 /** Compare dotted versions numerically ("4.17.21" > "4.17.9"). */
 export function cmpVersion(a, b) {
+  // (a pre-release comes before its release: 2.0.0-rc.1 < 2.0.0)
+  const [ba, pra] = String(a).split(/-(.*)/s);
+  const [bb, prb] = String(b).split(/-(.*)/s);
+  if (ba !== bb && cmpVersion0(ba, bb) !== 0) return cmpVersion0(ba, bb);
+  if (pra && !prb) return -1;
+  if (!pra && prb) return 1;
+  return cmpVersion0(String(a), String(b));
+}
+function cmpVersion0(a, b) {
   const pa = String(a).split(/[.+-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   const pb = String(b).split(/[.+-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -123,6 +155,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       return null;
     }
   })();
+  const auditEcos = new Set();
   // 1. Advisories, from two publishers of OSV data at once.
   // (one package per call: a batch with many advisories comes back paged, a few rows at a time)
   const osvOne = async (p) => {
@@ -139,7 +172,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
           const results = [];
           let i = 0;
           let fails = 0;
-          const list = pinned.slice(0, 60);
+          const list = pinned;
           const worker = async () => {
             while (i < list.length) {
               const p = list[i++];
@@ -162,6 +195,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
           const out = [];
           for (const eco of [...new Set(pinned.map((p) => p.ecosystem))]) {
             const r = sc(await callTool(DEP_SERVERS.audit, 'audit_dependencies', { ecosystem: ECO[eco].audit, dependencies: pinned.filter((p) => p.ecosystem === eco).map((p) => ({ name: p.name, version: p.version })) }));
+            if (r) auditEcos.add(eco);
             for (const f of r?.findings || []) out.push({ ...f, ecosystem: eco });
             for (const n of r?.packages_not_found || []) out.push({ name: typeof n === 'string' ? n : n?.name, ecosystem: eco, notFound: true });
           }
@@ -190,13 +224,13 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
   });
   const osvBy = new Map((osv?.results || []).map((r) => [`${String(r.ecosystem).toLowerCase().replace('crates.io', 'cargo')}:${String(r.name).toLowerCase()}`, r]));
   const auditBy = new Map((audits || []).map((f) => [`${f.ecosystem}:${String(f.name).toLowerCase()}`, f]));
-  const summary = { packages: pkgs.length, checked: 0, vulnerable: 0, agreed: 0, disagreed: 0, deprecated: 0, high: 0 };
+  const summary = { packages: pkgs.length, checked: 0, unchecked: 0, vulnerable: 0, agreed: 0, disagreed: 0, deprecated: 0, high: 0 };
   for (const p of pkgs) {
     const k = `${p.ecosystem}:${p.name.toLowerCase()}`;
     const a = osvBy.get(k);
     const b = auditBy.get(k);
     const h = health.get(k);
-    const vulns = (a?.vulns || []).map((v) => ({ id: v.id, all: [v.id, ...(v.aliases || [])], summary: String(v.summary || '').slice(0, 200), aliases: (v.aliases || []).filter((x) => /^CVE-/.test(x)).slice(0, 3), severity: String(v.severityLabel || '').toUpperCase(), fixedVersions: (v.fixedVersions || []).slice(0, 4) }));
+    const vulns = (a?.vulns || []).map((v) => ({ id: v.id, all: [v.id, ...(v.aliases || [])], summary: String(v.summary || '').slice(0, 200), aliases: (v.aliases || []).filter((x) => /^CVE-/.test(x)).slice(0, 3), severity: String(v.severityLabel || '').toUpperCase(), fixedVersions: (v.fixedVersions || []).slice(0, 40) }));
     // (the same advisory under two ids — "PYSEC-…" and "GHSA-…" — counts once)
     const seen = new Map();
     const uniq = vulns.filter((v) => {
@@ -209,6 +243,8 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       return true;
     });
     const countA = a && !a.error ? (a.partial ? a.vulnCount : uniq.length) : null;
+    // Did any server actually answer for this package? Without one, it's "not checked", never "none known".
+    const answeredB = Boolean(audits) && auditEcos.has(p.ecosystem);
     // The other server lists raw ids: the ones that are aliases of one advisory count once.
     const idsB = b && !b.notFound ? b.vulnerability_ids || [] : [];
     const groupsB = new Set(idsB.map((x) => seen.get(x) || x));
@@ -216,7 +252,9 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
     const fullB = idsB.length && idsB.length >= (b?.vulnerability_count ?? 0);
     const countB = b && !b.notFound ? (fullB ? groupsB.size : b.vulnerability_count ?? idsB.length) : b?.notFound ? null : audits ? 0 : null;
     for (const v of uniq) delete v.all;
-    const fix = uniq.length ? fixVersion(p.version, uniq) : { version: null, unfixed: false };
+    const fixAll = uniq.length ? fixVersion(p.version, uniq) : { version: null, unfixed: false };
+    for (const v of uniq) v.fixedVersions = v.fixedVersions.slice(0, 4); // (shown; the fix above used them all)
+    const fix = fixAll;
     const worst = uniq.reduce((m, v) => Math.max(m, SEV[v.severity] || 0), 0);
     const row = {
       name: p.name,
@@ -239,8 +277,10 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       lastRelease: h?.last_release || null,
       license: h?.license || null,
       notFound: Boolean(b?.notFound) || Boolean(a?.error && /not found/i.test(a.error)),
+      checked: Boolean(p.version) && (countA != null || answeredB),
     };
-    if (p.version) summary.checked++;
+    if (row.checked) summary.checked++;
+    else if (p.version) summary.unchecked++;
     if (row.vulns.length || (countB || 0) > 0) summary.vulnerable++;
     if (row.agree === true) summary.agreed++;
     if (row.agree === false) summary.disagreed++;

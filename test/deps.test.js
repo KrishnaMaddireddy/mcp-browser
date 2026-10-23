@@ -8,7 +8,11 @@ test('manifests: package.json, requirements.txt and plain lists', () => {
   const npm = parseManifest(JSON.stringify({ dependencies: { lodash: '^4.17.15', '@scope/pkg': '~1.2.3', web: 'git+https://x/y.git' }, devDependencies: { jest: '29.0.0' } }));
   assert.deepEqual(npm.map((p) => [p.name, p.version, p.ecosystem, p.dev]), [['lodash', '4.17.15', 'npm', false], ['@scope/pkg', '1.2.3', 'npm', false], ['web', null, 'npm', false], ['jest', '29.0.0', 'npm', true]]);
   const py = parseManifest('# app\nrequests==2.19.0\nDjango>=3.2,<4\nflask[async]==2.3.2  # web\n-r other.txt\n');
-  assert.deepEqual(py.map((p) => [p.name, p.version, p.ecosystem]), [['requests', '2.19.0', 'pypi'], ['Django', '3.2', 'pypi'], ['flask', '2.3.2', 'pypi']]);
+  // (only == pins a version: ">=3.2" installs the latest)
+  assert.deepEqual(py.map((p) => [p.name, p.version, p.ecosystem]), [['requests', '2.19.0', 'pypi'], ['Django', null, 'pypi'], ['flask', '2.3.2', 'pypi']]);
+  assert.deepEqual(parseManifest('urllib3!=1.24.1\nidna~=3.4').map((p) => [p.name, p.version, p.range]), [['urllib3', null, '!=1.24.1'], ['idna', '3.4', '~3.4']]);
+  const cargo = parseManifest('[package]\nname = "myapp"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nserde = { version = "1.0", features = ["derive"] }\ntokio = "1.28"\n\n[tool.poetry.dependencies]\npython = "^3.9"\nrequests = "^2.19"');
+  assert.deepEqual(cargo.map((p) => [p.name, p.version, p.ecosystem]), [['serde', '1.0', 'cargo'], ['tokio', '1.28', 'cargo'], ['requests', '2.19', 'pypi']]);
   assert.deepEqual(parseManifest('lodash@4.17.15\naxios@0.21.0').map((p) => [p.name, p.version, p.ecosystem]), [['lodash', '4.17.15', 'npm'], ['axios', '0.21.0', 'npm']]);
   assert.throws(() => parseManifest('{ not json'));
   assert.equal(baseVersion('latest'), null);
@@ -22,6 +26,8 @@ test('versions: numeric order, and the one fix that covers every advisory', () =
   // (the same major line is preferred: 0.21 → 0.31.1, not 1.15.2)
   assert.deepEqual(fixVersion('0.21.0', [{ fixedVersions: ['1.15.2', '0.31.1'] }]), { version: '0.31.1', unfixed: false });
   assert.equal(fixVersion('2.88.2', [{ fixedVersions: [] }]).unfixed, true);
+  assert.ok(cmpVersion('2.0.0-rc.1', '2.0.0') < 0);
+  assert.deepEqual(fixVersion('5.0.0', [{ fixedVersions: ['1.2.5', '2.3.4', '3.1.0', '4.0.1', '5.0.2'] }]), { version: '5.0.2', unfixed: false });
 });
 
 test('two OSV servers side by side: aliases count once, switched-off servers are skipped', async () => {
@@ -54,4 +60,12 @@ test('two OSV servers side by side: aliases count once, switched-off servers are
   assert.equal(rows.find((r) => r.name === 'pyyaml').counts.audit, 0);
   assert.deepEqual([done.summary.vulnerable, done.summary.agreed, done.sources.health], [1, 2, false]);
   assert.equal(servers.find((s) => s.key === 'health').ok, false);
+});
+
+test('no server answered: nothing reads "none known"', async () => {
+  const rows = [];
+  let done = null;
+  await runDeps(parseManifest('lodash@4.17.15'), { callTool: async () => { throw new Error('off'); }, emit: (t, d) => (t === 'deps_row' ? rows.push(d) : t === 'deps_done' ? (done = d) : null) });
+  assert.equal(rows[0].checked, false);
+  assert.deepEqual([done.summary.checked, done.summary.unchecked, done.summary.vulnerable], [0, 1, 0]);
 });

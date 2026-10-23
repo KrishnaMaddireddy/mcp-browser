@@ -42,17 +42,23 @@
         if (done) {
           const s = done.summary;
           const both = done.sources.osv && done.sources.audit;
-          const agreeLine = both && s.agreed + s.disagreed > 0 ? (s.disagreed ? `The two OSV servers disagree on ${s.disagreed} package${s.disagreed === 1 ? '' : 's'}: both counts are shown.` : `Two OSV servers from different publishers agree on ${s.agreed === s.checked ? `all ${s.agreed}` : `${s.agreed} of ${s.checked}`}.`) : 'Only one OSV server had answers, so nothing was double-checked.';
-          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-watch>Tell me about new advisories</button> · <button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
+          const answered = Object.values(servers).filter((x) => x.ok && x.key !== 'health').length;
+          const agreeLine = both && s.agreed + s.disagreed > 0 ? (s.disagreed ? `The two services disagree on ${s.disagreed} package${s.disagreed === 1 ? '' : 's'}: both counts are shown.` : `Two services reading OSV.dev, from different publishers, agree on ${s.agreed === s.checked ? `all ${s.agreed}` : `${s.agreed} of ${s.checked}`}.`) : 'Only one service answered, so nothing was double-checked.';
+          const notChecked = s.unchecked ? ` ${s.unchecked} package${s.unchecked === 1 ? ' wasn’t' : 's weren’t'} checked: no service answered for ${s.unchecked === 1 ? 'it' : 'them'}.` : '';
+          const acts = `<p class="ck-acts dp-copy"><button type="button" class="link-btn" data-dp-watch title="Checked once a day, sent to the same servers">Tell me about new advisories</button> · <button type="button" class="link-btn" data-dp-copy>Copy as Markdown</button> <span data-dp-copied role="status"></span></p>`;
+          head = !s.checked
+            ? `<div class="ck-verdict" data-v="unclear"><b>Nothing was checked</b><p>${answered ? 'No service had an answer for these packages.' : 'No OSV service answered (switched off in Settings, or not reachable right now).'} Try again later; this is not a clean result.</p></div>`
+            : `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine}${notChecked} Known means published in OSV.dev; a clean result isn’t proof of safety.</p>${acts}</div>`;
         } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
         const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
-        const ranged = rows.some((r) => /^[\^~>]/.test(r.range || '')) ? '<p class="hint">For ranges like ^4.17.15 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
+        const ranged = rows.some((r) => /^[\^~]/.test(r.range || '') && r.version) ? '<p class="hint">For ranges like ^4.17.15 or ~=3.4 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
+        const loose = rows.some((r) => /^(?:!=|>=?|<=?)/.test(r.range || '')) ? '<p class="hint">Requirements like >=2.19 or !=1.24.1 don’t pin a version, so only the latest version and upkeep are shown for them. Check your lockfile’s versions for the full picture.</p>' : '';
         const body = rows
           .map((r, i) => {
             const n = r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0;
             const counts = r.counts.comparable && r.counts.osv != null && r.counts.audit != null && r.counts.osv !== r.counts.audit ? ` <span class="dp-dis" title="The two servers give different counts">${r.counts.osv} / ${r.counts.audit}</span>` : '';
             const label = `${n} known${r.worst ? ` <span class="dp-sev" data-sev="${esc(r.worst)}">${esc(SEV_LABEL[r.worst] || r.worst)}</span>` : ''}`;
-            const vul = !r.version ? '<span class="dp-muted">no version</span>' : n ? `${r.vulns.length ? `<button type="button" class="link-btn dp-open" data-dp-i="${i}" aria-expanded="false">${label}</button>` : `<span>${label}</span> <a class="dp-muted" href="https://osv.dev/list?ecosystem=${r.ecosystem === 'pypi' ? 'PyPI' : r.ecosystem === 'cargo' ? 'crates.io' : 'npm'}&q=${encodeURIComponent(r.name)}" target="_blank" rel="noopener noreferrer">list on osv.dev</a>`}${counts}` : '<span class="dp-ok">None known</span>';
+            const vul = !r.version ? `<span class="dp-muted">${/^(?:!=|>=?|<=?)/.test(r.range || '') ? 'not pinned' : 'no version'}</span>` : !r.checked ? '<span class="dp-muted">Not checked</span>' : n ? `${r.vulns.length ? `<button type="button" class="link-btn dp-open" data-dp-i="${i}" aria-expanded="false">${label}</button>` : `<span>${label}</span> <a class="dp-muted" href="https://osv.dev/list?ecosystem=${r.ecosystem === 'pypi' ? 'PyPI' : r.ecosystem === 'cargo' ? 'crates.io' : 'npm'}&q=${encodeURIComponent(r.name)}" target="_blank" rel="noopener noreferrer">list on osv.dev</a>`}${counts}` : '<span class="dp-ok">None known</span>';
             const fix = r.unfixed ? '<span class="dp-bad">No fixed version</span>' : r.fix ? esc(r.fix) : '';
             const notes = [r.deprecated ? '<span class="dp-bad">Deprecated</span>' : '', r.maintained === false && !r.deprecated ? '<span class="dp-bad">Not maintained</span>' : '', r.dev ? '<span class="dp-muted">dev</span>' : '', r.notFound ? '<span class="dp-muted">not found</span>' : ''].filter(Boolean).join(' ');
             const adv = r.vulns.length
@@ -63,10 +69,10 @@
                   )
                   .join('')}</ul></td></tr>`
               : '';
-            return `<tr><td><b>${esc(r.name)}</b> <span class="dp-muted">${esc(r.ecosystem)}</span></td><td>${esc(r.version || r.range || '—')}</td><td>${vul}</td><td>${fix}</td><td>${esc(r.latest || '')}</td><td>${notes}</td></tr>${adv}`;
+            return `<tr><td><b>${esc(r.name)}</b> <span class="dp-muted">${esc(r.ecosystem)}</span>${notes ? `<div class="dp-notes-m">${notes}</div>` : ''}</td><td>${esc(r.version || r.range || '—')}</td><td>${vul}</td><td>${fix}</td><td>${esc(r.latest || '')}</td><td>${notes}</td></tr>${adv}`;
           })
           .join('');
-        out.innerHTML = head + srvLine + unpinned + ranged + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
+        out.innerHTML = head + srvLine + unpinned + ranged + loose + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th><span class="sr-only">Notes</span></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
       };
       out.innerHTML = '<p class="ck-wait">Reading your packages…</p>';
       let res;
@@ -136,7 +142,7 @@
             '',
             '| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |',
             '|---|---|---|---|---|---|',
-            ...rows.map((r) => `| ${cell(r.name)} (${r.ecosystem}) | ${cell(r.version || r.range || '—')} | ${r.version ? (r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0) || 'none' : 'no version'}${r.worst ? ` (${SEV_LABEL[r.worst] || r.worst})` : ''} | ${r.unfixed ? 'no fix yet' : cell(r.fix || '')} | ${cell(r.latest || '')} | ${[r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : ''].filter(Boolean).join(', ')} |`),
+            ...rows.map((r) => `| ${cell(r.name)} (${r.ecosystem}) | ${cell(r.version || r.range || '—')} | ${!r.version ? 'not pinned' : !r.checked ? 'not checked' : (r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0) || 'none'}${r.worst ? ` (${SEV_LABEL[r.worst] || r.worst})` : ''} | ${r.unfixed ? 'no fix yet' : cell(r.fix || '')} | ${cell(r.latest || '')} | ${[r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : ''].filter(Boolean).join(', ')} |`),
           ];
           const adv = rows.filter((r) => r.vulns.length);
           if (adv.length) {

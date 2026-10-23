@@ -1139,8 +1139,12 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .dp-ids a { color: inherit; }
 .dp-muted { color: var(--muted); font-size: 12.5px; }
 .dp-ok { color: var(--signal); }
-.dp-bad { color: #c2410c; font-size: 13px; }
-.dp-dis { color: #c58a12; font-size: 12.5px; }
+.dp-bad { color: #b3370a; font-size: 13px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dp-bad { color: #ff8a5c; } }
+:root[data-theme="dark"] .dp-bad { color: #ff8a5c; }
+.dp-dis { color: #8a5a00; font-size: 12.5px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dp-dis { color: #f0c46a; } }
+:root[data-theme="dark"] .dp-dis { color: #f0c46a; }
 .dp-sev { display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 0 7px; line-height: 18px; border: 1px solid var(--line); color: var(--muted); }
 .dp-sev[data-sev="CRITICAL"], .dp-sev[data-sev="HIGH"] { color: #fff; background: #c2410c; border-color: #c2410c; }
 .dp-sev[data-sev="MODERATE"], .dp-sev[data-sev="MEDIUM"] { color: #7a5200; background: #fbe7b8; border-color: #f0cf7a; }
@@ -1148,7 +1152,9 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 :root[data-theme="dark"] .dp-sev[data-sev="MODERATE"], :root[data-theme="dark"] .dp-sev[data-sev="MEDIUM"] { color: #f7d98b; background: transparent; border-color: #8a6a1f; }
 @media (max-width: 600px) { .dp-table th:nth-child(5), .dp-table tr:not(.dp-adv) td:nth-child(5) { display: none; } .dp-table td, .dp-table th { padding: 7px 6px; } .dp-table tr.dp-adv td { padding-left: 8px; } }
 .ck-acts { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
-.ck-verdict .dp-copy { float: right; margin: 2px 0 0 12px; }
+.ck-verdict .dp-copy { margin: 8px 0 0; }
+.dp-notes-m { display: none; margin-top: 2px; }
+@media (max-width: 600px) { .dp-notes-m { display: block; } .dp-table th:nth-child(6), .dp-table tr:not(.dp-adv) td:nth-child(6) { display: none; } .dp-wrap { overflow-x: visible; } .dp-table tr.dp-adv td { white-space: normal; } .dp-adv .dp-ids { display: block; overflow-wrap: anywhere; } }
 .watch-diff { list-style: none; margin: 4px 0 0; padding: 0; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .watch-diff li { overflow-wrap: anywhere; }
 .watch-diff li[data-sign="+"] { color: var(--signal); }
