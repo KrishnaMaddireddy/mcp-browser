@@ -275,7 +275,9 @@ Markdown** gives the verdict with every quote and link.
 it is checked on its own, two at a time, up to 8. "It", "He" and "She" are read as the last
 name before them, "… is 330 meters tall and was designed by Gustave Eiffel" becomes two
 facts, and opinions, advice, questions and hedged or reported sentences are listed as not
-checked, with why.
+checked, with why. **Copy as Markdown** gives each fact with its reading and clearest quotes.
+When only one web search server answers a check (another busy or rate-limited), the claim also
+goes to the other curated web search servers, so the sources stay independent.
 
 ## Answer cards
 
