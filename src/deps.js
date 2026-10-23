@@ -41,7 +41,9 @@ export function parseLockfile(text) {
   const out = [];
   const seen = new Set();
   let total = 0;
-  // who pulls in whom (names), to say which direct dependency brings an indirect one in
+  // Who pulls in whom, to say which direct dependency brings an indirect one in. Keys are
+  // names, except in package-lock v2/v3, where each copy has its own path ("node_modules/
+  // express/node_modules/ms" is not the "ms" at the top).
   const parents = new Map();
   const edge = (from, to) => {
     if (!from || !to || from === to) return;
@@ -52,37 +54,53 @@ export function parseLockfile(text) {
     name = String(name || '').trim();
     version = String(version || '').trim();
     if (!name || name.length > 214 || !/^[@\w][\w.@/-]*$/.test(name) || !/^\d[\w.+-]*$/.test(version)) return;
-    const key = `${ecosystem}:${name.toLowerCase()}@${version}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    const dupe = `${ecosystem}:${name.toLowerCase()}@${version}`;
     total++;
-    out.push({ name, version, range: version, ecosystem, dev: Boolean(extra.dev), indirect: Boolean(extra.indirect), lock: true });
+    if (seen.has(dupe)) {
+      // (the same version in two places: one row, direct if either copy is)
+      if (extra.key) out.find((p) => `${p.ecosystem}:${p.name.toLowerCase()}@${p.version}` === dupe)?.keys.push(extra.key);
+      total--;
+      return;
+    }
+    seen.add(dupe);
+    out.push({ name, version, range: version, ecosystem, dev: Boolean(extra.dev), indirect: false, lock: true, keys: [extra.key || name] });
+  };
+  // (no list of direct ones: the packages nothing else needs are the ones you asked for)
+  const roots = () => {
+    if (!parents.size) return null;
+    const r = new Set(out.filter((p) => !p.keys.some((k) => parents.has(k))).flatMap((p) => p.keys));
+    return r.size && r.size < out.length ? r : null;
   };
   const order = (direct) => {
+    const isDirect = (p) => p.keys.some((k) => direct.has(k));
+    if (direct) for (const p of out) p.indirect = !isDirect(p);
     // (direct ones first, so a long lockfile still checks what you asked for)
-    const d = (p) => (direct ? (direct.has(p.name) ? 0 : 1) : p.indirect ? 1 : 0);
-    if (direct) for (const p of out) p.indirect = !direct.has(p.name);
-    // "qs (via express)": the nearest direct dependencies up the tree
+    const kept = out.sort((a, b) => Number(a.indirect) - Number(b.indirect)).slice(0, MAX_PACKAGES);
+    // "qs (via express)": the nearest direct dependencies up the tree (only for the ones kept)
+    let budget = 200000;
     if (direct && parents.size)
-      for (const p of out.filter((x) => x.indirect)) {
+      for (const p of kept.filter((x) => x.indirect)) {
         const via = new Set();
-        const seenUp = new Set([p.name]);
-        let level = [p.name];
-        for (let depth = 0; depth < 12 && level.length && !via.size; depth++) {
+        const seenUp = new Set(p.keys);
+        let level = [...p.keys];
+        for (let depth = 0; depth < 12 && level.length && !via.size && budget > 0; depth++) {
           const next = [];
           for (const n of level)
             for (const up of parents.get(n) || []) {
-              if (seenUp.has(up)) continue;
+              if (--budget <= 0 || seenUp.has(up)) continue;
               seenUp.add(up);
-              if (direct.has(up)) via.add(up);
+              if (direct.has(up)) via.add(up.replace(/^.*node_modules\//, ''));
               else next.push(up);
             }
           level = next;
         }
-        if (via.size) p.via = [...via].sort().slice(0, 3);
+        if (via.size) p.via = [...via].sort();
       }
-    return Object.assign(out.sort((a, b) => d(a) - d(b)).slice(0, MAX_PACKAGES), { total, lockfile: true });
+    for (const p of kept) delete p.keys;
+    return Object.assign(kept, { total, lockfile: true, directKnown: Boolean(direct) });
   };
+  // "lodash-old": "npm:lodash@4.17.15" is lodash: [real name, version]
+  const alias = (v) => /^npm:(@?[^@\s]+)@(.+)$/.exec(String(v || ''));
   // package-lock.json / npm-shrinkwrap.json
   if (/^\{/.test(t) && /"lockfileVersion"\s*:/.test(t.slice(0, 2000))) {
     let j;
@@ -91,94 +109,190 @@ export function parseLockfile(text) {
     } catch {
       throw new Error('That looks like a package-lock.json but it doesn’t parse. Paste the whole file.');
     }
-    const root = j.packages?.[''] || {};
-    const direct = new Set([...Object.keys(root.dependencies || j.dependencies || {}), ...Object.keys(root.devDependencies || {}), ...Object.keys(root.optionalDependencies || {})]);
-    if (j.packages) {
-      for (const [path, info] of Object.entries(j.packages)) {
-        if (!path || info?.link || !path.includes('node_modules/')) continue;
-        const name = info.name || path.slice(path.lastIndexOf('node_modules/') + 13);
-        add(name, info.version, 'npm', { dev: info.dev });
-        for (const k of ['dependencies', 'optionalDependencies', 'peerDependencies']) for (const d of Object.keys(info[k] || {})) edge(name, d);
-      }
-    } else {
-      // (lockfile v1: a tree of "dependencies")
-      const walk = (deps, depth) => {
-        for (const [n, info] of Object.entries(deps || {})) {
-          add(n, info?.version, 'npm', { dev: info?.dev });
-          for (const d of Object.keys(info?.requires || {})) edge(n, d);
-          if (depth < 6) walk(info?.dependencies, depth + 1);
+    const pk = j?.packages && typeof j.packages === 'object' ? j.packages : null;
+    const root = (pk?.[''] && typeof pk[''] === 'object' ? pk[''] : null) || {};
+    const rootDeps = { ...(root.dependencies || {}), ...(root.devDependencies || {}), ...(root.optionalDependencies || {}) };
+    if (pk) {
+      const has = (path) => pk[path] && typeof pk[path] === 'object';
+      // the copy a package at `from` gets: its own node_modules, then each folder up
+      const resolve = (from, name) => {
+        let base = from;
+        for (;;) {
+          const cand = `${base ? `${base}/` : ''}node_modules/${name}`;
+          if (has(cand)) return cand;
+          if (!base) return null;
+          // node_modules/a/node_modules/b → node_modules/a → (the top); packages/web → (the top)
+          const cut = base.lastIndexOf('/node_modules/');
+          base = cut >= 0 ? base.slice(0, cut) : '';
         }
       };
-      walk(j.dependencies, 0);
-      if (!root.dependencies) direct.clear();
+      const direct = new Set(Object.keys(rootDeps).map((n) => resolve('', n)).filter(Boolean));
+      for (const [path, info] of Object.entries(pk)) {
+        if (!path || !info || typeof info !== 'object' || info.link || !path.includes('node_modules/')) continue;
+        // (a git, file or tarball dependency isn't the registry package of that name)
+        if (info.resolved && !/^https?:\/\/[^/]*(?:registry|npmjs|yarnpkg)[^/]*\//.test(info.resolved)) continue;
+        if (info.resolved && /^https?:\/\//.test(info.resolved) && !/\.tgz(?:[?#].*)?$/.test(info.resolved)) continue;
+        const name = info.name || path.slice(path.lastIndexOf('node_modules/') + 13);
+        add(name, info.version, 'npm', { dev: info.dev, key: path });
+        // (peers are the other way round: whoever installs this provides them)
+        for (const k of ['dependencies', 'optionalDependencies']) for (const d of Object.keys(info[k] || {})) edge(path, resolve(path, d));
+      }
+      return order(direct.size ? direct : null);
     }
-    return order(direct.size ? direct : null);
+    // (lockfile v1: a tree of "dependencies"; an alias's version is "npm:lodash@4.17.15")
+    const direct = new Set();
+    const walk = (deps, depth) => {
+      for (const [n, info] of Object.entries(deps || {})) {
+        if (!info || typeof info !== 'object') continue;
+        const al = alias(info.version);
+        const name = al ? al[1] : n;
+        add(name, al ? al[2] : info.version, 'npm', { dev: info.dev });
+        for (const d of Object.keys(info.requires || {})) edge(name, d);
+        if (depth < 6) walk(info.dependencies, depth + 1);
+      }
+    };
+    walk(j.dependencies, 0);
+    for (const [n, v] of Object.entries(rootDeps)) direct.add(alias(v)?.[1] || n);
+    return order(direct.size ? direct : roots());
   }
   // yarn.lock (classic and berry): `"lodash@^4.17.15", lodash@^4.17.20:` then `version "4.17.21"`
-  if (/^# (?:THIS IS AN AUTOGENERATED FILE|This file is generated by running "yarn)|^__metadata:/m.test(t.slice(0, 600)) || /^"?@?[\w.-]+(?:\/[\w.-]+)?@[^\n]*:\n\s+version:? "?\d/m.test(t)) {
+  if (/^# (?:THIS IS AN AUTOGENERATED FILE|This file is generated by running "yarn)|^__metadata:/m.test(t.slice(0, 600)) || /^"?@?[\w.-]+(?:\/[\w.-]+)?@[^\n]*:\n[ \t]+version:? "?\d/m.test(t)) {
     let name = null;
+    let local = false;
+    let version = null;
+    let deps = [];
+    let inDeps = false;
+    const wsDirect = new Set();
+    const flush = () => {
+      if (name && version && !local) {
+        add(name, version, 'npm');
+        for (const d of deps) edge(name, d);
+      }
+      // (berry: the project's own entry, "app@workspace:.", lists the direct ones)
+      if (name && local && /^0\.0\.0-use\.local$/.test(version || '')) for (const d of deps) wsDirect.add(d);
+      name = null;
+      version = null;
+      local = false;
+      deps = [];
+      inDeps = false;
+    };
     for (const line of t.split(/\r?\n/)) {
-      const head = /^"?(@?[^@"\s]+)@/.exec(line);
-      if (head && !/^\s/.test(line) && !/^__metadata/.test(line)) name = head[1];
-      const v = /^\s+version:?\s+"?([^"\s]+)"?/.exec(line);
-      if (v && name) {
-        add(name, v[1], 'npm');
-        name = null;
+      if (!/^\s/.test(line) && line.trim()) {
+        flush();
+        if (/^__metadata|^#/.test(line)) continue;
+        const first = line.replace(/^"/, '').split(/",?\s*"?|,\s*/)[0];
+        const head = /^(@?[^@\s"]+)@(.*)$/.exec(first);
+        if (!head) continue;
+        // ("x@npm:lodash@4.17.15" is lodash; workspace:, file:, link:, portal:, git and URLs aren't registry packages)
+        const al = /^npm:(@?[^@\s"]+)@/.exec(head[2]);
+        name = al ? al[1] : head[1];
+        local = /^(?:workspace|file|link|portal|git|github|https?|patch):|^(?:\.\.?\/|\/)/.test(head[2].replace(/^npm:@?[^@]+@/, ''));
+        continue;
+      }
+      if (/^ {2}\w/.test(line)) inDeps = /^ {2}(?:dependencies|optionalDependencies):/.test(line);
+      else if (inDeps) {
+        // classic `    "@scope/x" "^1.0.0"` / berry `    x: "npm:^1.0.0"` (an alias's value names the real one)
+        const d = /^ {4}"?((?:@[\w.-]+\/)?[\w.-]+)"?:?[ \t]+"?(?:npm:((?:@[\w.-]+\/)?[\w.-]+)@)?/.exec(line);
+        if (d) deps.push(d[2] || d[1]);
+      }
+      const v = /^[ \t]+version:?[ \t]+"?([^"\s]+)"?/.exec(line);
+      if (v && name && !version) version = v[1];
+      // berry: `resolution: "lodash@npm:4.17.15"` names the real package
+      const res = /^[ \t]+resolution:[ \t]+"?(@?[^@\s"]+)@([a-z]+):/.exec(line);
+      if (res && name) {
+        name = res[1];
+        if (res[2] !== 'npm') local = true;
       }
     }
-    return out.length ? order(null) : null;
+    flush();
+    return order(wsDirect.size ? wsDirect : roots());
   }
-  // pnpm-lock.yaml: "  /lodash@4.17.21:" or "  lodash@4.17.21:" under packages:, direct ones under importers/dependencies
+  // pnpm-lock.yaml: v9 "  lodash@4.17.21:", v6 "  /lodash@4.17.21:", v5 "  /lodash/4.17.21:" under
+  // packages: (and snapshots:), with "_peer@1" or "(peer@1)" suffixes; direct ones under importers.
   if (/^lockfileVersion:\s*['"]?\d/m.test(t.slice(0, 200))) {
     let section = '';
-    let devPart = false;
+    let sub = '';
     let owner = null;
+    let importer = null;
     const direct = new Set();
     const devs = new Set();
     for (const line of t.split(/\r?\n/)) {
       const top = /^(\w[\w-]*):/.exec(line);
-      if (top) section = top[1];
-      const part = /^\s{0,4}(dependencies|devDependencies|optionalDependencies):\s*$/.exec(line);
-      if (part) devPart = part[1] === 'devDependencies';
+      if (top) {
+        section = top[1];
+        owner = null;
+        continue;
+      }
       if (section === 'packages' || section === 'snapshots') {
-        const m = /^ {2}['"]?\/?(@?[^@\s'"(]+)[@/](\d[^:'"(\s]*)/.exec(line);
-        if (m) {
-          add(m[1], m[2], 'npm');
-          owner = m[1];
+        if (/^ {2}\S/.test(line)) {
+          // (a new entry: whatever it is, the last one's dependencies end here)
+          owner = null;
+          const k = line.trim().replace(/^['"]|['"]?:\s*(?:\{\})?\s*$/g, '');
+          const m = /^\/?((?:@[^/@\s]+\/)?[^/@\s(]+)@(\d[^:(_\s]*)/.exec(k) || /^\/((?:@[^/\s]+\/)?[^/\s]+)\/(\d[^:(_\s/]*)/.exec(k);
+          if (m) {
+            add(m[1], m[2], 'npm');
+            owner = m[1];
+          }
+          continue;
         }
-        const dep = owner && /^ {6}['"]?(@?[\w.-]+(?:\/[\w.-]+)?)['"]?:\s*\S/.exec(line);
+        const s4 = /^ {4}(\w+):/.exec(line);
+        if (s4) sub = s4[1];
+        const dep = owner && (sub === 'dependencies' || sub === 'optionalDependencies') && /^ {6}['"]?((?:@[\w.-]+\/)?[\w.-]+)['"]?:\s*\S/.exec(line);
         if (dep) edge(owner, dep[1]);
-      } else if (section === 'dependencies' || section === 'devDependencies' || section === 'importers') {
-        const d = /^\s{2,6}['"]?(@?[\w.-]+(?:\/[\w.-]+)?)['"]?:\s*(?:\S|$)/.exec(line);
-        if (d && !/^(?:specifier|version|dependencies|devDependencies|optionalDependencies|\.)$/.test(d[1])) {
-          direct.add(d[1]);
-          if (devPart) devs.add(d[1]);
+      } else if (section === 'importers' || section === 'dependencies' || section === 'devDependencies' || section === 'optionalDependencies') {
+        // v9/v6: importers: / ".": / dependencies: / name: / version: x (or "lodash@4.17.15" for an alias)
+        // v5 single project: dependencies: / name: 1.2.3
+        const ind = /^( *)/.exec(line)[1].length;
+        const kv = /^ *['"]?((?:@[\w.-]+\/)?[\w.-]+)['"]?:\s*['"]?([^'"\s]*)/.exec(line);
+        if (!kv) continue;
+        const depth = section === 'importers' ? 6 : 2;
+        const groupKey = section === 'importers' ? (ind === 4 ? kv[1] : null) : section;
+        if (groupKey) sub = groupKey;
+        if (ind === depth && kv[1] !== '.') {
+          importer = kv[1];
+          if (/^(?:dependencies|devDependencies|optionalDependencies)$/.test(sub)) {
+            direct.add(importer);
+            if (sub === 'devDependencies') devs.add(importer);
+          }
+          if (kv[2] && section !== 'importers') {
+            const al = /^(@?[^@\s]+)@(\d.*)$/.exec(kv[2]);
+            if (al) direct.add(al[1]);
+          }
+        } else if (section === 'importers' && ind === depth + 2 && kv[1] === 'version' && importer) {
+          // ("version: lodash@4.17.15": an alias, so the real package is the direct one)
+          const al = /^(@?[^@\s]+)@(\d.*)$/.exec(kv[2]);
+          if (al) direct.add(al[1]);
         }
       }
     }
     for (const p of out) if (devs.has(p.name)) p.dev = true;
-    return out.length ? order(direct.size ? direct : null) : null;
+    return order(direct.size ? direct : roots());
   }
   // poetry.lock, uv.lock, Cargo.lock: [[package]] name = "…" version = "…"
   if (/^\[\[package\]\]/m.test(t)) {
     const cargo = /@generated by Cargo|registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index|^checksum = /m.test(t);
     const eco = cargo ? 'cargo' : 'pypi';
     let direct = null;
-    for (const block of t.split(/^\[\[package\]\]\s*$/m).slice(1)) {
-      const name = /^name\s*=\s*"([^"]+)"/m.exec(block)?.[1];
-      const version = /^version\s*=\s*"([^"]+)"/m.exec(block)?.[1];
-      // (the project itself, in uv.lock and Cargo.lock: no registry source)
-      if (/^source\s*=\s*\{\s*(?:editable|virtual|directory)\s*=/m.test(block) || (cargo && !/^source\s*=/m.test(block))) {
-        if (cargo || /^source/m.test(block)) {
-          direct = new Set([...(direct || []), ...[...block.matchAll(/^\s*"([\w.-]+)(?:\s[^"]*)?",?$/gm)].map((m) => m[1]), ...[...block.matchAll(/\{\s*name\s*=\s*"([\w.-]+)"/g)].map((m) => m[1])]);
-          continue;
-        }
+    // (one line at a time: "[ \t]*", never "\s*", so blank lines can't make it slow)
+    const listed = (block) => [...block.matchAll(/^[ \t]*"([\w.-]+)(?: [^"\n]*)?",?[ \t]*$/gm), ...block.matchAll(/\{[ \t]*name[ \t]*=[ \t]*"([\w.-]+)"/g)].map((m) => m[1]);
+    for (const block of t.split(/^\[\[package\]\][ \t]*$/m).slice(1)) {
+      const name = /^name[ \t]*=[ \t]*"([^"\n]+)"/m.exec(block)?.[1];
+      const version = /^version[ \t]*=[ \t]*"([^"\n]+)"/m.exec(block)?.[1];
+      const source = /^source[ \t]*=[ \t]*(.*)$/m.exec(block)?.[1] || '';
+      // The project itself (uv: virtual or editable; Cargo: no source): its list is the direct ones.
+      if (/^\{[ \t]*(?:editable|virtual)[ \t]*=/.test(source) || (cargo && !source)) {
+        direct = new Set([...(direct || []), ...listed(block)]);
+        continue;
       }
-      for (const m of block.matchAll(/^\s*"([\w.-]+)(?:\s[^"]*)?",?$/gm)) edge(name, m[1]);
-      for (const m of block.matchAll(/\{\s*name\s*=\s*"([\w.-]+)"/g)) edge(name, m[1]);
-      add(name, version, eco, { dev: /^category\s*=\s*"dev"|^groups\s*=\s*\["dev"\]/m.test(block) });
+      // (a local folder, a path or a git checkout isn't the registry package of that name)
+      if (/^\{[ \t]*(?:directory|path|git|url)[ \t]*=|^"(?:git|path)\+/.test(source)) continue;
+      for (const d of listed(block)) edge(name, d);
+      // (poetry: a [package.dependencies] table, "attrs = \">=17.4.0\"")
+      const table = /^\[package\.dependencies\][ \t]*$([^[]*)/m.exec(block);
+      if (table) for (const m of table[1].matchAll(/^([\w.-]+)[ \t]*=/gm)) edge(name, m[1]);
+      add(name, version, eco, { dev: /^category[ \t]*=[ \t]*"dev"|^groups[ \t]*=[ \t]*\["dev"\]/m.test(block) });
     }
-    return out.length ? order(direct?.size ? direct : null) : null;
+    return order(direct?.size ? direct : roots());
   }
   return null;
 }
@@ -290,7 +404,7 @@ const SEV = { CRITICAL: 4, HIGH: 3, MODERATE: 2, MEDIUM: 2, LOW: 1 };
  */
 export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () => {} } = {}) {
   const pinned = pkgs.filter((p) => p.version && ECO[p.ecosystem]);
-  emit('deps_start', { packages: pkgs.length, pinned: pinned.length, unpinned: pkgs.filter((p) => !p.version).map((p) => p.name).slice(0, 30), lockfile: Boolean(pkgs.lockfile), total: pkgs.total ?? pkgs.length, indirect: pkgs.filter((p) => p.indirect).length });
+  emit('deps_start', { packages: pkgs.length, pinned: pinned.length, unpinned: pkgs.filter((p) => !p.version).map((p) => p.name).slice(0, 30), lockfile: Boolean(pkgs.lockfile), directKnown: Boolean(pkgs.directKnown), total: pkgs.total ?? pkgs.length, indirect: pkgs.filter((p) => p.indirect).length });
   const timed = async (key, fn) => {
     const t0 = Date.now();
     try {
@@ -533,7 +647,7 @@ export async function fetchRepoDeps(repo, { callTool, emit = () => {} } = {}) {
     const share = Math.floor(MAX_PACKAGES / picks.length);
     for (const f of picks) pkgs.push(...f.pkgs.slice(0, picks.length > 1 ? share : MAX_PACKAGES));
     const lockfile = picks.some((f) => f.pkgs.lockfile);
-    Object.assign(pkgs, { lockfile, total: picks.reduce((n, f) => n + (f.pkgs.total ?? f.pkgs.length), 0) });
+    Object.assign(pkgs, { lockfile, directKnown: picks.some((f) => f.pkgs.directKnown), total: picks.reduce((n, f) => n + (f.pkgs.total ?? f.pkgs.length), 0) });
     const files = picks.map((f) => ({ file: f.file, url: f.url, truncated: f.truncated, lockfile: Boolean(f.pkgs.lockfile), packages: f.pkgs.total ?? f.pkgs.length }));
     emit('deps_source', { repo: `${repo.owner}/${repo.repo}`, dir: repo.dir, ref: repo.ref, files, found: found.map((g) => g.file) });
     return { pkgs, files, tried };

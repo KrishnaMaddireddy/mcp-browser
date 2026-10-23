@@ -26,6 +26,7 @@
       try {
         // (a lockfile is too big to keep; a cut-off one wouldn't parse next time)
         if (text.length <= 20000) localStorage.setItem(KEY, text);
+        else localStorage.removeItem(KEY);
       } catch {}
       const rows = [];
       const servers = {};
@@ -54,7 +55,7 @@
             : `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? '' : 's'} ${s.vulnerable === 1 ? 'has' : 'have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine}${notChecked} Known means published in OSV.dev; a clean result isn’t proof of safety.</p>${acts}</div>`;
         } else if (repo && !start) head = `<p class="ck-wait">Reading ${esc(repo.repo)}${repo.dir ? `/${esc(repo.dir)}` : ''} from GitHub through the Page Fetch server…</p>`;
         else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
-        const lock = start?.lockfile ? `<p class="hint">From your lockfile: the versions installed${start.indirect && start.indirect < start.packages ? `, ${start.packages - start.indirect} you depend on directly and ${start.indirect} pulled in by them (marked with the direct one that brings each in)` : ''}.${start.total > start.packages ? ` The first ${start.packages} of ${start.total} are checked, direct ones first.` : ''}${done && rows.length > 12 ? ' Packages with known vulnerabilities are listed first.' : ''}</p>` : '';
+        const lock = start?.lockfile ? `<p class="hint">From your lockfile: the versions installed${start.indirect && start.indirect < start.packages ? `, ${start.packages - start.indirect} you depend on directly and ${start.indirect} pulled in by them (marked with the direct one that brings each in)` : ''}.${start.total > start.packages ? ` The first ${start.packages} of ${start.total} are checked${start.directKnown ? ', direct ones first' : ''}.` : ''}${done && rows.length > 12 ? ' Packages with known vulnerabilities are listed first.' : ''}</p>` : '';
         // ("6 of 7 come in through express": where to start)
         let through = '';
         if (done && start?.lockfile) {
@@ -192,7 +193,7 @@
       const f = file.files?.[0];
       file.value = '';
       if (!f) return;
-      if (f.size > 8 * 1024 * 1024) return void (out.innerHTML = '<p class="lr-fail">That file is over 8 MB. Paste the dependencies part instead.</p>');
+      if (f.size > 7.5 * 1024 * 1024) return void (out.innerHTML = '<p class="lr-fail">That file is over 7.5 MB. Paste the dependencies part instead.</p>');
       try {
         ta.value = await f.text();
       } catch (e) {

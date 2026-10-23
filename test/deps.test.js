@@ -142,3 +142,25 @@ test('a GitHub repo link: its lockfile per ecosystem, a sub-folder, the workspac
   assert.equal(none.pkgs, null);
   assert.match(none.error, /switched off/);
 });
+
+test('review: lockfile edge cases (slow input, pnpm 7 peers, aliases, local packages, nested copies)', () => {
+  // blank lines in a TOML lockfile can't make it slow
+  const t0 = Date.now();
+  parseManifest('[[package]]\nname = "a"\nversion = "1.0"\n' + ' \n'.repeat(80000) + 'x');
+  assert.ok(Date.now() - t0 < 1000);
+  // pnpm 7: "/react-dom/18.2.0_react@18.2.0" is react-dom 18.2.0
+  const v5 = parseManifest("lockfileVersion: 5.4\n\nspecifiers:\n  react-dom: 18.2.0\n\ndependencies:\n  react-dom: 18.2.0_react@18.2.0\n\npackages:\n\n  /loose-envify/1.4.0:\n    resolution: {integrity: sha512-x}\n\n  /react-dom/18.2.0_react@18.2.0:\n    resolution: {integrity: sha512-y}\n    peerDependencies:\n      react: ^18.2.0\n    dependencies:\n      loose-envify: 1.4.0\n");
+  assert.deepEqual(v5.map((p) => [p.name, p.version, p.indirect, (p.via || []).join()]), [['react-dom', '18.2.0', false, ''], ['loose-envify', '1.4.0', true, 'react-dom']]);
+  // an alias is the real package; workspace and file packages never go to the public servers
+  const berry = parseManifest('__metadata:\n  version: 8\n\n"express@npm:4.17.1":\n  version: 4.17.1\n  resolution: "express@npm:4.17.1"\n\n"lodash-old@npm:lodash@4.17.15":\n  version: 4.17.15\n  resolution: "lodash@npm:4.17.15"\n\n"local-pkg@file:./local::locator=secretapp%40workspace%3A.":\n  version: 1.0.0\n  resolution: "local-pkg@file:./local#./local::hash=e04fff"\n\n"secretapp@workspace:.":\n  version: 0.0.0-use.local\n  resolution: "secretapp@workspace:."\n  dependencies:\n    express: "npm:4.17.1"\n    lodash-old: "npm:lodash@4.17.15"\n');
+  assert.deepEqual(berry.map((p) => [p.name, p.version, p.indirect]), [['express', '4.17.1', false], ['lodash', '4.17.15', false]]);
+  const v1 = parseManifest(JSON.stringify({ lockfileVersion: 1, dependencies: { 'lodash-old': { version: 'npm:lodash@4.17.15' }, mine: { version: 'file:../mine' } } }));
+  assert.deepEqual(v1.map((p) => [p.name, p.version]), [['lodash', '4.17.15']]);
+  assert.deepEqual(parseManifest('version = 1\n\n[[package]]\nname = "mycorp-internal"\nversion = "3.0.0"\nsource = { path = "dist/x.whl" }\n\n[[package]]\nname = "app"\nversion = "0.1.0"\nsource = { virtual = "." }\n').length, 0);
+  // a nested copy is indirect even when a direct one shares its name; a null entry doesn't crash
+  const nested = parseManifest(JSON.stringify({ lockfileVersion: 3, packages: { '': { dependencies: { ms: '2.1.3', express: '4' } }, 'node_modules/ms': { version: '2.1.3' }, 'node_modules/express': { version: '4.17.1', dependencies: { ms: '2.0.0' } }, 'node_modules/express/node_modules/ms': { version: '2.0.0' }, 'node_modules/x': null } }));
+  assert.deepEqual(nested.map((p) => [p.name, p.version, p.indirect, (p.via || []).join()]), [['ms', '2.1.3', false, ''], ['express', '4.17.1', false, ''], ['ms', '2.0.0', true, 'express']]);
+  // no list of direct ones (yarn classic, npm v1): the packages nothing else needs
+  const classic = parseManifest('# yarn lockfile v1\n\n\nexpress@4.17.1:\n  version "4.17.1"\n  dependencies:\n    accepts "~1.3.7"\n\naccepts@~1.3.7:\n  version "1.3.8"\n');
+  assert.deepEqual(classic.map((p) => [p.name, p.indirect, (p.via || []).join()]), [['express', false, ''], ['accepts', true, 'express']]);
+});
