@@ -2270,6 +2270,11 @@
   // ---------- boot ----------
   if (desktop) {
     desktop.onOpenTab((url) => newTab({ kind: 'web', url }));
+    // Right-click on selected text (desktop app): cross-check it, or search for it.
+    desktop.onOpenEntry?.((e) => {
+      if (e.kind === 'check' && e.claim) newTab({ kind: 'check', claim: e.claim });
+      else if (e.kind === 'search' && e.query) newTab({ kind: 'search', query: e.query, label: e.query });
+    });
     if (desktop.platform === 'darwin') document.documentElement.style.setProperty('--traffic-lights', '78px');
   }
   refreshStatus().then(() => {

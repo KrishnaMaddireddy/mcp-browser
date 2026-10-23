@@ -1,6 +1,6 @@
 // Desktop shell: runs the local server in-process and shows the UI in a
 // window whose tabs can also hold real web pages (<webview>).
-const { app, BrowserWindow, shell, ipcMain, session } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, session, Menu } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
@@ -95,7 +95,22 @@ function createWindow() {
     webPreferences.sandbox = true;
     if (!/^https?:\/\//i.test(params.src || '')) e.preventDefault();
   });
+  // Right-click selected text, in a web page or in the app: cross-check it or search it.
+  const selectionMenu = (wc) =>
+    wc.on('context-menu', (_e, params) => {
+      const text = String(params.selectionText || '').replace(/\s+/g, ' ').trim();
+      if (!text || !win) return;
+      const short = text.length > 40 ? `${text.slice(0, 40)}…` : text;
+      Menu.buildFromTemplate([
+        { label: `Cross-check “${short}”`, click: () => win.webContents.send('open-entry', { kind: 'check', claim: text.slice(0, 300) }) },
+        { label: `Search MCP Browser for “${short}”`, click: () => win.webContents.send('open-entry', { kind: 'search', query: text.slice(0, 300) }) },
+        { type: 'separator' },
+        { role: 'copy' },
+      ]).popup({ window: win });
+    });
+  selectionMenu(win.webContents);
   win.webContents.on('did-attach-webview', (e, wc) => {
+    selectionMenu(wc);
     // Fallback if the preload didn't run (the bridge returns early when it's there).
     wc.on('dom-ready', () => wc.executeJavaScript(WEBMCP_BRIDGE).catch(() => {}));
     wc.setWindowOpenHandler(({ url }) => {
@@ -117,9 +132,11 @@ function createWindow() {
 function isAppWindow(wc) {
   return Boolean(win && wc === win.webContents && isLocal(wc.getURL()));
 }
+// The app's own window may also show notifications (watches that changed); web pages may not.
+const APP_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications']);
 function lockPermissions(ses) {
-  ses.setPermissionRequestHandler((wc, permission, callback) => callback(permission === 'clipboard-sanitized-write' && isAppWindow(wc)));
-  ses.setPermissionCheckHandler((wc, permission) => permission === 'clipboard-sanitized-write' && isAppWindow(wc));
+  ses.setPermissionRequestHandler((wc, permission, callback) => callback(APP_PERMISSIONS.has(permission) && isAppWindow(wc)));
+  ses.setPermissionCheckHandler((wc, permission) => APP_PERMISSIONS.has(permission) && isAppWindow(wc));
   ses.setDevicePermissionHandler?.(() => false);
 }
 
