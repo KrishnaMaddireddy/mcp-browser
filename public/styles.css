@@ -1104,3 +1104,11 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .acard.ac-pair .ac-grid { grid-template-columns: 1fr; }
 .acard.ac-pair .ac-side + .ac-side { border-left: 1px solid var(--line); padding-left: 22px; }
 @media (max-width: 760px) { .acard.ac-pair { grid-template-columns: 1fr; } .acard.ac-pair .ac-side + .ac-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; } }
+
+/* Perspectives: who is saying it */
+.persp { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.persp button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.persp button span { color: var(--muted); font-size: 12px; margin-left: 2px; }
+.persp button[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--paper); }
+.persp button[aria-pressed="true"] span { color: inherit; opacity: 0.85; }
+.p-out { display: none !important; }

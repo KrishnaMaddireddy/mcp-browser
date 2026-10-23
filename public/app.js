@@ -1824,6 +1824,65 @@
     return t.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  // ---------- perspectives: who is saying it ----------
+  // Each result is tagged by the kind of source, so a page can show only official
+  // bodies, research, news or what people say.
+  const NEWS_HOSTS = /(?:^|\.)(?:reuters\.com|apnews\.com|bbc\.(?:com|co\.uk)|npr\.org|nytimes\.com|theguardian\.com|washingtonpost\.com|wsj\.com|bloomberg\.com|cnbc\.com|cnn\.com|nbcnews\.com|abcnews\.go\.com|cbsnews\.com|axios\.com|politico\.com|ft\.com|economist\.com|aljazeera\.com|dw\.com|france24\.com|euronews\.com|latimes\.com|usatoday\.com|theverge\.com|techcrunch\.com|wired\.com|arstechnica\.com|forbes\.com|businessinsider\.com|time\.com|newsweek\.com|independent\.co\.uk|telegraph\.co\.uk|sky\.com|foxnews\.com|yahoo\.com|engadget\.com|tomshardware\.com|zdnet\.com|theatlantic\.com|vox\.com|nature\.com\/news)$|news/;
+  const COMMUNITY_HOSTS = /(?:^|\.)(?:reddit\.com|news\.ycombinator\.com|stackoverflow\.com|stackexchange\.com|superuser\.com|quora\.com|bsky\.app|x\.com|twitter\.com|mastodon\.social|medium\.com|substack\.com|dev\.to|tiktok\.com|youtube\.com|facebook\.com|discord\.com|tripadvisor\.[a-z.]+|trustpilot\.com|github\.com\/[^/]+\/[^/]+\/issues)$|forum|community|discuss/;
+  const RESEARCH_HOSTS = /(?:^|\.)(?:pubmed\.ncbi\.nlm\.nih\.gov|ncbi\.nlm\.nih\.gov|arxiv\.org|doi\.org|nature\.com|science\.org|cell\.com|thelancet\.com|nejm\.org|bmj\.com|jamanetwork\.com|springer\.com|link\.springer\.com|sciencedirect\.com|wiley\.com|plos\.org|frontiersin\.org|mdpi\.com|biorxiv\.org|medrxiv\.org|ssrn\.com|semanticscholar\.org|researchgate\.net|cochranelibrary\.com|acm\.org|ieee\.org|openreview\.net)$|\.edu$|\.ac\.[a-z]{2}$/;
+  function perspectiveOf(it) {
+    if (it.kind === 'official') return 'official';
+    const h = it.site || hostOf(it.url || '');
+    if (!h) return 'data';
+    if (it.kind === 'primary' || RESEARCH_HOSTS.test(h)) return 'research';
+    if (COMMUNITY_HOSTS.test(h)) return 'community';
+    if (NEWS_HOSTS.test(h)) return 'news';
+    return 'web';
+  }
+  const PERSPECTIVES = [['all', 'Everything'], ['official', 'Official'], ['research', 'Research'], ['news', 'News'], ['community', 'What people say'], ['web', 'Other sites']];
+  // The chips appear once results from at least two kinds of source are in.
+  function renderPerspectives(ui) {
+    const items = [...ui.direct.querySelectorAll('.ritem[data-persp]')];
+    const n = {};
+    for (const li of items) n[li.dataset.persp] = (n[li.dataset.persp] || 0) + 1;
+    const kinds = PERSPECTIVES.filter(([k]) => k !== 'all' && n[k]);
+    let bar = ui.persp;
+    if (kinds.length < 2) {
+      if (bar) bar.hidden = true;
+      return;
+    }
+    if (!bar) {
+      bar = ui.persp = document.createElement('div');
+      bar.className = 'persp';
+      bar.setAttribute('role', 'group');
+      bar.setAttribute('aria-label', 'Show results from');
+      ui.direct.parentNode.insertBefore(bar, ui.direct);
+      bar.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-p]');
+        if (!b) return;
+        ui.perspSel = b.dataset.p;
+        applyPerspective(ui);
+        renderPerspectives(ui);
+      });
+    }
+    bar.hidden = false;
+    const sel = ui.perspSel || 'all';
+    bar.innerHTML = [['all', 'Everything', items.length], ...kinds.map(([k, l]) => [k, l, n[k]])].map(([k, l, c]) => `<button type="button" data-p="${k}" aria-pressed="${sel === k}">${esc(l)} <span>${c}</span></button>`).join('');
+  }
+  function applyPerspective(ui) {
+    const sel = ui.perspSel || 'all';
+    // (a class, not "hidden": the "Show N more" fold uses that)
+    for (const li of ui.direct.querySelectorAll('.ritem[data-persp]')) li.classList.toggle('p-out', sel !== 'all' && li.dataset.persp !== sel);
+    for (const g of ui.direct.querySelectorAll('.rgroup')) {
+      const lis = [...g.querySelectorAll('.ritem[data-persp]')];
+      // A server's reply that isn't a list (a quote, a record) is "data": shown with Everything only.
+      g.classList.toggle('p-out', sel !== 'all' && (lis.length ? lis.every((li) => li.classList.contains('p-out')) : true));
+      // While filtering, every match shows (the fold would hide some).
+      if (sel !== 'all') lis.forEach((li) => !li.classList.contains('p-out') && (li.hidden = false));
+      g.querySelector('.rmore-items')?.classList.toggle('p-out', sel !== 'all');
+    }
+  }
+
   /** Readable view of one server's reply (built by src/format.js on the server). */
   function renderView(view) {
     const factsHtml = (facts) =>
@@ -1836,7 +1895,7 @@
             : `<span class="rt-plain">${esc(it.title)}</span>`;
           const kind = { official: ['Official', 'A government or international body'], primary: ['Primary source', 'The registry of record: the paper, filing or package itself'], own: ['Official site', 'The company’s own website'] }[it.kind];
           const meta = [it.site ? `<span class="site">${esc(it.site)}</span>` : '', kind ? `<span class="src-kind" data-kind="${esc(it.kind)}" title="${esc(kind[1])}">${esc(kind[0])}</span>` : '', it.date ? `<span>${esc(niceDate(it.date))}</span>` : ''].join('');
-          return `<li class="ritem">${title}${meta ? `<div class="rmeta">${meta}</div>` : ''}${it.text ? `<p class="rtext">${esc(it.text)}</p>` : ''}${factsHtml(it.facts)}</li>`;
+          return `<li class="ritem" data-persp="${esc(perspectiveOf(it))}">${title}${meta ? `<div class="rmeta">${meta}</div>` : ''}${it.text ? `<p class="rtext">${esc(it.text)}</p>` : ''}${factsHtml(it.facts)}</li>`;
         })
         .join('')}</ol>`;
     }
@@ -1943,6 +2002,8 @@
       // Best results first: insert before the first card with a lower score (the quoted card stays first).
       const after = [...ui.direct.children].find((c) => !c.dataset.quoted && Number(c.dataset.score) < Number(card.dataset.score));
       ui.direct.insertBefore(card, after || null);
+      renderPerspectives(ui);
+      applyPerspective(ui);
       placeQuoted(ui);
     }
     if (ui.answer.querySelector('.placeholder')) ui.answer.innerHTML = '';
