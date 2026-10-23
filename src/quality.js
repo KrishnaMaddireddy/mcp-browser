@@ -367,6 +367,8 @@ export function quickAnswer(results, query) {
         if (/\?\s+[-–|]\s+\S/.test(s)) continue; // a question's page title ("… per invocation? - Stack Overflow")
         if (/\)\s*$/.test(s) && !/[.!]/.test(s)) continue; // a label, not a sentence ("US football team season (won Super Bowl)")
         if (/\s(?:\.\.\.|…)\s/.test(s)) continue; // snippets stitched together with "…"
+        // A list whose line breaks were lost ("are: Alternate-day fasting Eat a normal diet …").
+        if (/:\s/.test(s) && /\b[a-z]{3,}\s+(?:Eat|Do|Use|Try|Make|Take|Avoid|Get|Keep|Stop|Start|Add|Choose|Limit|Drink|Go|Have|Set|Skip|Plan)\s+[a-z]/.test(s)) continue;
         // A population question in Japanese, Chinese or Korean needs a head count (…万人, …명).
         if (/人口|인구/.test(query) && !/\d[\d,.]*\s*(?:万|億|千|만|억|천)?\s*(?:人|명)/.test(s)) continue;
         // A crypto "tokenized" copy of a stock, or a market cap / volume, is not the price asked for.
