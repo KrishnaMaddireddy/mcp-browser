@@ -185,7 +185,27 @@
         // (the same sentence split into two facts shows once per fact; skipped ones once)
         const skipped = claims.filter((c) => !c.claim);
         const skip = skipped.length ? `<details class="ck-group"><summary>${skipped.length} sentence${skipped.length === 1 ? '' : 's'} not checked</summary><ul class="pc-skip">${skipped.map((c) => `<li>${esc(c.sentence)} <span>(${esc(c.skip)})</span></li>`).join('')}</ul></details>` : '';
-        out.innerHTML = `${sum}<ol class="pc-list">${items}</ol>${skip}`;
+        const copy = finished || done.length === todo.length ? '<p class="ck-acts"><button type="button" class="link-btn" data-pc-copy>Copy as Markdown</button> <span data-pc-copied role="status"></span></p>' : '';
+        out.innerHTML = `${sum}<ol class="pc-list">${items}</ol>${skip}${copy}`;
+        // Each fact with its reading and clearest quotes, to paste under the text it checks.
+        const cb = out.querySelector('[data-pc-copy]');
+        if (cb)
+          cb.onclick = async () => {
+            const mdText = (t) => String(t).replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]<>!|]/g, '\\$&');
+            const mdUrl = (u) => (/^https?:\/\//i.test(u || '') ? u.replace(/[()\s<>]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`) : '');
+            const line = (x, how) => `   - ${how}: “${mdText(x.sentence)}” ${mdUrl(x.url) ? `([${mdText(x.source || 'source')}](${mdUrl(x.url)}))` : mdText(x.source || '')}`;
+            const md = [`**Fact check** (${new Date().toISOString().slice(0, 10)}, MCP Browser: each fact against independent sources)`, ''];
+            todo.forEach((c, k) => {
+              const v = verdicts[claims.indexOf(c)];
+              md.push(`${k + 1}. ${mdText(c.claim)}: **${mdText(v?.label || 'not checked')}**${c.unchecked ? ` (not checked: “${mdText(c.unchecked)}”)` : ''}`);
+              for (const x of (v?.quotes?.differs || []).slice(0, 1)) md.push(line(x, 'Says otherwise'));
+              for (const x of (v?.quotes?.supports || []).slice(0, 1)) md.push(line(x, 'Agrees'));
+            });
+            if (skipped.length) md.push('', `Not checked: ${skipped.map((c) => `“${mdText(c.sentence)}” (${mdText(c.skip)})`).join('; ')}`);
+            const ok = await copyText(md.join('\n'));
+            const st = out.querySelector('[data-pc-copied]');
+            if (st) st.textContent = ok ? 'Copied' : 'Couldn’t copy: your browser blocked it';
+          };
       };
       let res;
       try {
