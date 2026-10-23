@@ -335,8 +335,12 @@ it is checked on its own, two at a time, up to 8. "It", "He" and "She" are read 
 name before them, "… is 330 meters tall and was designed by Gustave Eiffel" becomes two
 facts, and opinions, advice, questions and hedged or reported sentences are listed as not
 checked, with why. **Copy as Markdown** gives each fact with its reading and clearest quotes.
-When only one web search server answers a check (another busy or rate-limited), the claim also
-goes to the other curated web search servers, so the sources stay independent.
+Each check also sends the claim to every curated web search engine and Wikipedia, and the
+subject alone ("Panama Canal") to find the pages about it, so more independent sources get read
+(engines resting after rate limits, and any you switched off, are skipped; a paragraph check
+skips the subject search). On 30 claims written after this was built and never tuned on, true
+claims backed by three or more sources went from 4 of 17 to 9 of 17, and no false claim was
+backed, before or after; on the 206 earlier claims, still none.
 
 ## Answer cards
 
