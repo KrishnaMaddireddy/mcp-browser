@@ -288,6 +288,12 @@ deprecated or unmaintained. Only package names and versions are sent. **Tell me 
 advisories** turns the list into a daily watch; **Copy as Markdown** gives a table for a
 pull request or an issue.
 
+**Lockfiles** (package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, uv.lock,
+Cargo.lock) can be pasted or chosen with **Choose a file**: then the versions actually
+installed are checked, direct dependencies first (up to 150), and each indirect one says
+which direct dependency brings it in ("via express"), with a line like "All 7 packages
+with known vulnerabilities come in through express".
+
 ## Today
 
 On the start page, with a city: the weather, the market and today's headlines (articles,

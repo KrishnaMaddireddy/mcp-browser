@@ -24,7 +24,8 @@
       ac = new AbortController();
       const my = ++runId;
       try {
-        localStorage.setItem(KEY, text.slice(0, 20000));
+        // (a lockfile is too big to keep; a cut-off one wouldn't parse next time)
+        if (text.length <= 20000) localStorage.setItem(KEY, text);
       } catch {}
       const rows = [];
       const servers = {};
@@ -50,6 +51,16 @@
             ? `<div class="ck-verdict" data-v="unclear"><b>Nothing was checked</b><p>${answered ? 'No service had an answer for these packages.' : 'No OSV service answered (switched off in Settings, or not reachable right now).'} Try again later; this is not a clean result.</p></div>`
             : `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine}${notChecked} Known means published in OSV.dev; a clean result isn’t proof of safety.</p>${acts}</div>`;
         } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
+        const lock = start?.lockfile ? `<p class="hint">From your lockfile: the versions installed${start.indirect && start.indirect < start.packages ? `, ${start.packages - start.indirect} you depend on directly and ${start.indirect} pulled in by them (marked with the direct one that brings each in)` : ''}.${start.total > start.packages ? ` The first ${start.packages} of ${start.total} are checked, direct ones first.` : ''}${done && rows.length > 12 ? ' Packages with known vulnerabilities are listed first.' : ''}</p>` : '';
+        // ("6 of 7 come in through express": where to start)
+        let through = '';
+        if (done && start?.lockfile) {
+          const bad = rows.filter((r) => r.vulns.length || r.counts.audit);
+          const tally = new Map();
+          for (const r of bad) for (const v of r.indirect ? r.via || [] : [r.name]) tally.set(v, (tally.get(v) || 0) + 1);
+          const [top, n] = [...tally].sort((a, b) => b[1] - a[1])[0] || [];
+          if (top && n > 1 && bad.length > 1) through = `<p class="hint"><b>${n === bad.length ? `All ${n}` : `${n} of ${bad.length}`} packages with known vulnerabilities come in through ${esc(top)}.</b> Updating it is the place to start.</p>`;
+        }
         const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
         const ranged = rows.some((r) => /^[\^~]/.test(r.range || '') && r.version) ? '<p class="hint">For ranges like ^4.17.15 or ~=3.4 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
         const loose = rows.some((r) => /^(?:!=|>=?|<=?)/.test(r.range || '')) ? '<p class="hint">Requirements like >=2.19 or !=1.24.1 don’t pin a version, so only the latest version and upkeep are shown for them. Check your lockfile’s versions for the full picture.</p>' : '';
@@ -60,7 +71,7 @@
             const label = `${n} known${r.worst ? ` <span class="dp-sev" data-sev="${esc(r.worst)}">${esc(SEV_LABEL[r.worst] || r.worst)}</span>` : ''}`;
             const vul = !r.version ? `<span class="dp-muted">${/^(?:!=|>=?|<=?)/.test(r.range || '') ? 'not pinned' : 'no version'}</span>` : !r.checked ? '<span class="dp-muted">Not checked</span>' : n ? `${r.vulns.length ? `<button type="button" class="link-btn dp-open" data-dp-i="${i}" aria-expanded="false">${label}</button>` : `<span>${label}</span> <a class="dp-muted" href="https://osv.dev/list?ecosystem=${r.ecosystem === 'pypi' ? 'PyPI' : r.ecosystem === 'cargo' ? 'crates.io' : 'npm'}&q=${encodeURIComponent(r.name)}" target="_blank" rel="noopener noreferrer">list on osv.dev</a>`}${counts}` : '<span class="dp-ok">None known</span>';
             const fix = r.unfixed ? '<span class="dp-bad">No fixed version</span>' : r.fix ? esc(r.fix) : '';
-            const notes = [r.deprecated ? '<span class="dp-bad">Deprecated</span>' : '', r.maintained === false && !r.deprecated ? '<span class="dp-bad">Not maintained</span>' : '', r.dev ? '<span class="dp-muted">dev</span>' : '', r.notFound ? '<span class="dp-muted">not found</span>' : ''].filter(Boolean).join(' ');
+            const notes = [r.deprecated ? '<span class="dp-bad">Deprecated</span>' : '', r.maintained === false && !r.deprecated ? '<span class="dp-bad">Not maintained</span>' : '', r.dev ? '<span class="dp-muted">dev</span>' : '', r.indirect ? `<span class="dp-muted" title="Pulled in by another package${r.via?.length ? `: update ${esc(r.via.join(' or '))} to move it` : ''}">${r.via?.length ? `via ${esc(r.via.join(', '))}` : 'indirect'}</span>` : '', r.notFound ? '<span class="dp-muted">not found</span>' : ''].filter(Boolean).join(' ');
             const adv = r.vulns.length
               ? `<tr class="dp-adv" data-dp-adv="${i}" hidden><td colspan="6"><ul>${r.vulns
                   .map(
@@ -72,7 +83,7 @@
             return `<tr><td><b>${esc(r.name)}</b> <span class="dp-muted">${esc(r.ecosystem)}</span>${notes ? `<div class="dp-notes-m">${notes}</div>` : ''}</td><td>${esc(r.version || r.range || '—')}</td><td>${vul}</td><td>${fix}</td><td>${esc(r.latest || '')}</td><td>${notes}</td></tr>${adv}`;
           })
           .join('');
-        out.innerHTML = head + srvLine + unpinned + ranged + loose + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th><span class="sr-only">Notes</span></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
+        out.innerHTML = head + srvLine + through + lock + unpinned + ranged + loose + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th><span class="sr-only">Notes</span></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
       };
       out.innerHTML = '<p class="ck-wait">Reading your packages…</p>';
       let res;
@@ -108,7 +119,14 @@
           if (type === 'deps_start') start = d;
           else if (type === 'deps_server') servers[d.key] = d;
           else if (type === 'deps_row') rows.push(d);
-          else if (type === 'deps_done') done = d;
+          else if (type === 'deps_done') {
+            done = d;
+            // (a long list: the ones with advisories first, worst first; the rest as they came)
+            if (rows.length > 12) {
+              const rank = (r) => ({ CRITICAL: 5, HIGH: 4, MODERATE: 3, MEDIUM: 3, LOW: 2 })[r.worst] || (r.vulns.length || r.counts.audit ? 1 : 0);
+              rows.sort((a, b) => rank(b) - rank(a));
+            }
+          }
           else if (type === 'error') error = d.message;
           render();
         }
@@ -142,7 +160,7 @@
             '',
             '| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |',
             '|---|---|---|---|---|---|',
-            ...rows.map((r) => `| ${cell(r.name)} (${r.ecosystem}) | ${cell(r.version || r.range || '—')} | ${!r.version ? 'not pinned' : !r.checked ? 'not checked' : (r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0) || 'none'}${r.worst ? ` (${SEV_LABEL[r.worst] || r.worst})` : ''} | ${r.unfixed ? 'no fix yet' : cell(r.fix || '')} | ${cell(r.latest || '')} | ${[r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : ''].filter(Boolean).join(', ')} |`),
+            ...rows.map((r) => `| ${cell(r.name)} (${r.ecosystem}) | ${cell(r.version || r.range || '—')} | ${!r.version ? 'not pinned' : !r.checked ? 'not checked' : (r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0) || 'none'}${r.worst ? ` (${SEV_LABEL[r.worst] || r.worst})` : ''} | ${r.unfixed ? 'no fix yet' : cell(r.fix || '')} | ${cell(r.latest || '')} | ${[r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : '', r.indirect ? (r.via?.length ? `via ${cell(r.via.join(', '))}` : 'indirect') : ''].filter(Boolean).join(', ')} |`),
           ];
           const adv = rows.filter((r) => r.vulns.length);
           if (adv.length) {
@@ -159,6 +177,20 @@
         };
     }
 
+    // A lockfile is easier to choose than to paste.
+    const file = $('[data-dp-file]');
+    file?.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      file.value = '';
+      if (!f) return;
+      if (f.size > 8 * 1024 * 1024) return void (out.innerHTML = '<p class="lr-fail">That file is over 8 MB. Paste the dependencies part instead.</p>');
+      try {
+        ta.value = await f.text();
+      } catch (e) {
+        return void (out.innerHTML = `<p class="lr-fail">Couldn’t read ${esc(f.name)}: ${esc(e.message)}</p>`);
+      }
+      run(ta.value.trim());
+    });
     $('[data-dp-form]').addEventListener('submit', (e) => {
       e.preventDefault();
       const t = ta.value.trim();

@@ -656,10 +656,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     // Dependency check: a pasted manifest, two OSV servers side by side and a registry server
     // (SSE: deps_start, deps_server…, deps_row…, deps_done). A server switched off is skipped.
     'POST /api/deps': async (req, res) => {
-      const b = await readJson(req);
+      // (a lockfile can be a few megabytes)
+      const b = await readJson(req, 8 * 1024 * 1024);
       let pkgs;
       try {
-        pkgs = parseManifest(String(b.text || '').slice(0, 200_000));
+        pkgs = parseManifest(String(b.text || '').slice(0, 8 * 1024 * 1024));
       } catch (e) {
         return json(res, 400, { error: errMsg(e) });
       }
