@@ -318,6 +318,15 @@ function judgeCore(parts, sentence) {
       return inClause(cl, parts.words) >= Math.ceil(parts.words.length * 0.5);
     };
     figs = figs.filter((g) => comparable(g) && aboutIt(g));
+    // A table row ("Total length 8980 ft | Width 90 ft | … | 220 ft at high tide"): only the
+    // cell that names what the claim measures; a row with no such cell says nothing about it.
+    if ((sentence.match(/\|/g) || []).length >= 3) {
+      const dimWord = { tall: 'height', high: 'height', long: 'length', wide: 'width', deep: 'depth', old: 'age', heavy: 'weight' }[(/\b(tall|high|long|wide|deep|old|heavy)\b/i.exec(parts.text) || [])[1]?.toLowerCase()] || parts.figures[0]?.noun || '';
+      let at = 0;
+      const cells = sentence.split('|').map((c) => ({ from: (at += c.length + 1) - c.length - 1, to: at - 1, text: c.toLowerCase() }));
+      const named = dimWord ? cells.filter((c) => new RegExp(`\\b${dimWord.replace(/s$/, '')}`).test(c.text)) : [];
+      figs = figs.filter((g) => named.some((c) => g.at >= c.from && g.at < c.to));
+    }
     // Several things measured in one clause ("PostgreSQL uses 5432, MySQL 3306"): the figure
     // closest to the subject is its figure, with a conversion right after it ("330 m (1,083 ft)").
     const anchors = anchorWords.flatMap((w) => [...low.matchAll(new RegExp(stemOf(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))].map((x) => x.index));
@@ -486,7 +495,10 @@ function judgeCore(parts, sentence) {
     if (/\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
     // "is the capital" vs "was the capital": a former state isn't the present one, nor
     // "historically … the capital from 794 to 1868".
-    if (parts.present && PAST.test(ws.slice(Math.max(0, headAt - 4), headAt + 1).join(' '))) return { stance: 'differs', sentence };
+    // (not for a state of things: "it was painted International Orange" when built doesn't say it isn't now)
+    const objText = parts.relation ? parts.text.split(new RegExp(`\\b${parts.relation}\\b`, 'i'))[1] || '' : '';
+    const participle = /^\s*(?:\w+(?:ed|en)|built|made|known|held|kept|sold|found|set|run|led)\b/i.test(objText);
+    if (parts.present && PAST.test(ws.slice(Math.max(0, headAt - 4), headAt + 1).join(' '))) return participle ? { stance: 'mentions', sentence } : { stance: 'differs', sentence };
     const clauseText = orig.filter((_, i) => ids[i] === ids[headAt]).map((x) => x.w).join(' ');
     if (parts.present && /\bhistorically\b/i.test(clauseText)) return { stance: 'differs', sentence };
     const span2 = /\bfrom\s+(\d{3,4})\s+(?:to|until|till|through)\s+(\d{3,4})\b/i.exec(sentence.slice(orig[headAt].at, orig[headAt].at + 160));

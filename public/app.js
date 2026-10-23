@@ -1740,7 +1740,7 @@
         if (ui.answer.querySelector('.placeholder')) ui.answer.innerHTML = '';
         // A written answer: one click checks each fact in it against independent sources.
         if (d.mode !== 'direct' && ui.text && !ui.paraBtn) {
-          const plain = ui.answer.textContent.replace(/\[\d+(?:,\s*\d+)*\]/g, '').replace(/\s+/g, ' ').trim();
+          const plain = ui.answer.textContent.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '').replace(/\s+/g, ' ').trim();
           if ((plain.match(/[.!?](?:\s|$)/g) || []).length >= 2) {
             const p = document.createElement('p');
             p.className = 'ck-acts';

@@ -271,3 +271,12 @@ test('review: a verb with no object takes its year from its own verb', () => {
   assert.equal(st('The Golden Gate Bridge opened in 1937', 'Construction on the Golden Gate Bridge began in 1933 and it opened in 1937.'), 'supports');
   assert.equal(st('The Golden Gate Bridge opened in 1933', 'Construction on the Golden Gate Bridge began in 1933 and it opened in 1937.'), 'differs');
 });
+
+test('review: a state of things in the past tense, and table rows', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.notEqual(st('The bridge is painted International Orange', 'As the Bridge was built, it was painted International Orange, with a lead primer.'), 'differs');
+  assert.equal(st('Kyoto is the capital of Japan', 'Kyoto was the capital of Japan for over a thousand years.'), 'differs');
+  const row = 'Total length 8980 ft, about 1.70 mi (2.74 km) | Width 90 ft (27.4 m) | Height 746 ft (227.4 m) | Longest span 4200 ft | 220 ft (67.1 m) at high tide';
+  assert.notEqual(st('The Golden Gate Bridge is 2,737 meters long', row), 'differs');
+  assert.equal(st('The Golden Gate Bridge is 3,500 meters long', `Golden Gate Bridge | ${row}`), 'differs');
+});
