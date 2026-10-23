@@ -269,6 +269,9 @@
     } else if (hooks.claim) {
       input.value = hooks.claim;
       run(hooks.claim);
+    } else if (hooks.paragraphOpen) {
+      $('[data-pc-box]').open = true;
+      setTimeout(() => ptext.focus(), 0);
     } else setTimeout(() => input.focus(), 0);
   }
 

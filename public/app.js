@@ -196,6 +196,7 @@
         window.MCPCheck?.mount(el, {
           claim: entry.claim,
           paragraph: entry.paragraph,
+          paragraphOpen: entry.paragraphOpen,
           open: (u) => open(u),
           checkInNewTab: (c) => newTab({ kind: 'check', claim: c }),
           onClaim: (c) => {
@@ -560,6 +561,13 @@
       b.addEventListener('click', () => open(s, tab));
       sug.appendChild(b);
     }
+    // What it does besides search: one click into each.
+    el.querySelector('.home-tools')?.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-home-tool]')?.dataset.homeTool;
+      if (t === 'para') navigate(tab, { kind: 'check', paragraphOpen: true });
+      else if (t === 'deps') navigate(tab, { kind: 'deps' });
+      else if (t === 'watch') navigate(tab, { kind: 'watches' });
+    });
     attachSuggest(input);
     renderRecent(tab, el);
     renderToday(tab, el);

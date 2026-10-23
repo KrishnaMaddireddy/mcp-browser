@@ -108,6 +108,12 @@ a { color: var(--signal); }
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .suggest button { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--muted); text-align: left; }
 .suggest button:hover { color: var(--ink); border-color: var(--muted); }
+.home-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+.home-tools button { display: flex; flex-direction: column; gap: 3px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 13px; color: var(--ink); cursor: pointer; font: inherit; }
+.home-tools button:hover { border-color: var(--signal); }
+.home-tools b { font-size: 14px; font-weight: 600; }
+.home-tools span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+@media (max-width: 700px) { .home-tools { grid-template-columns: 1fr; } }
 
 /* ---------- search ---------- */
 .search { padding: 28px 24px 0; display: flex; flex-direction: column; }
