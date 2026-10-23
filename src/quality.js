@@ -514,12 +514,17 @@ const SCRIPTS = [
  * ASCII Latin text, 'latin+' for Latin text with many accented letters (Turkish,
  * Vietnamese…). Null when there's too little text to tell.
  */
+const EN_SMALL = new Set('the and of to in is for on with are was by at from as that its it this be an or has have will new how what why who your you can more about after over into than not'.split(' '));
 export function langOf(text) {
   const letters = (text.match(/\p{L}/gu) || []).length;
   if (letters < 4) return null;
   for (const [name, re] of SCRIPTS) if ((text.match(re) || []).length / letters > 0.2) return name;
   const accented = (text.match(/[\p{Script=Latin}]/gu) || []).filter((c) => c.charCodeAt(0) > 127).length;
-  return accented / letters > 0.04 ? 'latin+' : 'en';
+  if (accented / letters > 0.04) return 'latin+';
+  // Latin text with none of English's small words is another language ("Nvidia despliega miles de millones en Europa").
+  const words = text.toLowerCase().match(/[a-z]+/g) || [];
+  if (words.length >= 6 && !words.some((w) => EN_SMALL.has(w))) return 'latin+';
+  return 'en';
 }
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -831,7 +836,7 @@ const CITY_ZONES = {
   utc: 'UTC', gmt: 'UTC',
 };
 let zoneNames = null;
-function zoneFor(place) {
+export function zoneFor(place) {
   const p = place.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
   if (CITY_ZONES[p]) return CITY_ZONES[p];
   if (!zoneNames) {
@@ -955,7 +960,7 @@ export function instantAnswer(query) {
 // ---------- stock quotes ----------
 
 // Well-known names → tickers, so "Nvidia stock price" can ask a quote tool for NVDA.
-const COMPANY_TICKERS = {
+export const COMPANY_TICKERS = {
   nvidia: 'NVDA', apple: 'AAPL', microsoft: 'MSFT', amazon: 'AMZN', alphabet: 'GOOGL', google: 'GOOGL', meta: 'META', facebook: 'META',
   tesla: 'TSLA', netflix: 'NFLX', amd: 'AMD', intel: 'INTC', broadcom: 'AVGO', oracle: 'ORCL', salesforce: 'CRM', adobe: 'ADBE',
   ibm: 'IBM', qualcomm: 'QCOM', cisco: 'CSCO', palantir: 'PLTR', coinbase: 'COIN', paypal: 'PYPL', uber: 'UBER', airbnb: 'ABNB',

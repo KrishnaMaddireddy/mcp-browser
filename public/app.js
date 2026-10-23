@@ -496,6 +496,60 @@
     return el;
   }
 
+  // ---------- answer cards ----------
+  async function loadCard(box, query) {
+    let res;
+    try {
+      res = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ query }) });
+    } catch {
+      return;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    const sections = new Map();
+    let order = [];
+    const sectionHtml = (d) => {
+      const facts = (x) => (x.facts?.length ? `<dl>${x.facts.slice(0, 5).map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl>` : '');
+      return `<h4>${esc(d.label)}</h4>${d.answer ? `<p class="ac-a">${esc(d.answer)}</p>` : ''}${(d.details || []).map((x) => `${x.title ? `<p class="ac-t">${esc(x.title)}</p>` : ''}${x.text ? `<p class="ac-x">${esc(x.text.slice(0, 320))}${x.text.length > 320 ? '…' : ''}</p>` : ''}${facts(x)}`).join('')}${d.links?.length ? `<ul class="ac-links">${d.links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.title)}</a> <span>${esc(l.host)}</span></li>`).join('')}</ul>` : ''}${d.servers?.length ? `<p class="ac-from">${esc(d.servers.join(', '))}</p>` : ''}`;
+    };
+    const render = (head) => {
+      const parts = order.map((k) => sections.get(k)).filter((d) => d && !d.empty);
+      box.querySelector('[data-ac-grid]').innerHTML = parts.map((d) => `<div class="ac-sec" data-k="${esc(d.key)}">${sectionHtml(d)}</div>`).join('') + order.filter((k) => !sections.has(k)).map(() => '<div class="ac-sec ac-wait"><span></span><span></span></div>').join('');
+    };
+    for (;;) {
+      const { value, done } = await reader.read().catch(() => ({ done: true }));
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let k;
+      while ((k = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, k);
+        buf = buf.slice(k + 2);
+        const type = /^event: (.*)$/m.exec(block)?.[1];
+        const raw = /^data: (.*)$/m.exec(block)?.[1];
+        if (!type || !raw) continue;
+        const d = JSON.parse(raw);
+        if (type === 'card_none') return;
+        if (type === 'card_start') {
+          order = ['time', ...d.sections.map((s) => s.key)].filter((x) => x !== 'time' || d.type === 'place');
+          box.dataset.type = d.type;
+          box.innerHTML = `<header><h3>${esc(d.title)}</h3><span>${esc(d.subtitle)} · from ${d.sections.length + (d.type === 'place' ? 1 : 0)} sources, asked at once</span></header><div class="ac-grid" data-ac-grid></div>`;
+          box.hidden = false;
+          render();
+        } else if (type === 'card_section') {
+          sections.set(d.key, d);
+          render();
+        } else if (type === 'card_done') {
+          for (const k2 of order) if (!sections.has(k2)) sections.set(k2, { key: k2, empty: true });
+          render();
+          if (![...sections.values()].some((x) => !x.empty)) box.hidden = true;
+          // The card has what was found: the "no useful results" notice would contradict it.
+          else box.closest('.turn')?.classList.add('has-card');
+        }
+      }
+    }
+  }
+
   // ---------- start page: today (weather where you are, the market, headlines) ----------
   // Your city stays in this browser only. Off until you add one.
   const TODAY_KEY = 'mcpb.today.city';
@@ -1112,6 +1166,8 @@
       note.hidden = false;
     }
     wireWatchForm(turn, query, entry);
+    // One thing named (a company, a city, a CVE, a website…): a card from several servers at once.
+    if (!opts.servers?.length) loadCard($('[data-card]', turn), query);
     if (entry.turns.length) turn.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const ui = {
       board: $('[data-switchboard]', turn),

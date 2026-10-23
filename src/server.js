@@ -20,6 +20,7 @@ import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, s
 import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
+import { detectEntity, runCard } from './cards.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
@@ -589,6 +590,27 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       } finally {
         emit('done', { ms: Date.now() - t0 });
         clearInterval(ping);
+        res.end();
+      }
+    },
+    // An answer card for a question that names one thing (SSE: card_start, card_section…, card_done),
+    // or card_none right away.
+    'POST /api/card': async (req, res) => {
+      const b = await readJson(req);
+      const entity = detectEntity(String(b.query || '').slice(0, 200));
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (!entity) {
+        emit('card_none', {});
+        return res.end();
+      }
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+      try {
+        await runCard(engine.agent, entity, { emit, signal: ac.signal, resolveServers });
+      } catch (e) {
+        if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
+      } finally {
         res.end();
       }
     },
