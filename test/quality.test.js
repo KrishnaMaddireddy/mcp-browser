@@ -426,3 +426,13 @@ test('instant answers: sums, percentages and the time somewhere, worked out here
   assert.match(timeAnswer('what time is it in New York?', at).text, /^8:00 AM in New York/);
   assert.equal(timeAnswer('time in the market', at), null);
 });
+
+test('free-mode follow-ups swap the new name into the last question', async () => {
+  const { followUpQuery: f } = await import('../src/quality.js');
+  const h = (q) => [{ q, a: '' }];
+  assert.equal(f('and AMD?', h('Nvidia stock price today')), 'AMD stock price today');
+  assert.equal(f('what about Porto?', h('weather in Lisbon tomorrow')), 'weather in Porto tomorrow');
+  assert.equal(f('and why?', h('who won the 2022 World Cup')), 'and why?');
+  assert.equal(f('tell me more', h('Nvidia stock')), 'tell me more');
+  assert.equal(f('and AMD?', []), 'and AMD?');
+});

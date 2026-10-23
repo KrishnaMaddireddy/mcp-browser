@@ -3,7 +3,7 @@ import { classifyTool, cleanDescription, detectInjection, detectBlocked, resultT
 import { extractSources, SourceBook } from './sources.js';
 import { toToolSchema } from './llm/index.js';
 import { mapLimit, errMsg, tokenize, splitIdentifier, truncate, withTimeout, parseJsonLenient } from './util.js';
-import { classifyResult, resultScore, simplerQueries, entityOf, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
+import { classifyResult, resultScore, simplerQueries, entityOf, followUpQuery, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
 import { formatResult } from './format.js';
 
 // Servers connected (and, in free mode, searched) at the same time per question.
@@ -81,6 +81,14 @@ export class SearchAgent {
         : base;
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('empty query');
+    // Free mode: "and AMD?" after "Nvidia stock price today" asks "AMD stock price today".
+    if ((direct || !this.getProvider()) && history.length) {
+      const full = followUpQuery(query, history);
+      if (full !== query) {
+        emit('rewrite', { from: query, query: full });
+        query = full;
+      }
+    }
 
     // 1. Route
     let routed;

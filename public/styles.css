@@ -986,3 +986,5 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .deeper { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 16px 0 0; font-size: 13px; }
 .deeper > span { color: var(--muted); font-weight: 600; margin-right: 4px; }
 .deeper .la-btn { padding: 4px 11px; font-size: 13px; }
+
+.rewrite-note { margin: 2px 0 6px; font-size: 13px; color: var(--muted, #667); }

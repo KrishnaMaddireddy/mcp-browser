@@ -1135,6 +1135,15 @@
       case 'provider':
         ui.mode = d.provider;
         break;
+      case 'rewrite': {
+        // Free mode read a short follow-up against the last question: say what it searched.
+        const ew = $('[data-elsewhere]', ui.board.closest('.turn') || document);
+        const note = document.createElement('p');
+        note.className = 'rewrite-note';
+        note.textContent = `Searched for “${d.query}”`;
+        (ew || ui.board).insertAdjacentElement('beforebegin', note);
+        break;
+      }
       case 'route': {
         ui.board.innerHTML = '';
         const you = document.createElement('span');

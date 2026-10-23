@@ -270,6 +270,27 @@ export function entityOf(query) {
   return [...first, ...words.slice(1).filter(name)].join(' ');
 }
 
+/**
+ * Free mode has no model to read the conversation, so a short follow-up ("and AMD?",
+ * "what about Porto?") is rewritten from the question before it: the new name takes
+ * the old one's place ("Nvidia stock price today" → "AMD stock price today"). Anything
+ * else is returned as it is.
+ */
+export function followUpQuery(query, history = []) {
+  const q = String(query || '').trim();
+  const last = String(history.at(-1)?.q || '').trim();
+  if (!last) return q;
+  const m = /^(?:and|what about|how about|same for|same with|now|or|also|versus|vs\.?|compared to|compared with)\s+(?:for\s+|in\s+|the\s+)?(.{1,60}?)\s*[?.!]*$/i.exec(q);
+  if (!m) return q;
+  const next = m[1].trim();
+  if (!next || next.split(/\s+/).length > 5) return q;
+  // "and why?", "what about it?" are questions about the last answer, not a new name.
+  if (/^(?:why|how|what|when|where|who|which|whose|is|are|was|were|does|do|did|can|could|should|will|would|it|its|that|this|these|those|them|they|he|she|more|else|then|so|ok|okay|yes|no)\b/i.test(next)) return q;
+  const old = entityOf(last) || tickersOf(last)[0] || '';
+  if (!old || !last.includes(old)) return q;
+  return last.replace(old, next);
+}
+
 /** Ticker symbols written in the question: "NVDA", "$AAPL", "BRK.B". */
 export function tickersOf(query) {
   const out = [];
