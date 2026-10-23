@@ -1028,7 +1028,7 @@ function plainWeatherAnswer(results, query) {
     // "Using Paris, Île-de-France Region, France (there are others …). Say the state if …" →
     // "Paris, Île-de-France Region, France: <the weather sentences>".
     // ("03:30 to tomorrow 03:30: mild, dry …" → "mild, dry …": the window is just "the next day")
-    const sentences = text.split(/(?<=[.!?])\s+/).map((x) => x.replace(/^\d{1,2}:\d{2}(?:\s*[AP]M)?\s+to\s+(?:tomorrow\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase()));
+    const sentences = text.split(/(?<=[.!?])\s+/).map((x) => x.replace(/^\d{1,2}:\d{2}(?:\s*[AP]M)?\s+to\s+(?:tomorrow\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?:\s*/i, '').replace(/^(?:(?:today|tomorrow)\s+)?midnight to midnight:\s*|^(?:today|tomorrow):\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase()));
     const place = (/^Using ([^(.]+?)\s*(?:\(|\.)/.exec(text) || [])[1];
     const body = sentences.filter((x) => !/^Using |^Say |^Tell me|^Add /i.test(x) && !/jacket|coat|layer|\bhat\b|umbrella|shorts|pants|sunscreen|boots|sweater|hoodie|gloves/i.test(x) && /°|\b(?:rain|snow|sunny|cloud|wind|showers?|clear|storm|dry|drizzle|cool|warm|cold|hot|mild)\b/i.test(x)).slice(0, 2).join(' ');
     if (!body) continue;

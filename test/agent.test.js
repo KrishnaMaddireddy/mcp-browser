@@ -579,6 +579,7 @@ test('weather questions: the place from the question (any language) goes to a we
   assert.equal(placeOf('ベルリンの天気'), 'Berlin');
   assert.equal(placeOf('clima en Ciudad de México mañana'), 'Mexico City');
   assert.equal(placeOf('will it rain in London this weekend'), 'London');
+  assert.equal(placeOf('will it rain in London on Friday'), 'London');
   const t = (name, props, required) => ({ name, inputSchema: { type: 'object', properties: Object.fromEntries(props.map((p) => [p, { type: 'string' }])), required } });
   const tools = [t('search', ['query'], ['query']), t('get_weather', ['location', 'latitude', 'longitude']), t('get_forecast', ['location', 'start_time']), t('explain_weather', ['location', 'question']), t('clothing_recommendation', ['location', 'activity'])];
   const now = pickQueryTool(tools, 'Paris weather');

@@ -25,7 +25,7 @@ export function placeOf(query) {
   const p = String(query || '')
     .replace(/(?:の)?天気(?:予報)?|날씨|일기\s*예보|天气/g, ' ')
     .replace(/[?!.,;:¿¡]/g, ' ')
-    .replace(/\b(?:what(?:'s| is)?|how(?:'s| is)?|will it|is it|going to|weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|sunny|cloudy|windy|umbrella|need an?|today|tomorrow|tonight|this|next|weekend|week|now|right now|the|in|for|at|be|like|tiempo|clima|pronóstico|en|para|hoy|mañana|el|la|météo|à|demain|aujourd'hui|wetter|morgen|heute|in)\b/gi, ' ')
+    .replace(/\b(?:what(?:'s| is)?|how(?:'s| is)?|will it|is it|going to|weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|sunny|cloudy|windy|umbrella|need an?|today|tomorrow|tonight|this|next|weekend|week|now|right now|the|in|for|at|on|be|like|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|tiempo|clima|pronóstico|en|para|hoy|mañana|el|la|météo|à|demain|aujourd'hui|wetter|morgen|heute|in)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return p.length >= 2 ? EXONYMS[p.toLowerCase()] || EXONYMS[p] || p : '';
@@ -918,7 +918,26 @@ export function pickQueryTool(tools, query) {
       return (/^get (?:weather|forecast)$|^(?:weather|forecast)$|^current weather$/.test(n) ? 2 : 0) + (SOON.test(query) === /forecast/.test(n) ? 1 : 0) - (/explain|clothing|activity|window|trail|route/.test(n) ? 3 : 0);
     };
     const best = fits.sort((a, b) => rank(b) - rank(a))[0];
-    if (best && rank(best) > 0) return { tool: best, param: loc(best), extra: {}, place: placeOf(query) };
+    if (best && rank(best) > 0) {
+      // "this weekend", "tomorrow", "on Friday": ask for that window when the tool takes one.
+      const props = best.inputSchema?.properties || {};
+      const startKey = Object.keys(props).find((k) => /^(?:start_?time|start|from|when)$/i.test(k) && (!props[k]?.type || props[k].type === 'string'));
+      const hoursKey = Object.keys(props).find((k) => /^(?:duration_?hours|hours)$/i.test(k));
+      const extra = {};
+      const q = query.toLowerCase();
+      const day = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.exec(q)?.[1];
+      // "tomorrow" is your tomorrow (an explicit date), not the place's: at 8 PM in California
+      // it's already tomorrow morning in Lisbon.
+      const t = new Date();
+      t.setDate(t.getDate() + 1);
+      const tomorrow = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T00:00:00`;
+      const window = /\bweekend\b/.test(q) ? ['Saturday', 48] : /\btonight\b/.test(q) ? ['tonight', 12] : /\btomorrow\b/.test(q) ? [tomorrow, 24] : day ? [day[0].toUpperCase() + day.slice(1), 24] : null;
+      if (window && startKey) {
+        extra[startKey] = { fixed: window[0] };
+        if (hoursKey) extra[hoursKey] = { fixed: window[1] };
+      }
+      return { tool: best, param: loc(best), extra, place: placeOf(query) };
+    }
   }
   const qTerms = new Set(tokenize(query));
   let best = null;
