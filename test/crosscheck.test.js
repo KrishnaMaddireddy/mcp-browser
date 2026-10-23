@@ -307,7 +307,7 @@ test('a figure in brackets belongs to the name just before them', () => {
   assert.equal(st('The Eiffel Tower is 330 meters tall', 'The Eiffel Tower (330 m) is the tallest structure in Paris.'), 'supports');
 });
 
-test('only one search engine answered: the claim goes to the other web search servers, never a switched-off one', async () => {
+test('the claim (and its subject alone) goes to every web search engine and Wikipedia, never a switched-off one', async () => {
   const { crossCheck } = await import('../src/crosscheck.js');
   const calls = [];
   const agent = {
@@ -319,8 +319,12 @@ test('only one search engine answered: the claim goes to the other web search se
       else emit('results', { serverTitle: 'Tanod', serverId: 'tanod-web', text: 'Title: Tower\\nURL: https://b.example/y\\nThe Eiffel Tower is 330 metres tall.', kind: 'ok' });
     },
   };
+  const asked = [];
+  agent.search = (orig => async (q, o) => (asked.push([q, o.servers || 'routed']), orig(q, o)))(agent.search);
   const r = await crossCheck(agent, 'The Eiffel Tower is 330 meters tall');
-  assert.deepEqual(calls.at(-1), ['agentsearch', 'tanod-web']);
+  assert.ok(calls.every((c) => c === 'routed' || !c.includes('exa')), JSON.stringify(calls));
+  assert.ok(asked.some(([q, s]) => q === 'The Eiffel Tower is 330 meters tall' && Array.isArray(s) && ['keenable', 'agentsearch', 'tanod-web', 'wikexa'].every((id) => s.includes(id))), JSON.stringify(asked));
+  assert.ok(asked.some(([q, s]) => q === 'Eiffel Tower' && Array.isArray(s)), JSON.stringify(asked));
   assert.ok(r.evidence.length >= 1);
 });
 
@@ -328,6 +332,13 @@ test('a backfill when one search engine answers; a place claim and the next tabl
   const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
   assert.notEqual(st('Mount Kilimanjaro is in Tanzania', 'Volcanic Region Kenyan Rift | Kilimanjaro Country Tanzania | Volcanic Region Kenyan Rift Volcanic Province | Landform Volc Type Composite Stratovolcano'), 'differs');
   assert.equal(st('Mombasa is the capital of Kenya', 'Kenya facts. Capital: Nairobi. Population: 55 million.'), 'differs');
+});
+
+test('a word between the superlative and its noun narrows the claim', () => {
+  const st = (c, t) => judgeSentence(claimParts(c), t)?.stance;
+  assert.equal(st('Canberra is the largest city in Australia', 'Canberra is the largest inland city in Australia and the eighth-largest overall.'), 'mentions');
+  assert.equal(st('Sydney is the largest city in Australia', 'Sydney is the largest city in Australia.'), 'supports');
+  assert.equal(st('The Pacific is the largest ocean', 'The Pacific is the largest and deepest ocean.'), 'supports');
 });
 
 test('a fact sheet about the place: the title names it, the labelled line names the subject', () => {
@@ -348,4 +359,9 @@ test('final live run: "replaced X as capital", nicknames, one kind of a thing, a
   assert.notEqual(st('Marie Curie won two Nobel Prizes', 'As of 2026, 70 Nobel Prizes have been awarded to 69 women (Marie Curie has been honoured twice).'), 'differs');
   const ev = evidenceFrom(claimParts('Auckland is the capital of New Zealand'), [{ serverTitle: 'Web', serverId: 'w', text: 'Title: post\nURL: https://bsky.app/profile/x/post/1\nMaunganui Bluff is about 160km northwest of Auckland, New Zealand’s capital.' }]);
   assert.ok(!ev.some((e) => e.stance === 'supports'));
+});
+
+test('a dotted capital İ (İstanbul) keeps words and their positions lined up', () => {
+  assert.doesNotThrow(() => judgeText(claimParts('Istanbul is the capital of Turkey'), 'İstanbul, the capital of Türkiye until 1923, is its largest city. İstanbul is a big city.'));
+  assert.equal(judgeSentence(claimParts('Istanbul is in Turkey'), 'İstanbul is in Turkey, on the Bosphorus.')?.stance, 'supports');
 });

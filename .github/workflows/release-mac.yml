@@ -9,8 +9,9 @@ on:
     paths: ['.github/workflows/release-mac.yml']
   workflow_dispatch:
 
+# (the build reads only; the release job, which installs nothing, is the one that can write)
 permissions:
-  contents: write # (to create the release; nothing else)
+  contents: read
 
 concurrency:
   group: mac-${{ github.ref }}
@@ -22,6 +23,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # (no token left in .git for install scripts to find)
 
       - uses: actions/setup-node@v4
         with:
@@ -43,14 +46,14 @@ jobs:
         env:
           # (no Apple Developer ID here: ad-hoc signed, so Apple silicon runs it, but not notarized)
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --mac --arm64 --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
+        run: npx electron-builder --mac --arm64 --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false '-c.artifactName=MCP-Browser-${version}-${arch}.${ext}'
 
       - name: Check the app
         run: |
           app="$(ls -d dist/mac-arm64/*.app | head -1)"
           codesign --verify --deep --strict "$app" && echo "signature ok (ad-hoc)"
           ls -lh dist/*.dmg dist/*.zip
-          shasum -a 256 dist/*.dmg dist/*.zip | tee dist/SHA256SUMS.txt
+          (cd dist && shasum -a 256 *.dmg *.zip | tee SHA256SUMS.txt)
 
       - name: Open the app once
         # (the packaged app starts, its local server answers, and it can list servers)
@@ -77,8 +80,19 @@ jobs:
             dist/SHA256SUMS.txt
           retention-days: 14
 
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # (to create the release; nothing else)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-arm64
+          path: dist
+
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -86,12 +100,12 @@ jobs:
           cat > notes.md <<'EOF'
           **Mac (Apple silicon, M1 and later):** download the `.dmg`, open it and drag MCP Browser to Applications.
 
-          This build isn't notarized by Apple (there's no paid Developer ID behind it), so macOS blocks it the first time. Open it once, then go to **System Settings → Privacy & Security** and press **Open Anyway** next to "MCP Browser was blocked". (Or, in Terminal: `xattr -dr com.apple.quarantine "/Applications/MCP Browser.app"`.) Check the download against `SHA256SUMS.txt` if you like.
+          This build isn't notarized by Apple (there's no paid Developer ID behind it), so macOS blocks it the first time. Open it once, then go to **System Settings → Privacy & Security** and press **Open Anyway** next to "MCP Browser was blocked". (Or, in Terminal: `xattr -dr com.apple.quarantine "/Applications/MCP Browser.app"`.) To check a download: `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` in the folder you saved it to.
 
           Intel Macs, Windows and Linux: run from source (`npm install`, then `npm run desktop`); see the README.
           EOF
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt --clobber
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt --clobber -R "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt --title "MCP Browser ${TAG#v}" --notes-file notes.md --generate-notes
+            gh release create "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt -R "$GITHUB_REPOSITORY" --title "MCP Browser ${TAG#v}" --notes-file notes.md --generate-notes
           fi

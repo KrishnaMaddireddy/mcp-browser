@@ -1182,7 +1182,7 @@
         if (b.dataset.act === 'open' && w.page) return navigate(active, { kind: 'web', url: w.page });
         if (b.dataset.act === 'open' && w.repo) return navigate(active, { kind: 'deps', text: w.repo });
         if (b.dataset.act === 'open' && w.deps) return navigate(active, { kind: 'deps', text: w.deps.map((p) => (p.ecosystem === 'pypi' ? `${p.name}==${p.version}` : `${p.name}@${p.version}`)).join('\n') });
-        if (b.dataset.act === 'open') return navigate(active, { kind: 'search', query: w.query, discovery: w.discovery, label: w.label });
+        if (b.dataset.act === 'open') return navigate(active, { kind: 'search', query: w.query, discovery: w.discovery, label: w.label, route: w.route });
         if (b.dataset.act === 'run') {
           b.disabled = true;
           await api.post('/api/watches/run', { id: w.id }).catch(() => {});

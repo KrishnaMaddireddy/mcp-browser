@@ -613,3 +613,18 @@ test('a template routes (and, with no AI model, asks the tools) on its route wor
   // every template has route words, each naming at least one of its own fields
   for (const x of TEMPLATES) assert.ok(x.fields.some((f) => x.route?.includes(`{${f.name}}`)), x.id);
 });
+
+test('review fixes: a follow-up routes on its full form; a switched-off server stays off when named', async () => {
+  const { SearchAgent } = await import('../src/agent.js');
+  const server = { id: 'web', title: 'Web', url: 'https://x', source: 'curated', trust: 'trusted' };
+  const routedOn = [];
+  const pool = { get: async () => ({ tools: [{ name: 'search', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }] }), callTool: async () => ({ content: [{ type: 'text', text: 'Title: AMD\nURL: https://a.example/1\nAMD stock price today is 150 dollars.' }] }) };
+  const catalog = { routeAsync: async (q) => (routedOn.push(q), [{ server, reason: 't' }]), get: (id) => (id === 'web' ? server : null), rankScores: null, all: () => [], isSignedIn: () => false, settings: { serverOverrides: { web: false } } };
+  const agent = new SearchAgent({ catalog, pool, health: null, getSettings: () => ({}), getProvider: () => null });
+  await agent.search('and AMD?', { emit: () => {}, history: [{ q: 'Nvidia stock price today', a: '' }] });
+  assert.ok(/AMD stock price today/.test(routedOn[0]), routedOn[0]);
+  const ev = [];
+  await agent.search('anything', { emit: (t, d) => ev.push([t, d]), servers: ['web'] });
+  assert.deepEqual(ev.find(([t]) => t === 'skipped')?.[1].servers, ['web']);
+  assert.ok(ev.some(([t, d]) => t === 'error' && /switched off/.test(d.message)));
+});

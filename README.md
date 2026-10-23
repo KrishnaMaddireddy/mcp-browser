@@ -65,18 +65,27 @@ npm run desktop      # Electron: answers + normal web pages in tabs
 
 ### A real Mac app
 
-On your Mac, in this folder:
+**Download:** the latest `.dmg` for Apple silicon (M1 and later) is on the
+[Releases page](https://github.com/KrishnaMaddireddy/mcp-browser/releases/latest). Open it
+and drag **MCP Browser** to Applications.
+
+It isn't notarized by Apple (there's no paid Developer ID behind it), so macOS blocks it
+the first time: open it once, then go to **System Settings → Privacy & Security** and press
+**Open Anyway** next to "MCP Browser was blocked". (Or in Terminal:
+`xattr -dr com.apple.quarantine "/Applications/MCP Browser.app"`.) Each release lists the
+SHA-256 of its files in `SHA256SUMS.txt`. A tag like `v0.3.0` builds and publishes a new
+one ([.github/workflows/release-mac.yml](.github/workflows/release-mac.yml)).
+
+Or build it yourself on your Mac, in this folder:
 
 ```bash
 npm install
 npm run dist:mac        # → dist/MCP Browser-0.2.0-arm64.dmg
 ```
 
-Open the `.dmg` and drag **MCP Browser** to Applications. The build isn't signed
-with an Apple Developer ID, so the first time, right-click the app → **Open**.
-The Mac build is for Apple silicon (M1 and later); on an Intel Mac, run from
-source with `npm run desktop` (meaning-based routing isn't available there, so
-routing uses keywords). `npm run dist` builds for whatever system you're on.
+On an Intel Mac, run from source with `npm run desktop` (meaning-based routing isn't
+available there, so routing uses keywords). `npm run dist` builds for whatever system
+you're on.
 
 The app's first-run card shows the exact Claude Desktop / Claude Code setup for
 wherever it's installed (from source it runs `node bin/mcp-server.js`; the
@@ -401,7 +410,7 @@ jobs:
 It writes the report to the job summary and keeps one comment on the pull request up to
 date (vulnerable and deprecated packages in the open, the rest folded away). Outputs:
 `report` (the Markdown file) and `vulnerable` (a count). Only package names and versions
-leave the runner, to the three checking services named in the report. A pull request from a
+leave the runner, to osv-advisory.caseyjhand.com, security.datakoot.com and package.datakoot.com. A pull request from a
 fork gets a read-only token, so it has the summary but no comment. This repo runs it on
 itself: [.github/workflows/dependency-check.yml](.github/workflows/dependency-check.yml).
 

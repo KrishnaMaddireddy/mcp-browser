@@ -82,9 +82,6 @@ export class SearchAgent {
         : base;
     query = String(query || '').trim().slice(0, 2000);
     if (!query) throw new Error('empty query');
-    // A template's routing words (what the person typed plus a few fixed ones): they pick the
-    // servers and, with no AI model, are what the tools are asked; the model still gets the prompt.
-    const topic = String(route || '').replace(/\s+/g, ' ').trim().slice(0, 300) || query;
     // Free mode: "and AMD?" after "Nvidia stock price today" asks "AMD stock price today".
     if ((direct || !this.getProvider()) && history.length) {
       const full = followUpQuery(query, history);
@@ -93,10 +90,24 @@ export class SearchAgent {
         query = full;
       }
     }
+    // A template's routing words (what the person typed plus a few fixed ones): they pick the
+    // servers and, with no AI model, are what the tools are asked; the model still gets the prompt.
+    // (after the follow-up rewrite, so a follow-up routes on its full form)
+    const topic = String(route || '').replace(/\s+/g, ' ').trim().slice(0, 300) || query;
 
     // 1. Route
     let routed;
     if (forcedIds?.length) {
+      // A server you switched off in Settings stays off, even when a pipeline or a check names it.
+      const off = forcedIds.filter((id) => this.catalog.settings?.serverOverrides?.[id] === false);
+      if (off.length) {
+        forcedIds = forcedIds.filter((id) => !off.includes(id));
+        emit('skipped', { servers: off, reason: 'switched off in Settings' });
+        if (!forcedIds.length) {
+          emit('error', { message: 'The servers for this are switched off in Settings.' });
+          return { mode: 'none', answer: '', sources: [] };
+        }
+      }
       routed = forcedIds.map((id) => this.catalog.get(id) || (adhoc || []).find((a) => a.id === id)).filter(Boolean).map((server) => ({ server, score: 0, terms: [], reason }));
       // Asked for servers this browser doesn't have (e.g. from the catalog): route normally.
       if (!routed.length) forcedIds = undefined;
@@ -148,7 +159,7 @@ export class SearchAgent {
 
     // 2. Connect in parallel. Free mode asks each server as soon as it connects.
     const book = new SourceBook();
-    book.query = provider ? query : topic;
+    book.query = topic;
     // (a backup web engine may step in when the routed one fails; not when you picked the servers)
     const session = provider ? null : this._directSession({ query: topic, settings, emit, signal, book, deadline, backup: !forcedIds?.length, exclude: new Set(routed.map((r) => r.server.id)) });
     const asking = [];

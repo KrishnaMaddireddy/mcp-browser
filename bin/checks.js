@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createEngine } from '../src/app.js';
-import { checkDependencies, depsMarkdown, failsOn, checkClaim, claimMarkdown, checkParagraph, paragraphMarkdown } from '../src/reports.js';
+import { checkDependencies, depsMarkdown, failsOn, FAIL_LEVELS, checkClaim, claimMarkdown, checkParagraph, paragraphMarkdown } from '../src/reports.js';
 import { readDependencyFile } from '../src/mcp-server.js';
 import { loadCatalog } from '../src/catalog-index.js';
 import { DEP_TITLES } from '../src/deps.js';
@@ -60,6 +60,17 @@ export async function main(argv) {
     console.error('--format takes md, json or text');
     return 2;
   }
+  // (checked before anything runs: a typo in CI must not pass as "nothing to report")
+  const failOn = opt(args, '--fail-on');
+  if (failOn !== undefined && !FAIL_LEVELS.includes(String(failOn).toLowerCase())) {
+    console.error('--fail-on takes any, low, moderate, high, critical or never');
+    return 2;
+  }
+  const maxArg = opt(args, '--max');
+  if (maxArg !== undefined && !(Number.isInteger(Number(maxArg)) && Number(maxArg) > 0)) {
+    console.error('--max takes a whole number of packages, e.g. --max 2000');
+    return 2;
+  }
   const engine = createEngine({ providerOverride: null });
   const write = (report, json) => {
     const out = format === 'json' ? JSON.stringify(json, null, 1) : format === 'text' ? plain(report) : report;
@@ -88,15 +99,14 @@ export async function main(argv) {
         text = readDependencyFile(file);
         if (format === 'text') console.error(`Checking ${path.relative(process.cwd(), path.resolve(file)) || file}…`);
       }
-      const res = await checkDependencies({ text, repo, max: Number(opt(args, '--max')) || 1000, callTool: (id, tool, args2, o) => engine.callCatalogTool(id, tool, args2, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
+      const res = await checkDependencies({ text, repo, max: Number(maxArg) || 1000, callTool: (id, tool, args2, o) => engine.callCatalogTool(id, tool, args2, o), titleOf: (id) => engine.catalog.get(id)?.title || loadCatalog()?.byName.get(id)?.[loadCatalog().F.title] || DEP_TITLES[id] || id });
       if (res.error) {
         console.error(res.error);
         return 2;
       }
       write(depsMarkdown(res, { limit: 1000, compact: args.includes('--compact') }), { summary: res.summary, servers: res.servers, source: res.source, packages: res.rows });
       if (!res.summary?.checked) return 2;
-      const level = opt(args, '--fail-on');
-      return level && failsOn(res.rows, level) ? 1 : 0;
+      return failOn && failsOn(res.rows, failOn) ? 1 : 0;
     }
     if (cmd === 'check') {
       const file = opt(args, '--file');
@@ -107,9 +117,10 @@ export async function main(argv) {
           console.error('No plain facts to check in that text.');
           return 2;
         }
+        const facts = res.claims.filter((c) => c.claim);
         write(paragraphMarkdown(res), { facts: res.claims.map((c) => ({ sentence: c.sentence, claim: c.claim || null, skip: c.skip || null, verdict: c.result?.verdict || null, label: c.result?.label || null, evidence: c.result?.evidence || [] })) });
-        const level = opt(args, '--fail-on');
-        return level === 'any' && res.claims.some((c) => c.result?.verdict === 'contradicted') ? 1 : 0;
+        if (!facts.some((c) => c.result)) return 2; // (every check failed: nothing was checked)
+        return failOn === 'any' && res.claims.some((c) => c.result?.verdict === 'contradicted') ? 1 : 0;
       }
       const claim = positional.join(' ').trim();
       if (!claim) {
@@ -118,7 +129,7 @@ export async function main(argv) {
       }
       const r = await checkClaim(engine.agent, claim);
       write(claimMarkdown(claim, r), { claim, verdict: r.verdict, label: r.label, supports: r.supports, differs: r.differs, mentions: r.mentions, evidence: r.evidence });
-      return opt(args, '--fail-on') === 'any' && r.verdict === 'contradicted' ? 1 : 0;
+      return failOn === 'any' && r.verdict === 'contradicted' ? 1 : 0;
     }
     console.error(`Unknown command ${cmd}.\n\n${HELP}`);
     return 2;

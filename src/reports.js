@@ -9,8 +9,22 @@ import { parseManifest, runDeps, repoOf, fetchRepoDeps } from './deps.js';
 export const SEV_LABEL = { CRITICAL: 'Critical', HIGH: 'High', MODERATE: 'Moderate', MEDIUM: 'Medium', LOW: 'Low' };
 const SEV_RANK = { LOW: 1, MODERATE: 2, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 
-/** Markdown-safe text: one line, no markup of its own. */
-export const md = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]<>!|#]/g, '\\$&');
+/**
+ * Markdown-safe text: one line, no markup of its own, and no control or direction-override
+ * characters (they could rewrite a terminal or reorder what a reader sees).
+ */
+export const md = (x) =>
+  String(x ?? '')
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F‎‏‪-‮⁦-⁩]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\\`*_[\]<>!|#]/g, '\\$&');
+/**
+ * For GitHub (a pull request comment, a job summary): third-party text can't mention people
+ * ("@user", "@org/team") or become a link ("https://…"); a word joiner breaks both, invisibly.
+ */
+export const ghSafe = (t) => String(t).replace(/@(?=[\p{L}\p{N}_-])/gu, '@⁠').replace(/:\/\//g, ':⁠//').replace(/\bwww\./gi, 'www⁠.');
+const mdText = (x) => md(x);
 /** A link target that can't break out of its parentheses. */
 export const mdUrl = (u) => (/^https?:\/\//i.test(u || '') ? String(u).replace(/[()\s<>]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`) : '');
 
@@ -56,74 +70,101 @@ export function worstSeverity(rows) {
   return best;
 }
 
+/** How many known vulnerabilities a row has: the advisories listed, or a service's own count. */
+export const vulnCount = (r) => Math.max(r.vulns?.length || 0, r.partial ? r.counts?.osv || 0 : 0, r.counts?.audit || 0);
+
+export const FAIL_LEVELS = ['any', 'low', 'moderate', 'medium', 'high', 'critical', 'never', 'none'];
+
 /** Does this result cross a --fail-on line (low | moderate | high | critical | any)? */
 export function failsOn(rows, level) {
   const lv = String(level || '').toLowerCase();
+  if (!FAIL_LEVELS.includes(lv) && lv) throw new Error('--fail-on takes any, low, moderate, high, critical or never');
   if (!lv || lv === 'never' || lv === 'none') return false;
-  const vulnerable = rows.filter((r) => r.vulns.length || (r.counts?.audit || 0) > 0);
+  const vulnerable = rows.filter((r) => vulnCount(r) > 0);
   if (lv === 'any') return vulnerable.length > 0;
   const need = { low: 1, moderate: 2, medium: 2, high: 3, critical: 4 }[lv];
-  if (!need) throw new Error('--fail-on takes any, low, moderate, high, critical or never');
-  // (an advisory with no severity label still counts at "any" and "low")
-  return vulnerable.some((r) => (SEV_RANK[r.worst] || (need <= 1 ? 1 : 0)) >= need);
+  // (a vulnerability with no severity label fails at every level: unknown isn't "low")
+  return vulnerable.some((r) => (r.worst ? SEV_RANK[r.worst] || 0 : 4) >= need);
 }
 
 /** The report as Markdown: a verdict line, the table (problems first), the advisories. */
 export function depsMarkdown({ rows, summary, servers = {}, start, source }, { title = 'Dependency check', limit = 200, compact = false, date = new Date().toISOString().slice(0, 10) } = {}) {
+  // (on GitHub, third-party text also can't mention anyone or turn into a link)
+  const md = compact ? (x) => ghSafe(mdText(x)) : mdText;
   const s = summary || { checked: 0, vulnerable: 0, high: 0, deprecated: 0, unchecked: rows.length };
   const ok = Object.values(servers).filter((x) => x.ok && x.key !== 'health');
+  const notChecked = rows.filter((r) => !r.checked).length;
   const head = !s.checked
     ? `Nothing was checked: no vulnerability service answered${ok.length ? ' for these packages' : ''}. This is not a clean result.`
     : s.vulnerable
       ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? '' : 's'} ${s.vulnerable === 1 ? 'has' : 'have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}`
       : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`;
-  const out = [`## ${md(title)}: ${head}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}`, ''];
+  // (never only the clean part: the ones nobody looked at are said in the same line)
+  const out = [`## ${md(title)}: ${head}${s.checked && notChecked ? `; ${notChecked} not checked` : ''}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}`, ''];
   const used = Object.values(servers).filter((x) => x.ok).map((x) => md(x.title));
   out.push(`Checked ${date} with ${used.length ? used.join(', ') : 'no service'} (OSV.dev data), by [MCP Browser](https://github.com/KrishnaMaddireddy/mcp-browser). Known means published in OSV.dev; a clean result isn't proof of safety.`);
   if (source?.files?.length) out.push('', `From ${md(source.repo)}${source.dir ? `/${md(source.dir)}` : ''}: ${source.files.map((f) => `${md(f.file.replace(/^\//, ''))}${f.truncated ? ' (first part only)' : ''}`).join(', ')}.`);
   if (start?.lockfile) out.push('', `From the lockfile: the versions installed${start.total > start.packages ? `; the first ${start.packages} of ${start.total} checked${start.directKnown ? ', direct ones first' : ''}` : ''}.`);
   // (which direct dependency brings most of the problems in)
-  const bad = rows.filter((r) => r.vulns.length || r.counts?.audit);
+  const bad = rows.filter((r) => vulnCount(r) > 0);
   const tally = new Map();
   for (const r of bad) for (const v of r.indirect ? r.via || [] : [r.name]) tally.set(v, (tally.get(v) || 0) + 1);
   const [topName, topN] = [...tally].sort((a, b) => b[1] - a[1])[0] || [];
   if (topName && topN > 1 && bad.length > 1) out.push('', `**${topN === bad.length ? `All ${topN}` : `${topN} of ${bad.length}`} packages with known vulnerabilities come in through ${md(topName)}.** Updating it is the place to start.`);
-  const rank = (r) => SEV_RANK[r.worst] || (r.vulns.length || r.counts?.audit ? 0.5 : 0);
+  // Worst first, then deprecated, then not checked, then clean (so a cut drops clean ones first).
+  const rank = (r) => (vulnCount(r) ? 10 + (SEV_RANK[r.worst] ?? 5) : r.deprecated ? 3 : !r.checked ? 2 : 0);
   const sorted = [...rows].sort((a, b) => rank(b) - rank(a));
   const shown = sorted.slice(0, limit);
   const header = ['| Package | Version | Known vulnerabilities | Fixed in | Latest | Notes |', '|---|---|---|---|---|---|'];
   const line = (r) => {
-    const n = r.partial ? r.counts.osv : r.vulns.length || r.counts?.audit || 0;
+    const n = vulnCount(r);
     const vul = !r.version ? 'not pinned' : !r.checked ? 'not checked' : n ? `${n}${r.worst ? ` (${SEV_LABEL[r.worst] || md(r.worst)})` : ''}` : 'none known';
     const notes = [r.deprecated ? 'deprecated' : '', r.maintained === false && !r.deprecated ? 'not maintained' : '', r.dev ? 'dev' : '', r.indirect ? (r.via?.length ? `via ${md(r.via.join(', '))}` : 'indirect') : ''].filter(Boolean).join(', ');
     return `| ${md(r.name)} (${md(r.ecosystem)}) | ${md(r.version || r.range || '—')} | ${vul} | ${r.unfixed ? 'no fix yet' : md(r.fix || '')} | ${md(r.latest || '')} | ${notes} |`;
   };
+  const advLine = (r, v) => `- **${md(r.name)} ${md(r.version)}** ${SEV_LABEL[v.severity] || md(v.severity) || ''}: ${md(v.summary || v.id)} ([${md(v.id)}](https://osv.dev/vulnerability/${encodeURIComponent(v.id)})${v.aliases?.length ? `, ${md(v.aliases.join(', '))}` : ''})${v.fixedVersions?.length ? `, fixed in ${md(v.fixedVersions.join(', '))}` : ''}`;
+  const adv = rows.filter((r) => r.vulns.length).sort((a, b) => rank(b) - rank(a));
+  const cutNote = (left) => {
+    const lc = left.filter((r) => !r.checked).length;
+    const lv = left.filter((r) => vulnCount(r) > 0).length;
+    return `… and ${left.length} more: ${[lv && `${lv} with known vulnerabilities`, lc && `${lc} not checked`, left.length - lv - lc && `${left.length - lv - lc} with no known vulnerabilities`].filter(Boolean).join(', ')}.`;
+  };
   if (compact) {
-    // (a pull request comment: what needs a look stays open, the clean rest folds away)
-    const flagged = (r) => r.vulns.length || r.counts?.audit || r.deprecated || (r.version && !r.checked);
-    const open = shown.filter(flagged);
-    const rest = shown.filter((r) => !flagged(r));
-    if (open.length) out.push('', ...header, ...open.map(line));
-    if (rest.length) {
-      // (GitHub takes comments up to 65,536 characters: the folded list stops short of that)
-      let room = 45000 - out.join('\n').length - open.length * 200;
+    // A pull request comment: problems in the open, the rest folded. GitHub takes up to 65,536
+    // characters, so every part has a share of about 50,000 and stops with a count.
+    let room = 50000 - out.join('\n').length;
+    const take = (list, toLine, share) => {
       const lines = [];
-      for (const r of rest) {
-        const l = line(r);
-        if ((room -= l.length + 1) < 0) break;
+      let left = share;
+      for (const x of list) {
+        const l = toLine(x);
+        if ((left -= l.length + 1) < 0) break;
         lines.push(l);
       }
-      const more = rest.length - lines.length;
-      out.push('', `<details><summary>${open.length ? `The other ${rest.length}` : rest.length === 1 ? 'The 1' : `All ${rest.length}`} package${rest.length === 1 ? '' : 's'}: no known vulnerabilities</summary>`, '', ...header, ...lines, ...(more ? ['', `… and ${more} more.`] : []), '', '</details>');
-    }
-  } else out.push('', ...header, ...shown.map(line));
-  if (sorted.length > shown.length) out.push('', `… and ${sorted.length - shown.length} more with no known vulnerabilities.`);
-  const adv = rows.filter((r) => r.vulns.length);
-  if (adv.length) {
-    out.push('', '### Advisories', '');
-    for (const r of adv)
-      for (const v of r.vulns) out.push(`- **${md(r.name)} ${md(r.version)}** ${SEV_LABEL[v.severity] || md(v.severity) || ''}: ${md(v.summary || v.id)} ([${md(v.id)}](https://osv.dev/vulnerability/${encodeURIComponent(v.id)})${v.aliases?.length ? `, ${md(v.aliases.join(', '))}` : ''})${v.fixedVersions?.length ? `, fixed in ${md(v.fixedVersions.join(', '))}` : ''}`);
+      room -= share - Math.max(0, left);
+      return lines;
+    };
+    const problem = shown.filter((r) => vulnCount(r) > 0 || r.deprecated);
+    const unchecked = shown.filter((r) => !problem.includes(r) && !r.checked);
+    const clean = shown.filter((r) => !problem.includes(r) && r.checked);
+    const pl = take(problem, line, Math.floor(room * 0.45));
+    if (pl.length) out.push('', ...header, ...pl, ...(pl.length < problem.length ? ['', cutNote(problem.slice(pl.length))] : []));
+    const advs = adv.flatMap((r) => r.vulns.map((v) => [r, v]));
+    const al = take(advs, ([r, v]) => advLine(r, v), Math.floor(room * 0.4));
+    if (al.length) out.push('', '### Advisories', '', ...al, ...(al.length < advs.length ? ['', `… and ${advs.length - al.length} more advisories (see the job log).`] : []));
+    const fold = (list, label) => {
+      if (!list.length) return;
+      const lines = take(list, line, Math.floor(room * 0.5));
+      out.push('', `<details><summary>${label}</summary>`, '', ...header, ...lines, ...(lines.length < list.length ? ['', `… and ${list.length - lines.length} more.`] : []), '', '</details>');
+    };
+    fold(unchecked, `${unchecked.length} package${unchecked.length === 1 ? '' : 's'} not checked (no pinned version, or no service answered)`);
+    fold(clean, `${problem.length || unchecked.length ? 'The other' : clean.length === 1 ? 'The' : 'All'} ${clean.length} package${clean.length === 1 ? '' : 's'}: no known vulnerabilities`);
+    if (sorted.length > shown.length) out.push('', cutNote(sorted.slice(shown.length)));
+    return out.join('\n');
   }
+  out.push('', ...header, ...shown.map(line));
+  if (sorted.length > shown.length) out.push('', cutNote(sorted.slice(shown.length)));
+  if (adv.length) out.push('', '### Advisories', '', ...adv.flatMap((r) => r.vulns.map((v) => advLine(r, v))));
   return out.join('\n');
 }
 
@@ -161,7 +202,7 @@ export async function checkParagraph(agent, text, { max = 8, signal, onFact } = 
     while (next < todo.length && !signal?.aborted) {
       const c = todo[next++];
       try {
-        c.result = await crossCheck(agent, c.claim, { signal });
+        c.result = await crossCheck(agent, c.claim, { signal, deep: false });
       } catch (e) {
         c.error = String(e?.message || e);
       }

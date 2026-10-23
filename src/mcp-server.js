@@ -20,14 +20,24 @@ import { checkClaim, claimMarkdown, checkParagraph, paragraphMarkdown, checkDepe
 
 // Files check_dependencies may read from disk by path: dependency files only, so a mistyped
 // path can never send other file contents (as "package names") to the vulnerability servers.
-const DEP_FILE = /^(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.(?:lock|toml)|pyproject\.toml|requirements[\w.-]*\.txt|Pipfile)$/;
+const DEP_FILE = /^(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.(?:lock|toml)|pyproject\.toml|(?:requirements|constraints)[\w.-]*\.txt)$/;
+const isDepFile = (abs) => DEP_FILE.test(path.basename(abs)) || (path.basename(path.dirname(abs)) === 'requirements' && /^[\w.-]+\.txt$/.test(path.basename(abs)));
 export function readDependencyFile(file) {
   const abs = path.resolve(String(file || ''));
-  if (!DEP_FILE.test(path.basename(abs))) throw new Error(`only dependency files can be read by path (package.json, a lockfile, requirements.txt, pyproject.toml, Cargo.toml), not ${path.basename(abs) || 'that'}`);
-  const st = fs.statSync(abs);
-  if (!st.isFile()) throw new Error('not a file');
-  if (st.size > 8 * 1024 * 1024) throw new Error('that file is over 8 MB');
-  return fs.readFileSync(abs, 'utf8');
+  if (!isDepFile(abs)) throw new Error(`only dependency files can be read by path (package.json, a lockfile, requirements.txt, pyproject.toml, Cargo.toml), not ${path.basename(abs) || 'that'}`);
+  // (no links: a repo's "requirements.txt" pointing at a token file must not be read)
+  const ln = fs.lstatSync(abs);
+  if (ln.isSymbolicLink()) throw new Error(`${path.basename(abs)} is a link to another file; give the file itself`);
+  if (!ln.isFile()) throw new Error('not a file');
+  if (ln.size > 8 * 1024 * 1024) throw new Error('that file is over 8 MB');
+  // (and no linked folder on the way: the real path must still be a dependency file)
+  if (!isDepFile(fs.realpathSync(abs))) throw new Error('that path goes through a link to another file');
+  const fd = fs.openSync(abs, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    return fs.readFileSync(fd, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
@@ -282,7 +292,7 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
     {
       title: 'Check dependencies for known vulnerabilities',
       description:
-        'Checks a project\'s packages (npm, PyPI, crates.io) against two OSV.dev services from different publishers, side by side, with the fix version, the latest version and whether a package is deprecated. Give ONE of: path (a lockfile or manifest on this computer: package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, uv.lock, Cargo.lock, package.json, requirements.txt, pyproject.toml, Cargo.toml), manifest (its text), or repo (a public GitHub link). Lockfiles give installed versions and say which direct dependency pulls each problem in. Only package names and versions are sent to the checking services.',
+        'Checks a project\'s packages (npm, PyPI, crates.io) against two OSV.dev services from different publishers, side by side, with the fix version, the latest version and whether a package is deprecated. Give ONE of: path (a lockfile or manifest on this computer: package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, uv.lock, Cargo.lock, package.json, requirements.txt, pyproject.toml, Cargo.toml), manifest (its text), or repo (a public GitHub link). Lockfiles give installed versions and say which direct dependency pulls each problem in. Only package names and versions are sent, to osv-advisory.caseyjhand.com, security.datakoot.com and package.datakoot.com (a repo link is read through pagefetch.openkrill.app).',
       inputSchema: {
         path: z.string().max(1000).optional(),
         manifest: z.string().max(2_000_000).optional(),

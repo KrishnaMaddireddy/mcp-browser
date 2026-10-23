@@ -675,7 +675,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
             const c = todo[next++];
             emit('para_start', { n: c.n });
             try {
-              const r = await crossCheck(engine.agent, c.claim, { signal: ac.signal });
+              const r = await crossCheck(engine.agent, c.claim, { signal: ac.signal, deep: false });
               // (the two clearest quotes each way, so the list reads without opening every check)
               const pick = (st) => r.evidence.filter((e) => e.stance === st).slice(0, 2).map((e) => ({ sentence: e.sentence.slice(0, 300), source: e.source, url: e.url, kind: e.kind, figure: e.figure, other: e.other }));
               emit('para_verdict', { n: c.n, claim: c.claim, verdict: r.verdict, label: r.label, supports: r.supports, differs: r.differs, mentions: r.mentions, official: r.official, quotes: { supports: pick('supports'), differs: pick('differs') } });

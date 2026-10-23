@@ -426,7 +426,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
       return null;
     }
   })();
-  const auditOk = new Set(); // (eco:name the audit service answered for)
+  const auditOk = new Set(); // (eco:name@version the audit service answered for)
   // 1. Advisories, from two publishers of OSV data at once.
   // (one package per call: a batch with many advisories comes back paged, a few rows at a time)
   const osvOne = async (p) => {
@@ -474,7 +474,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
               for (let t = 0; t < 2 && !r; t++) r = sc(await callTool(DEP_SERVERS.audit, 'audit_dependencies', { ecosystem: ECO[eco].audit, dependencies: part }).catch(() => null));
               if (!r) continue;
               answered++;
-              for (const q of part) auditOk.add(`${eco}:${q.name.toLowerCase()}`);
+              for (const q of part) auditOk.add(`${eco}:${q.name.toLowerCase()}@${q.version}`);
               for (const f of r.findings || []) out.push({ ...f, ecosystem: eco });
               for (const n of r.packages_not_found || []) out.push({ name: typeof n === 'string' ? n : n?.name, ecosystem: eco, notFound: true });
             }
@@ -538,7 +538,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
     });
     const countA = a && !a.error ? (a.partial ? a.vulnCount : uniq.length) : null;
     // Did any server actually answer for this package? Without one, it's "not checked", never "none known".
-    const answeredB = Boolean(audits) && auditOk.has(k);
+    const answeredB = Boolean(audits) && auditOk.has(`${k}@${p.version}`);
     // The other server lists raw ids: the ones that are aliases of one advisory count once.
     const idsB = b && !b.notFound ? b.vulnerability_ids || [] : [];
     const groupsB = new Set(idsB.map((x) => seen.get(x) || x));
@@ -577,7 +577,7 @@ export async function runDeps(pkgs, { callTool, titleOf = (id) => id, emit = () 
     };
     if (row.checked) summary.checked++;
     else if (p.version) summary.unchecked++;
-    if (row.vulns.length || (countB || 0) > 0) summary.vulnerable++;
+    if (row.vulns.length || (countA || 0) > 0 || (countB || 0) > 0) summary.vulnerable++;
     if (row.agree === true) summary.agreed++;
     if (row.agree === false) summary.disagreed++;
     if (row.deprecated) summary.deprecated++;

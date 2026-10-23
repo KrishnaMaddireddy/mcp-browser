@@ -184,3 +184,21 @@ test('audit service: 100 packages per call, one retry, a failed part stays "not 
   assert.equal(rows.find((r) => r.name === 'p5').checked, true);
   assert.equal(rows.find((r) => r.name === 'p120').checked, false);
 });
+
+test('audit answers are kept per version: a second version in a part that failed is not "none known"', async () => {
+  // (a lockfile: ms@2.0.0 is direct, in the first 100; send's own ms@2.1.1 is in the second part)
+  const deps = { ms: '2.0.0', send: '1.0.0' };
+  const packages = { 'node_modules/ms': { version: '2.0.0' }, 'node_modules/send': { version: '1.0.0', dependencies: { ms: '2.1.1' } }, 'node_modules/send/node_modules/ms': { version: '2.1.1' } };
+  for (let i = 0; i < 98; i++) (deps[`p${i}`] = '1.0.0'), (packages[`node_modules/p${i}`] = { version: '1.0.0' });
+  const pkgs = parseManifest(JSON.stringify({ lockfileVersion: 3, packages: { '': { dependencies: deps }, ...packages } }));
+  assert.deepEqual(pkgs.filter((x) => x.name === 'ms').map((x) => x.version), ['2.0.0', '2.1.1']);
+  const callTool = async (id, tool, args) => {
+    if (id !== DEP_SERVERS.audit) throw new Error('off');
+    if (args.dependencies.some((d) => d.name === 'ms' && d.version === '2.1.1')) throw new Error('timeout');
+    return { structuredContent: { findings: [], packages_not_found: [] } };
+  };
+  const rows = [];
+  await runDeps(pkgs, { callTool, emit: (t, d) => (t === 'deps_row' ? rows.push(d) : null) });
+  assert.equal(rows.find((r) => r.name === 'ms' && r.version === '2.0.0').checked, true);
+  assert.equal(rows.find((r) => r.name === 'ms' && r.version === '2.1.1').checked, false);
+});

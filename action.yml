@@ -18,6 +18,9 @@ inputs:
   github-token:
     description: Token for the pull request comment.
     default: ${{ github.token }}
+  comment-author:
+    description: 'Whose comment to keep updating (the account behind github-token). Default: the Actions bot.'
+    default: github-actions[bot]
 
 outputs:
   report:
@@ -69,15 +72,20 @@ runs:
         REPORT: ${{ steps.check.outputs.report }}
         PR: ${{ github.event.pull_request.number }}
         REPO: ${{ github.repository }}
-      # (one comment per pull request, updated on each push; a fork's read-only token just skips it)
+        INPUT_PATH: ${{ inputs.path }}
+        AUTHOR: ${{ inputs.comment-author }}
+      # (one comment per pull request and path, updated on each push, and only our own: a
+      # comment someone else starts with the marker is left alone; a fork's read-only token skips it)
       run: |
         [ -f "$REPORT" ] || exit 0
-        body="$(printf '<!-- mcp-browser-deps -->\n%s' "$(cat "$REPORT")")"
-        id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- mcp-browser-deps -->")) | .id' 2>/dev/null | head -1 || true)"
+        export MARKER="<!-- mcp-browser-deps $(printf '%s' "$INPUT_PATH" | shasum -a 256 | cut -c1-12) -->"
+        body="$RUNNER_TEMP/mcp-browser-comment.md"
+        { printf '%s\n' "$MARKER"; cat "$REPORT"; } > "$body"
+        id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.user.login == env.AUTHOR and (.body | startswith(env.MARKER))) | .id" 2>/dev/null | head -1 || true)"
         if [ -n "$id" ]; then
-          gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null || echo "::warning::Couldn't update the report comment"
+          gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$body" > /dev/null || echo "::warning::Couldn't update the report comment"
         else
-          gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null || echo "::warning::Couldn't post the report comment"
+          gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$body" > /dev/null || echo "::warning::Couldn't post the report comment"
         fi
 
     - name: Result
@@ -87,5 +95,9 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
         if [ "$CODE" = "1" ]; then echo "::error::Known vulnerabilities at or above '$FAIL_ON' (see the report)"; exit 1; fi
-        if [ "$CODE" = "2" ]; then echo "::warning::The dependency check couldn't run fully (see the log)"; fi
+        # (with a fail-on level set, a check that couldn't run fails too: unknown isn't clean)
+        if [ "$CODE" = "2" ]; then
+          if [ "$FAIL_ON" != "never" ] && [ "$FAIL_ON" != "none" ]; then echo "::error::The dependency check couldn't run (see the log), so it can't say the packages are clean"; exit 1; fi
+          echo "::warning::The dependency check couldn't run fully (see the log)"
+        fi
         exit 0

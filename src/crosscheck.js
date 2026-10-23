@@ -95,7 +95,9 @@ const NEGATION = /\b(?:not|never|neither|nor|no longer|\w+n['’]t|did not|myth|
 // "Brasília" and "Brasilia" are one name: accents are folded after words are found.
 const fold = (w) => w.normalize('NFD').replace(/\p{M}/gu, '');
 function wordsAt(s) {
-  return (String(s).toLowerCase().match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []).map((w) => fold(w.replace(/['’]s$/, '')));
+  // (words found before lowercasing, so they line up with wordsOrig: "İstanbul" lowercases to
+  // "i" + a combining dot + "stanbul", which would otherwise split into two words)
+  return (String(s).match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []).map((w) => fold(w.toLowerCase().replace(/['’]s$/, '')));
 }
 /** A claim word matches a sentence word by its stem: "invented" ~ "invention", "discovered" ~ "discovery". */
 const stemOf = (w) => (w.length <= 4 ? w : w.slice(0, Math.max(4, w.length - (w.endsWith('ed') || w.endsWith('es') ? 2 : 1))));
@@ -257,7 +259,30 @@ export function judgeSentence(parts, sentence) {
   else if (isHeading(sentence) || HEDGE.test(sentence)) return { stance: 'mentions', sentence };
   // "Canberra is not the capital": a source saying it is, says otherwise.
   if (parts.negated && j.stance !== 'mentions') return j.stance === 'supports' ? { stance: 'differs', sentence } : j.other || j.figure ? { stance: 'mentions', sentence } : { stance: 'supports', sentence };
+  if (j.stance === 'supports' && narrowedSuperlative(parts, sentence)) return { stance: 'mentions', sentence };
   return j;
+}
+/**
+ * "the largest inland city" doesn't say "the largest city": a word between the claim's
+ * superlative and its noun narrows it ("largest and deepest ocean" still says "largest ocean").
+ */
+function narrowedSuperlative(parts, sentence) {
+  const m = /\bthe\s+((?:most|least)\s+\p{L}+|\p{L}{3,}est|first|only)\s+(\p{L}+)/iu.exec(parts.text);
+  if (!m) return false;
+  const sup = wordsAt(m[1]).at(-1);
+  const noun = wordsAt(m[2])[0];
+  const ws = wordsAt(sentence);
+  let narrowed = false;
+  for (let i = 0; i < ws.length; i++) {
+    if (ws[i] !== sup) continue;
+    const k = ws.slice(i + 1, i + 6).findIndex((w) => matches(noun, w));
+    // (the next "largest" is the one that goes with the noun: "third largest desert and the largest hot desert")
+    if (k < 0 || ws.slice(i + 1, i + 1 + k).includes(sup)) continue;
+    const between = ws.slice(i + 1, i + 1 + k).filter((w) => w !== 'and' && w !== 'or' && w !== 'most' && !/\p{L}{3,}est$/u.test(w) && !parts.words.includes(w));
+    if (!between.length) return false;
+    narrowed = true;
+  }
+  return narrowed;
 }
 /** The share of the claim's words a sentence has. */
 function has(parts, sentence) {
@@ -914,7 +939,7 @@ export function verdictOf(evidence) {
 // (the curated web search servers; a server switched off in Settings is skipped by the agent)
 const WEB_SEARCH = ['keenable', 'agentsearch', 'exa', 'tanod-web'];
 
-export async function crossCheck(agent, claim, { emit = () => {}, signal } = {}) {
+export async function crossCheck(agent, claim, { emit = () => {}, signal, deep = true } = {}) {
   const parts = claimParts(claim);
   if (parts.words.length < (parts.figures.length || parts.years.length ? 1 : 2)) throw new Error('Write the claim as a sentence, e.g. “The Eiffel Tower is 330 meters tall”.');
   const results = [];
@@ -926,8 +951,21 @@ export async function crossCheck(agent, claim, { emit = () => {}, signal } = {})
     queries.push(`${parts.subject.replace(/^the\s+/i, '')} ${dim || parts.objectWords.slice(0, 3).join(' ')}`.trim());
   }
   const unique = queries.filter((q) => !seenQ.has(q.toLowerCase()) && seenQ.add(q.toLowerCase()));
+  // More independent sources: the claim also goes to every web search engine and Wikipedia
+  // (not only the ones routing picked), and the subject alone ("Panama Canal") finds the pages
+  // about it, which state its facts. Never a server you switched off in Settings.
+  // (one resting after rate limits or failures isn't asked again here: the checks would keep it down)
+  const on = (id) => agent.catalog?.settings?.serverOverrides?.[id] !== false && agent.health?.isAvailable?.(id) !== false;
+  const engines = [...WEB_SEARCH, 'wikexa'].filter(on);
+  const extra = [];
+  if (engines.length) {
+    extra.push(runQuery(parts.text, engines));
+    // (a paragraph check runs several facts at once: there, the claim alone, to spare the engines)
+    const subject = String(parts.subject || '').replace(/^the\s+/i, '');
+    if (deep && subject && subject.toLowerCase() !== parts.text.toLowerCase() && subject.split(/\s+/).length <= 6) extra.push(runQuery(subject, engines));
+  }
   // (asked side by side, so the second question costs no extra time)
-  await Promise.all(unique.map((q) => runQuery(q)));
+  await Promise.all([...unique.map((q) => runQuery(q)), ...extra.map((p) => p.catch(() => {}))]);
   // Independent sources need more than one search engine: when only one answered (another
   // busy or rate-limited), the claim goes to the other web search servers too.
   const answered = new Set(results.map((r) => r.serverId));
