@@ -280,3 +280,13 @@ test('review: a state of things in the past tense, and table rows', () => {
   assert.notEqual(st('The Golden Gate Bridge is 2,737 meters long', row), 'differs');
   assert.equal(st('The Golden Gate Bridge is 3,500 meters long', `Golden Gate Bridge | ${row}`), 'differs');
 });
+
+test('a rival country for "X is in <country>"; a year put first; a region inside the country', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s);
+  assert.deepEqual([st('Mount Kilimanjaro is in Uganda', 'Mount Kilimanjaro is located in northern Tanzania, East Africa.')?.stance, st('Mount Kilimanjaro is in Uganda', 'Mount Kilimanjaro is located in northern Tanzania, East Africa.')?.other], ['differs', 'Tanzania']);
+  assert.equal(st('Mount Kilimanjaro is in Tanzania', 'Mount Kilimanjaro is located in northeastern Tanzania, in the Kilimanjaro Region of East Africa.')?.stance, 'supports');
+  assert.notEqual(st('Mount Everest is in Nepal', 'Mount Everest is located in the Mahalangur Himal sub-range of the Himalayas.')?.stance, 'differs');
+  assert.notEqual(st('Mount Kilimanjaro is in Kenya', 'Mount Kilimanjaro is located in northern Tanzania, near the border between Tanzania and Kenya.')?.stance, 'supports');
+  assert.equal(st('The Golden Gate Bridge opened in 1950', 'On May 27, 1937, the Golden Gate Bridge opened to pedestrian traffic.')?.stance, 'differs');
+  assert.notEqual(st('The Golden Gate Bridge opened in 1937', 'After the 1906 earthquake, San Francisco grew, and the Golden Gate Bridge opened to traffic.')?.stance, 'differs');
+});

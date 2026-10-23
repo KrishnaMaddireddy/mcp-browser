@@ -229,6 +229,8 @@ export function claimParts(claim) {
 const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out|conceiv\w*|imagin\w*|envision\w*|if|unless|whether)\b)/iu;
 // A source that calls it a myth or false is saying no.
 const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
+const COUNTRY_NAMES = 'Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Czechia|Denmark|Djibouti|Dominican Republic|Ecuador|Egypt|El Salvador|Eritrea|Estonia|Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Mauritania|Mauritius|Mexico|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|Oman|Pakistan|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saudi Arabia|Senegal|Serbia|Sierra Leone|Singapore|Slovakia|Slovenia|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tunisia|Turkey|Turkmenistan|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe|England|Scotland|Wales';
+const COUNTRY = new RegExp(`^(?:${COUNTRY_NAMES})$`);
 const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;
 // Page titles and headlines name a topic; they aren't statements ("Discovery of penicillin - Wikipedia").
 const isHeading = (s) => {
@@ -404,7 +406,9 @@ function judgeCore(parts, sentence) {
     const hits = lastWord ? ws.map((w, i) => (matches(lastWord, w) ? i : -1)).filter((i) => i >= 0) : [];
     const near = (i) => subjW.filter((n) => ws.slice(Math.max(0, i - 6), i).some((w) => matches(n, w))).length + (ids[i] === best ? 0.5 : 0);
     const verbHit = hits.length ? hits.reduce((a, b) => (near(b) > near(a) ? b : a)) : -1;
-    const right = verbHit >= 0 ? yearAt.find((i) => i > verbHit && i - verbHit <= 6) : undefined;
+    // (or put first: "On May 27, 1937, the Golden Gate Bridge opened"; not "after the 1906 earthquake")
+    const fronted = verbHit >= 0 ? yearAt.filter((i) => i < verbHit && verbHit - i <= 12 && ids[i] === ids[verbHit] && !/^(?:after|before|since|until|till|by|from|the)$/.test(ws[i - 1] || '') && !ws.slice(Math.max(0, i - 4), i).some((w) => /^(?:after|before|since|until)$/.test(w))).pop() : undefined;
+    const right = verbHit >= 0 ? yearAt.find((i) => i > verbHit && i - verbHit <= 6) ?? fronted : undefined;
     const ys = (right != null ? [right] : yearAt.filter((i) => ids[i] === best)).map((i) => Number(ws[i]));
     if (ys.some((y) => parts.years.includes(y))) return NEGATION.test(sentence) ? { stance: 'differs', sentence } : { stance: 'supports', sentence };
     // (another year counts against it only when it's the year of the claim's own verb)
@@ -492,7 +496,9 @@ function judgeCore(parts, sentence) {
     const close = ws.slice(Math.max(0, headAt - 2), headAt).join(' ');
     if (parts.be && (/\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|second-largest|third-largest)\b/.test(lead) || /\b(?:provincial|regional|state|former|deputy|co|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(close))) return { stance: 'differs', sentence };
     const tail = ws.slice(headAt, headAt + 2 * obj.length + 4).join(' ');
-    if (/\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
+    // ("the capital of Kyoto Prefecture": only for a role "of" a place; "is in Tanzania, in the
+    // Kilimanjaro Region of East Africa" says where inside it)
+    if (parts.ofHead && /\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
     // "is the capital" vs "was the capital": a former state isn't the present one, nor
     // "historically … the capital from 794 to 1868".
     // (not for a state of things: "it was painted International Orange" when built doesn't say it isn't now)
@@ -539,6 +545,18 @@ function judgeCore(parts, sentence) {
 
   // "X is Y": X, then Y after it in the same clause ("Paris is the capital of France"), or
   // Y then "is X" ("The capital of France is Paris"). Never X somewhere after Y.
+  // "Mount Kilimanjaro is in Uganda" against "Mount Kilimanjaro is located in northern Tanzania":
+  // one country named where the claim names another (countries only: a region or a park inside
+  // the claim's country isn't a rival).
+  if (parts.be && subj.length && COUNTRY.test(parts.text.split(/\b(?:is|are|was|were)\s+(?:located\s+|situated\s+)?in\s+/i)[1]?.replace(/^the\s+/i, '').replace(/[.]$/, '') || '')) {
+    const claimed = parts.text.split(/\b(?:is|are|was|were)\s+(?:located\s+|situated\s+)?in\s+/i)[1].replace(/^the\s+/i, '').trim();
+    const subjAt = ws.findIndex((w) => subj.some((n) => matches(n, w)));
+    if (subjAt >= 0 && !new RegExp(`\\b${claimed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(sentence)) {
+      const after = sentence.slice(orig[subjAt].at);
+      const m = new RegExp(`^[^.;:]{0,40}?\\b(?:is|lies|sits|located|situated|found)\\s+(?:\\w+\\s+){0,2}?in\\s+(?:the\\s+)?(?:(?:far\\s+)?(?:north|south|east|west)\\w*\\s+|central\\s+)?(${COUNTRY_NAMES})\\b`).exec(after);
+      if (m && !NEGATION.test(after.slice(0, m.index + m[0].length)) && !HEDGE.test(sentence)) return { stance: 'differs', sentence, other: m[1] };
+    }
+  }
   if (parts.be && subj.length) {
     const key = subj.find((w) => EXACT.has(w)) || [...subj].sort((a, b) => b.length - a.length)[0];
     const P = ws.map((w, i) => (matches(key, w) ? i : -1)).filter((i) => i >= 0);
