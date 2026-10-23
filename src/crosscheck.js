@@ -89,7 +89,7 @@ const RELATIONS = 'invented|discovered|founded|wrote|won|created|directed|painte
 const BE = 'is|was|are|were|has been|became|remains';
 const PAST = /\b(?:was|were|served as|former(?:ly)?|old|previous(?:ly)?|until|once|used to be|had been|historic(?:al|ally)?|imperial|ancient|eternal|onetime|one-time)\b/i;
 const THIS_YEAR = new Date().getFullYear();
-const NEGATION = /\b(?:not|never|no longer|\w+n['’]t|did not|myth|false|misconception|incorrect|wrongly|mistakenly|falsely)\b/i;
+const NEGATION = /\b(?:not|never|neither|nor|no longer|\w+n['’]t|did not|myth|false|misconception|incorrect|wrongly|mistakenly|falsely)\b/i;
 
 /** Word positions in a sentence, lowercased, for "are these words near each other" checks. */
 // "Brasília" and "Brasilia" are one name: accents are folded after words are found.
@@ -102,7 +102,7 @@ const stemOf = (w) => (w.length <= 4 ? w : w.slice(0, Math.max(4, w.length - (w.
 let EXACT = new Set(); // the claim's proper nouns, while a sentence is judged
 const matches = (claimWord, w) => (Array.isArray(claimWord) ? claimWord.some((c) => matches(c, w)) : w === claimWord || (!EXACT.has(claimWord) && (w === `${claimWord}s` || w === `${claimWord}es`)) || (!EXACT.has(claimWord) && claimWord.length > 3 && w.startsWith(stemOf(claimWord))) || (EXACT.has(claimWord) && w === `${claimWord}s`));
 // Irregular forms, so "won" finds "to win" and "wrote" finds "written".
-const FORMS = { won: ['won', 'win', 'wins', 'winning', 'winner', 'victory', 'champion'], wrote: ['wrote', 'write', 'written', 'author', 'published'], built: ['built', 'build'], made: ['made', 'make'], makes: ['make', 'made'], led: ['led', 'lead'], leads: ['lead', 'led'], bought: ['bought', 'buy', 'acquired'], beat: ['beat', 'defeat'], defeated: ['defeat', 'beat'], founded: ['founded', 'founder', 'founding', 'co-founded', 'cofounded'], invented: ['invent', 'inventor', 'invention'], discovered: ['discover', 'discoverer', 'discovery'] };
+const FORMS = { has: ['has', 'have', 'with'], have: ['have', 'has', 'with'], flows: ['flows', 'flow', 'flowing', 'runs'], 'co-founded': ['co-founded', 'cofounded', 'founded', 'co-founder', 'founder'], won: ['won', 'win', 'wins', 'winning', 'winner', 'victory', 'champion'], wrote: ['wrote', 'write', 'written', 'author', 'published'], built: ['built', 'build'], made: ['made', 'make'], makes: ['make', 'made'], led: ['led', 'lead'], leads: ['lead', 'led'], bought: ['bought', 'buy', 'acquired'], beat: ['beat', 'defeat'], defeated: ['defeat', 'beat'], founded: ['founded', 'founder', 'founding', 'co-founded', 'cofounded'], invented: ['invent', 'inventor', 'invention'], discovered: ['discover', 'discoverer', 'discovery'] };
 /** The smallest span of sentence words containing every claim word (Infinity if one is missing). */
 function span(ws, need) {
   if (!need.length) return 0;
@@ -173,7 +173,10 @@ export function claimParts(claim) {
   const words = [...new Set([...content(text), ...nameNums])];
   // "The Mona Lisa was painted by Leonardo da Vinci" reads as "Leonardo da Vinci painted the Mona Lisa".
   const pass = new RegExp(`^(.{2,80}?)\\s+(?:was|were|is|are|has been|had been)\\s+(${RELATIONS}|painted|written|made|led|composed|directed|discovered|invented|founded|created|built|designed|developed|launched|introduced|acquired|bought|killed|signed)\\s+(?:in\\s+\\d{4}\\s+)?by\\s+(.{2,120}?)(?:\\s+in\\s+\\d{4})?$`, 'i').exec(text);
-  const m = pass ? null : new RegExp(`^(.{2,80}?)\\s+(?:(?:do|does|did)\\s+not\\s+|never\\s+)?(${BE}|${RELATIONS})\\s+(?:the\\s+|an?\\s+)?(.{2,140})$`, 'i').exec(text);
+  const m =
+    (pass ? null : new RegExp(`^(.{2,80}?)\\s+(?:(?:do|does|did)\\s+not\\s+|never\\s+)?(${BE}|${RELATIONS})\\s+(?:the\\s+|an?\\s+)?(.{2,140})$`, 'i').exec(text)) ||
+    // any other verb: "The Danube flows through Vienna", "Gold has the symbol Au", "Steve Jobs co-founded Apple"
+    (pass || figuresOf(text).some((f) => !f.year) ? null : /^((?:the\s+|an?\s+)?(?:\p{Lu}[\p{L}'’.-]*\s+){0,3}?[\p{L}'’.-]+)\s+((?:co-)?[a-z]+(?:s|ed))\s+(?:through|into|in|on|at|to|from|across|via)?\s*(?:the\s+|an?\s+)?(.{2,120})$/u.exec(text));
   const subject = pass ? pass[3] : m ? m[1].replace(/^the\s+/i, '') : '';
   const relation = pass ? (pass[2].toLowerCase() === 'written' ? 'wrote' : pass[2].toLowerCase()) : m ? m[2].toLowerCase() : '';
   const object = pass ? pass[1].replace(/^the\s+/i, '') : m ? m[3] : '';
@@ -233,7 +236,9 @@ const isHeading = (s) => {
   if (words.length < 6 || (/\s[-–|]\s[^-–|]{2,40}$/.test(s) && words.length < 16)) return true;
   // "50 Years Ago Today, Apple Was Founded By …": a headline in title case
   const caps = words.filter((w) => /^\p{Lu}/u.test(w)).length;
-  return words.length < 20 && caps / words.length >= 0.6;
+  // (title case leaves only small words lower-case; a sentence listing names still has its verbs)
+  const lowerContent = words.filter((w) => /^\p{Ll}/u.test(w) && !/^(?:of|the|and|in|a|an|to|for|on|at|by|or|with|vs\.?|from)$/i.test(w.replace(/[^\p{L}.]/gu, ''))).length;
+  return words.length < 20 && caps / words.length >= 0.6 && lowerContent === 0;
 };
 
 export function judgeSentence(parts, sentence) {
@@ -528,6 +533,9 @@ function judgeCore(parts, sentence) {
         const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const poss = new RegExp(`^(?:[\\p{L}'’.-]+\\s*){1,3}?,?\\s*(?:(?:is|was|are|remains|has been)\\s+)?(?:the\\s+)?${esc(parts.ofWhat)}['’]s\\s+(?:[\\p{L}-]+\\s+){0,2}?${esc(parts.ofHead)}\\b`, 'u').exec(sentence.slice(orig[p].at));
         if (poss) {
+          // ("Sydney, Australia's capital is Canberra": the possessive names someone else's)
+          const named = /^\s*(?:is|was)\s+((?:\p{Lu}[\p{L}'’.-]*\s?){1,3})/u.exec(sentence.slice(orig[p].at + poss[0].length));
+          if (named && !wordsAt(named[1]).some((w) => parts.subjectWords.some((n) => matches(n, w)))) return { stance: 'differs', sentence, other: named[1].trim() };
           const headAt = ws.findIndex((w, i) => i > p && matches(parts.ofHead, w));
           if (headAt > p) return settle(p, headAt);
         }

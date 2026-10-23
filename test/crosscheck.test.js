@@ -205,3 +205,12 @@ test('particular cases, possessive places and question-page titles do not back a
   assert.notEqual(stance('Mercury is the hottest planet in the Solar System', 'Flexi answers - Mercury is the hottest planet in our solar system.'), 'supports');
   assert.equal(stance('A spider has eight legs', 'Every spider has exactly 8 legs, arranged in 4 pairs.'), 'supports');
 });
+
+test('any verb: flows, has, co-founded; a list of names is not a headline; neither/nor denies', () => {
+  assert.equal(stance('The Danube flows through Vienna', 'The Danube flows through Vienna, Bratislava, Budapest and Belgrade.'), 'supports');
+  assert.notEqual(stance('The Danube flows through Prague', 'The Vltava flows through Prague before joining the Elbe.'), 'supports');
+  assert.equal(stance('Gold has the chemical symbol Au', 'Gold is a chemical element with the symbol Au and atomic number 79.'), 'supports');
+  assert.notEqual(stance('Gold has the chemical symbol Ag', 'Gold is a chemical element with the symbol Au and atomic number 79.'), 'supports');
+  assert.equal(stance('Steve Jobs co-founded Apple', 'Steve Jobs co-founded Apple with Steve Wozniak in 1976.'), 'supports');
+  assert.notEqual(stance('Sydney is the capital of Australia', "Neither Sydney nor Melbourne, Australia's capital is Canberra."), 'supports');
+});
