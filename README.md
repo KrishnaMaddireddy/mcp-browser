@@ -271,6 +271,12 @@ text never count for it. Copies of one page, and one publisher's subdomains, cou
 With an AI provider, the model can only make the reading more cautious. **Copy as
 Markdown** gives the verdict with every quote and link.
 
+**Check a whole paragraph** (an AI answer, a few sentences of an article): each plain fact in
+it is checked on its own, two at a time, up to 8. "It", "He" and "She" are read as the last
+name before them, "… is 330 meters tall and was designed by Gustave Eiffel" becomes two
+facts, and opinions, advice, questions and hedged or reported sentences are listed as not
+checked, with why.
+
 ## Answer cards
 
 A question that is just one company, city, website, CVE or piece of software ("Nvidia",
@@ -595,6 +601,7 @@ npm run test:live        # also hits the real curated servers
 | GET | `/api/audit` | MCP servers installed in this computer's clients, matched to the registry, with checks (never secret values) |
 | GET | `/api/catalog/tools?id=` | one catalog server's tools (name, description, required inputs, whether it changes things) |
 | POST | `/api/crosscheck` | `{claim}` → SSE `check_progress`, `check_source`, `check_verdict`, `done` |
+| POST | `/api/crosscheck/text` | `{text}` a paragraph → SSE `para_claims`, `para_start`, `para_verdict` per fact, `done` |
 | POST | `/api/card` | `{query}` → SSE `card_start`, `card_section`, `card_done` (or `card_none`) |
 | POST | `/api/track/parse` | `{text}` "tell me when …" → a proposed watch (with the figure it reads now) |
 | POST | `/api/deps` | `{text}` a manifest, lockfile or GitHub repo link (or `{repo}`) → SSE `deps_repo`, `deps_source`, `deps_start`, `deps_server`, `deps_row`, `deps_done` |

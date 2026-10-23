@@ -19,7 +19,7 @@ import { auditInstalled } from './audit.js';
 import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib, testedView } from './catalog-index.js';
 import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
-import { crossCheck } from './crosscheck.js';
+import { crossCheck, claimsIn } from './crosscheck.js';
 import { detectEntity, detectPair, runCard } from './cards.js';
 import { parseTrack, figureIn, thresholdMet } from './track.js';
 import { parseManifest, runDeps, repoOf, fetchRepoDeps } from './deps.js';
@@ -653,11 +653,50 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         res.end();
       }
     },
+    // A whole paragraph (an AI answer, an article): each plain fact in it cross-checked on its own
+    // (SSE: para_claims, para_verdict per fact, done). Two at a time, so servers aren't flooded.
+    'POST /api/crosscheck/text': async (req, res) => {
+      const b = await readJson(req);
+      const text = String(b.text || '').slice(0, 4000);
+      const claims = claimsIn(text, { max: 8 });
+      if (!claims.some((c) => c.claim)) return json(res, 400, { error: claims.length ? 'No plain facts to check in that text (who did what, a figure or a year). Opinions, questions and hedged sentences are left out.' : 'Paste a paragraph to check.' });
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+      const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
+      const t0 = Date.now();
+      try {
+        emit('para_claims', { claims });
+        const todo = claims.map((c, n) => ({ ...c, n })).filter((c) => c.claim);
+        let next = 0;
+        const worker = async () => {
+          while (next < todo.length && !ac.signal.aborted) {
+            const c = todo[next++];
+            emit('para_start', { n: c.n });
+            try {
+              const r = await crossCheck(engine.agent, c.claim, { signal: ac.signal });
+              // (the two clearest quotes each way, so the list reads without opening every check)
+              const pick = (st) => r.evidence.filter((e) => e.stance === st).slice(0, 2).map((e) => ({ sentence: e.sentence.slice(0, 300), source: e.source, url: e.url, kind: e.kind, figure: e.figure, other: e.other }));
+              emit('para_verdict', { n: c.n, claim: c.claim, verdict: r.verdict, label: r.label, supports: r.supports, differs: r.differs, mentions: r.mentions, official: r.official, quotes: { supports: pick('supports'), differs: pick('differs') } });
+            } catch (e) {
+              if (!ac.signal.aborted) emit('para_verdict', { n: c.n, claim: c.claim, verdict: 'error', label: errMsg(e) });
+            }
+          }
+        };
+        await Promise.all([worker(), worker()]);
+      } finally {
+        emit('done', { ms: Date.now() - t0 });
+        clearInterval(ping);
+        res.end();
+      }
+    },
     // Dependency check: a pasted manifest, two OSV servers side by side and a registry server
     // (SSE: deps_start, deps_server…, deps_row…, deps_done). A server switched off is skipped.
     'POST /api/deps': async (req, res) => {
       // (a lockfile can be a few megabytes)
-      const b = await readJson(req, 8 * 1024 * 1024);
+      // (JSON escaping adds a little to an 8 MB file)
+      const b = await readJson(req, 10 * 1024 * 1024);
       const text = String(b.text || '').slice(0, 8 * 1024 * 1024);
       // A public GitHub repo link: its lockfile or manifest, read by the page server.
       const repo = repoOf(b.repo || (text.trim().split(/\s+/).length === 1 ? text : ''));

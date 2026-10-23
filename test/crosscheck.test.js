@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { claimParts, judgeSentence, verdictOf, sourceKey, evidenceFrom, figuresOf, judgeWithModel } = await import('../src/crosscheck.js');
+const { claimParts, judgeSentence, verdictOf, sourceKey, evidenceFrom, figuresOf, judgeWithModel, sentencesOf, claimsIn } = await import('../src/crosscheck.js');
 const stance = (claim, sentence) => judgeSentence(claimParts(claim), sentence)?.stance || null;
 
 test('figures: same, converted, different, and the one nearest the subject', () => {
@@ -226,4 +226,21 @@ test('a correction names someone else; a list is no label; "a sovereign state in
   assert.notEqual(stance('A hexagon has eight sides', 'A regular octagon has eight equal sides and eight equal angles of 135˚.'), 'supports');
   assert.notEqual(stance('A spider has six legs', 'But it has six legs on its thorax, while its head is set up like the mantis shrimp.'), 'supports');
   assert.equal(stance('A hexagon has six sides', 'A regular hexagon has six sides that are all the same length.'), 'supports');
+});
+
+test('a whole paragraph: sentences, "It" resolved, two facts split, opinions and questions left out', () => {
+  assert.deepEqual(sentencesOf('Dr. Smith moved to the U.S. in 1990. Pi is 3.14 roughly. Is it true? Yes.'), ['Dr. Smith moved to the U.S. in 1990.', 'Pi is 3.14 roughly.', 'Is it true?', 'Yes.']);
+  const c = claimsIn('The Eiffel Tower was completed in 1889 for the World’s Fair. It is 330 meters tall and was designed by Gustave Eiffel. You should visit it at night. Is it the most visited monument? Albert Einstein developed the theory of relativity. He was born in Ulm in 1879 and won the Nobel Prize in Physics in 1921. Paris is beautiful in spring.');
+  assert.deepEqual(c.filter((x) => x.claim).map((x) => x.claim), [
+    'The Eiffel Tower was completed in 1889',
+    'The Eiffel Tower is 330 meters tall',
+    'The Eiffel Tower was designed by Gustave Eiffel',
+    'Albert Einstein developed the theory of relativity',
+    'Albert Einstein was born in Ulm in 1879',
+    'Albert Einstein won the Nobel Prize in Physics in 1921',
+  ]);
+  assert.deepEqual(c.filter((x) => !x.claim).map((x) => x.skip), ['an opinion, advice, a quote or hedged', 'a question', 'an opinion, advice, a quote or hedged']);
+  // ("It" with no name before it isn't guessed; only the first 8 facts are checked)
+  assert.match(claimsIn('It was built in 1900.')[0].skip, /without a name/);
+  assert.equal(claimsIn(Array.from({ length: 10 }, (_, i) => `Mount Everest is ${8000 + i} meters high.`).join(' ')).filter((x) => x.claim).length, 8);
 });

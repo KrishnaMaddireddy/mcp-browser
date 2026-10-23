@@ -196,6 +196,7 @@
         window.MCPCheck?.mount(el, {
           claim: entry.claim,
           open: (u) => open(u),
+          checkInNewTab: (c) => newTab({ kind: 'check', claim: c }),
           onClaim: (c) => {
             entry.claim = c;
             setTitle(tab, entry, `Check: ${c}`);

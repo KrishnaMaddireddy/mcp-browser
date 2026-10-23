@@ -7,6 +7,9 @@
   const EXAMPLES = ['The Eiffel Tower is 330 meters tall', 'Mount Everest is 9,500 meters high', 'The default port for PostgreSQL is 5432', 'Saturn is the largest planet in the Solar System', 'The human body has 206 bones', 'Thomas Edison invented the telephone'];
   // (the same labels as the results page: a preprint or a package page is not "Official")
   const KIND = { official: 'Official', primary: 'Primary source', own: 'Official site', package: 'Package page', preprint: 'Preprint' };
+  // (a short reading for each fact in a paragraph)
+  const SHORT = { supported: 'Backed by several sources', mostly: 'Mostly backed', disputed: 'Sources disagree', contradicted: 'Sources say something different', weak: 'Only one or two sources say this', unclear: 'Not enough said', error: 'Couldn’t check' };
+  const EXAMPLE_PARA = 'The Eiffel Tower was completed in 1889 for the World’s Fair. It is 330 meters tall and was designed by Gustave Eiffel. Mount Everest is 9,500 meters high. Thomas Edison invented the telephone in 1876. You should visit both at least once.';
   const GROUPS = [
     ['supports', 'Say the same'],
     ['differs', 'Say something different'],
@@ -141,12 +144,106 @@
         };
     }
 
+    // A whole paragraph: each plain fact checked on its own, two at a time (POST /api/crosscheck/text).
+    const pform = $('[data-pc-form]');
+    const ptext = $('[data-pc-text]');
+    async function runPara(text) {
+      ac?.abort();
+      ac = new AbortController();
+      const my = ++runId;
+      const out = $('[data-ck-out]');
+      out.innerHTML = '<p class="ck-wait">Finding the facts in it…</p>';
+      let claims = [];
+      const verdicts = {};
+      const busy = new Set();
+      let finished = false;
+      const render = () => {
+        if (my !== runId) return;
+        const todo = claims.filter((c) => c.claim);
+        const done = todo.filter((c, n) => verdicts[claims.indexOf(c)]);
+        const count = (v) => todo.filter((c) => verdicts[claims.indexOf(c)]?.verdict === v).length;
+        const backed = count('supported') + count('mostly');
+        const against = count('contradicted');
+        const mixed = count('disputed') + count('weak');
+        const sum = finished || done.length === todo.length
+          ? `<p class="pc-sum"><b>${todo.length} fact${todo.length === 1 ? '' : 's'} checked:</b> ${[backed && `${backed} backed`, against && `${against} where sources say something different`, mixed && `${mixed} with mixed or thin support`, todo.length - backed - against - mixed && `${todo.length - backed - against - mixed} not settled`].filter(Boolean).join(', ')}.</p>`
+          : `<p class="ck-wait">Checking ${todo.length} fact${todo.length === 1 ? '' : 's'}, two at a time: ${done.length} done…</p>`;
+        const q = (x, how) => `<p class="pc-q">${how}: “${mark(x.sentence, x.figure || x.other)}” ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.source)}</a>` : esc(x.source || '')}</p>`;
+        const items = todo
+          .map((c) => {
+            const n = claims.indexOf(c);
+            const v = verdicts[n];
+            const as = c.rewritten ? `<p class="pc-as">Checked as: ${esc(c.claim)}</p>` : '';
+            const body = v
+              ? `<p class="pc-v">${v.verdict === 'error' ? `${SHORT.error}: ` : ''}${esc(v.label || SHORT[v.verdict] || v.verdict)}</p>${(v.quotes?.differs || []).slice(0, 1).map((x) => q(x, 'Says otherwise')).join('')}${(v.quotes?.supports || []).slice(0, 1).map((x) => q(x, 'Agrees')).join('')}<p class="ck-acts"><button type="button" class="link-btn" data-pc-open="${esc(c.claim)}">See every source</button></p>`
+              : `<p class="pc-v ck-wait">${busy.has(n) ? 'Checking…' : 'Waiting…'}</p>`;
+            // (a sentence split into two facts: each fact on its own line)
+            const split = claims.filter((x) => x.i === c.i && x.claim).length > 1;
+            return `<li class="pc-item" data-v="${esc(v?.verdict || '')}"><p class="pc-claim">${esc(split ? c.claim : c.sentence)}</p>${split ? '' : as}${body}</li>`;
+          })
+          .join('');
+        // (the same sentence split into two facts shows once per fact; skipped ones once)
+        const skipped = claims.filter((c) => !c.claim);
+        const skip = skipped.length ? `<details class="ck-group"><summary>${skipped.length} sentence${skipped.length === 1 ? '' : 's'} not checked</summary><ul class="pc-skip">${skipped.map((c) => `<li>${esc(c.sentence)} <span>(${esc(c.skip)})</span></li>`).join('')}</ul></details>` : '';
+        out.innerHTML = `${sum}<ol class="pc-list">${items}</ol>${skip}`;
+      };
+      let res;
+      try {
+        res = await fetch('/api/crosscheck/text', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ text }), signal: ac.signal });
+      } catch (e) {
+        if (my === runId && e.name !== 'AbortError') out.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
+        return;
+      }
+      if (!res.ok || !/event-stream/.test(res.headers.get('content-type') || '')) {
+        let msg = `The check failed (${res.status}).`;
+        try {
+          msg = (await res.json()).error || msg;
+        } catch {}
+        if (my === runId) out.innerHTML = `<p class="lr-fail">${esc(msg)}</p>`;
+        return;
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read().catch(() => ({ done: true }));
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let k;
+        while ((k = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, k);
+          buf = buf.slice(k + 2);
+          const type = /^event: (.*)$/m.exec(block)?.[1];
+          const raw = /^data: (.*)$/m.exec(block)?.[1];
+          if (!type || !raw) continue;
+          const d = JSON.parse(raw);
+          if (type === 'para_claims') claims = d.claims;
+          else if (type === 'para_start') busy.add(d.n);
+          else if (type === 'para_verdict') (verdicts[d.n] = d), busy.delete(d.n);
+          else if (type === 'done') finished = true;
+          render();
+        }
+      }
+      finished = true;
+      render();
+    }
+    pform.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const t = ptext.value.trim();
+      if (t) runPara(t);
+    });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const c = input.value.trim();
       if (c) run(c);
     });
     el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-pc-ex]')) {
+        ptext.value = EXAMPLE_PARA;
+        return runPara(EXAMPLE_PARA);
+      }
+      const po = e.target.closest('[data-pc-open]');
+      if (po) return hooks.checkInNewTab ? hooks.checkInNewTab(po.dataset.pcOpen) : run((input.value = po.dataset.pcOpen));
       const ex = e.target.closest('[data-ck-ex]');
       if (ex) {
         input.value = ex.dataset.ckEx;

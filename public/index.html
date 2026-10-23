@@ -418,6 +418,13 @@
         <button type="submit" class="st-dl-btn">Check</button>
       </form>
       <div class="ck-examples" data-ck-examples></div>
+      <details class="pc-box" data-pc-box>
+        <summary>Check a whole paragraph</summary>
+        <form class="pc-form" data-pc-form>
+          <textarea data-pc-text rows="5" maxlength="4000" aria-label="Paragraph to check" placeholder="Paste an AI answer or a few sentences from an article. Each plain fact in it (who did what, a figure, a year) is checked on its own; opinions and questions are left out."></textarea>
+          <div class="dp-acts"><button type="submit" class="st-dl-btn">Check each fact</button><span>Try <button type="button" class="link-btn" data-pc-ex>an AI answer with two mistakes</button></span></div>
+        </form>
+      </details>
       <div class="ck-out" data-ck-out></div>
     </section>
   </template>

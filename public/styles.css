@@ -1046,6 +1046,23 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .ck-examples button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .ck-examples button:hover { color: var(--ink); border-color: var(--signal); }
 .ck-wait { color: var(--muted); }
+.pc-box { margin-bottom: 18px; }
+.pc-box summary { cursor: pointer; color: var(--signal); font-size: 14px; margin-bottom: 10px; }
+.pc-form textarea { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 15px; line-height: 1.5; resize: vertical; }
+.pc-sum { font-size: 17px; margin: 0 0 12px; }
+.pc-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; }
+.pc-item { border-left: 4px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 14px; }
+.pc-item[data-v="supported"], .pc-item[data-v="mostly"] { border-left-color: var(--signal); }
+.pc-item[data-v="disputed"], .pc-item[data-v="weak"] { border-left-color: #c58a12; }
+.pc-item[data-v="contradicted"] { border-left-color: #c2410c; }
+.pc-claim { margin: 0; font-size: 15.5px; }
+.pc-as { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.pc-v { margin: 6px 0 0; font-size: 13.5px; font-weight: 600; }
+.pc-item[data-v="contradicted"] .pc-v { color: #c2410c; }
+.pc-q { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); font-size: 13px; }
+.pc-q a { color: inherit; }
+.pc-skip { color: var(--muted); font-size: 13px; padding-left: 18px; }
+.pc-skip li { margin: 3px 0; }
 .ck-verdict { border-left: 4px solid var(--muted); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
 .ck-verdict b { font-size: 19px; display: block; }
 .ck-verdict p { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }

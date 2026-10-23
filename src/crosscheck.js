@@ -906,3 +906,75 @@ export async function judgeWithModel(provider, claim, evidence, signal) {
   });
   return [...out, ...evidence.slice(16)].sort((a, b) => RANK[b.stance] - RANK[a.stance]);
 }
+
+// ---------- a whole paragraph ----------
+// An AI answer or an article, sentence by sentence: the ones that state something checkable
+// are checked, each on its own, the rest are listed as not checked (with why).
+const ABBREV = /\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|Ft|vs|etc|e\.g|i\.e|approx|No|Inc|Ltd|Co|Corp|U\.S|U\.K|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.$/;
+const OPINION = /\b(?:I|we|you|my|our|your)\b|\b(?:should|must|best|worst|beautiful|amazing|great|terrible|recommend|consider|probably|perhaps|maybe|likely|arguably|seems?|feel)\b/i;
+
+/** Split text into sentences (keeps "U.S.", "Dr.", "3.14" and "e.g." whole). */
+export function sentencesOf(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  const out = [];
+  let start = 0;
+  const re = /[.!?]+["'”’)]*(?=\s+["'“‘(]?[A-Z0-9])/g;
+  let m;
+  while ((m = re.exec(t))) {
+    const piece = t.slice(start, m.index + m[0].length);
+    if (ABBREV.test(piece.replace(/["'”’)]+$/, '')) || /\b[A-Z]\.$/.test(piece)) continue;
+    out.push(piece.trim());
+    start = m.index + m[0].length;
+  }
+  if (start < t.length) out.push(t.slice(start).trim());
+  return out.filter(Boolean);
+}
+
+/**
+ * The claims in a paragraph: [{ i, sentence, claim, skip }]. "It is 330 meters tall" after
+ * "The Eiffel Tower …" is checked as "The Eiffel Tower is 330 meters tall".
+ */
+export function claimsIn(text, { max = 8 } = {}) {
+  const out = [];
+  let lastName = '';
+  let checked = 0;
+  const VERB = '(?:is|was|are|were|has|had|have|became|remains|stands|lies|sits|won|wrote|founded|co-founded|invented|discovered|developed|built|designed|painted|directed|created|led|ran|orbits|flows|contains|measures|weighs|reaches|covers|spans|holds|took|made|received|served|died|lived|moved|joined|left|opened|closed|launched|released|signed|lost|beat|defeated|married|graduated|studied|worked|played|sold|bought|produced|published|composed|ruled|borders|hosts|owns)';
+  const nameOf = (claim, parts) => {
+    // (the subject a later "It" points back to: a name, not "the company")
+    if (!parts.subject || !/^\p{Lu}/u.test(parts.subject.replace(/^the\s+/i, '')) || /^(?:It|He|She|They|This)$/i.test(parts.subject)) return '';
+    const withThe = claim.slice(0, 4).toLowerCase() === 'the ' && claim.slice(4, 4 + parts.subject.length).toLowerCase() === parts.subject.toLowerCase();
+    return withThe ? claim.slice(0, 4 + parts.subject.length) : parts.subject;
+  };
+  for (const [i, sentence] of sentencesOf(text).slice(0, 40).entries()) {
+    let whole = sentence.replace(/^(?:And|But|So|Also|However|In fact|Indeed|Today|Now),?\s+/i, '').replace(/[.!]+$/, '').trim();
+    // (one name back: "It", "He", "She", "They" open with the last sentence's subject)
+    const pron = new RegExp(`^(It|He|She|They|This)\\s+(?=${VERB}\\b)`).exec(whole);
+    if (pron && lastName) whole = `${lastName} ${whole.slice(pron[1].length).trim()}`;
+    // ("… is 330 meters tall and was designed by Gustave Eiffel": two facts, one subject)
+    const pieces = [whole];
+    const two = new RegExp(`^(.{8,}?),?\\s+and\\s+(${VERB}\\b.{6,})$`).exec(whole);
+    if (two) {
+      const first = claimParts(two[1]);
+      const name = first.relation ? nameOf(two[1], first) || (first.subject && /^(?:the\s+)?\p{Lu}/u.test(first.subject) ? first.subject : '') : '';
+      if (name) pieces.splice(0, 1, two[1], `${name} ${two[2]}`);
+    }
+    for (let [k, claim] of pieces.entries()) {
+      // ("completed in 1889 for the World's Fair": the year is the fact; the rest is why, and
+      // a source that gives the year without the why would read as only mentioning it)
+      claim = claim.replace(/(\b(?:in|on|by|since|from)\s+(?:[A-Z][a-z]+\s+)?(?:\d{1,2},?\s+)?\d{4})\s*,?\s+(?:for|as|during|to mark|to celebrate|after|before|when|while|because|following|under|amid)\b.*$/, '$1');
+      const parts = claimParts(claim);
+      let skip = '';
+      if (/\?$/.test(sentence)) skip = 'a question';
+      else if (pron && !lastName) skip = `says “${pron[1]}” without a name before it`;
+      else if (claim.split(/\s+/).length < 3) skip = 'too short to check';
+      else if (claim.length > 300) skip = 'too long: one fact per sentence checks best';
+      else if (OPINION.test(claim) || HEDGE.test(claim)) skip = 'an opinion, advice, a quote or hedged';
+      else if (!(parts.figures.length || parts.years.length || (parts.relation && parts.subjectWords.length && parts.objectWords.length))) skip = 'no plain fact to check (who did what, or a figure or year)';
+      else if (checked >= max) skip = `only the first ${max} facts are checked`;
+      if (!skip) checked++;
+      if (k === 0) lastName = nameOf(claim, parts) || lastName;
+      out.push({ i, part: k, sentence, claim: skip ? '' : claim, rewritten: !skip && (pieces.length > 1 || claim !== sentence.replace(/[.!]+$/, '').trim()), skip });
+    }
+  }
+  return out;
+}
