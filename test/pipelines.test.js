@@ -62,3 +62,24 @@ test('a scheduled pipeline stops once its result says what you were waiting for'
   assert.ok(after.nextRunAt > Date.now() + 365 * 864e5, 'no more runs');
   assert.ok(after.lastRun && !after.lastRun.error);
 });
+
+test('the pipeline library: starters are featured, entries are checked, unknown topics go to everyday', async () => {
+  const { loadLibrary, STARTERS } = await import('../src/pipelines.js');
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const f = pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-lib-')), 'lib.json');
+  fsm.writeFileSync(f, JSON.stringify([
+    { id: 'a', title: 'A', category: 'finance', input: { label: 'x', example: 'y' }, steps: [{ ask: '{input}', servers: ['marketcrew'] }], tested: { on: '2026-10-22', ms: 1200 } },
+    { id: 'b', title: 'B', category: 'nonsense', steps: [{ ask: 'q' }] },
+    { id: 'bad', title: 'no steps', steps: [] },
+    { id: STARTERS[0].id, title: 'duplicate', steps: [{ ask: 'q' }] },
+  ]));
+  const lib = loadLibrary(f);
+  assert.equal(lib.length, STARTERS.length + 2);
+  assert.ok(lib.slice(0, STARTERS.length).every((p) => p.category === 'featured'));
+  const a = lib.find((p) => p.id === 'a');
+  assert.equal(a.category, 'finance');
+  assert.deepEqual(a.tested, { on: '2026-10-22', ms: 1200 });
+  assert.equal(lib.find((p) => p.id === 'b').category, 'everyday');
+});

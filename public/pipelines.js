@@ -14,9 +14,10 @@
       .map((s) => `<li><span class="pl-how">${s.each ? 'For each result of the step before, ask' : 'Ask'}${s.serverTitles?.length ? ` <b>${esc(s.serverTitles.join(' + '))}</b>` : ' the servers MCP Browser picks'}</span><q>${hl(s.ask)}</q></li>`)
       .join('')}</ol>`;
   }
+  const niceDay = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
   function cardHtml(p, mine) {
     return `<li class="pl-card" data-pl="${esc(p.id)}">
-      <div class="pl-head"><h3>${esc(p.title)}</h3>${mine ? '<button type="button" class="link-btn" data-pl-del>Delete</button>' : ''}</div>
+      <div class="pl-head"><h3>${esc(p.title)}</h3>${mine ? '<button type="button" class="link-btn" data-pl-del>Delete</button>' : p.tested?.on ? `<span class="pl-tested" title="Every step returned results when we ran it with the example">Tested ${esc(niceDay(p.tested.on))}</span>` : ''}</div>
       ${p.description ? `<p class="pl-desc">${esc(p.description)}</p>` : ''}
       ${stepsHtml(p)}
       <form class="pl-run" data-pl-run><label><span>${esc(p.input?.label || 'Input')}</span><input type="text" value="${esc(p.input?.example || '')}" data-pl-input></label><button type="submit" class="st-dl-btn">Run</button><button type="button" class="link-btn" data-pl-edit>Change it</button><button type="button" class="link-btn" data-pl-sched>On a schedule</button></form>
@@ -49,14 +50,39 @@
 
   function mount(el, hooks = {}) {
     const $ = (s) => el.querySelector(s);
-    let data = { starters: [], mine: [] };
-    const all = () => [...data.mine, ...data.starters];
+    let data = { starters: [], library: [], topics: [], mine: [] };
+    const all = () => [...data.mine, ...data.starters, ...(data.library || [])];
+    // The library: a topic, words to find, and how many cards are showing.
+    const view = { topic: 'all', find: '', shown: 12 };
+    const words = (p) => `${p.title} ${p.description} ${p.input?.label || ''} ${p.steps.map((s) => `${s.ask} ${(s.serverTitles || []).join(' ')}`).join(' ')}`.toLowerCase();
+    function renderLibrary() {
+      const lib = data.library?.length ? data.library : data.starters.map((p) => ({ ...p, category: 'featured' }));
+      const terms = view.find.toLowerCase().split(/\s+/).filter(Boolean);
+      const hits = lib.filter((p) => (view.topic === 'all' || p.category === view.topic) && terms.every((t) => words(p).includes(t)));
+      const counts = {};
+      for (const p of lib) counts[p.category] = (counts[p.category] || 0) + 1;
+      const topics = (data.topics || []).filter(([k]) => counts[k]);
+      $('[data-pl-topics]').innerHTML = [['all', 'All', lib.length], ...topics.map(([k, label]) => [k, label, counts[k]])]
+        .map(([k, label, n]) => `<button type="button" data-pl-topic="${esc(k)}" aria-pressed="${view.topic === k}">${esc(label)} <span>${n}</span></button>`)
+        .join('');
+      $('[data-pl-lib-h]').textContent = `Ready to run (${lib.length})`;
+      $('[data-pl-starters]').innerHTML = hits.length ? hits.slice(0, view.shown).map((p) => cardHtml(p, false)).join('') : '<li class="hint">No pipeline matches. Try other words, or make your own with New pipeline.</li>';
+      const more = $('[data-pl-more]');
+      more.hidden = hits.length <= view.shown;
+      more.textContent = `Show more (${hits.length - Math.min(view.shown, hits.length)} left)`;
+    }
     async function load() {
       data = await fetch('/api/pipelines').then((r) => r.json());
       $('[data-pl-mine]').innerHTML = data.mine.map((p) => cardHtml(p, true)).join('');
       $('[data-pl-mine-h]').hidden = !data.mine.length;
-      $('[data-pl-starters]').innerHTML = data.starters.map((p) => cardHtml(p, false)).join('');
+      renderLibrary();
     }
+    el.addEventListener('input', (e) => {
+      if (!e.target.closest('[data-pl-find]')) return;
+      view.find = e.target.value;
+      view.shown = 12;
+      renderLibrary();
+    });
 
     async function run(card, p, input) {
       const out = card.querySelector('[data-pl-out]');
@@ -164,6 +190,16 @@
     });
     el.addEventListener('click', async (e) => {
       if (e.target.closest('[data-pl-new]')) return openEditor(null);
+      const topic = e.target.closest('[data-pl-topic]');
+      if (topic) {
+        view.topic = topic.dataset.plTopic;
+        view.shown = 12;
+        return renderLibrary();
+      }
+      if (e.target.closest('[data-pl-more]')) {
+        view.shown += 24;
+        return renderLibrary();
+      }
       if (e.target.closest('[data-go]')) return hooks.open?.(e.target.closest('[data-go]').dataset.go);
       const card = e.target.closest('[data-pl]');
       if (!card) return;

@@ -407,8 +407,13 @@
       <ul class="pl-list" data-pl-temp></ul>
       <h2 class="pl-h" data-pl-mine-h hidden>Your pipelines</h2>
       <ul class="pl-list" data-pl-mine></ul>
-      <h2 class="pl-h">Ready to run</h2>
-      <ul class="pl-list" data-pl-starters></ul>
+      <h2 class="pl-h" data-pl-lib-h>Ready to run</h2>
+      <div class="pl-filter">
+        <input type="search" data-pl-find placeholder="Find a pipeline: stocks, recipes, CVE, papers…" aria-label="Find a pipeline">
+        <div class="pl-topics" data-pl-topics role="group" aria-label="Topics"></div>
+      </div>
+      <ul class="pl-list pl-lib" data-pl-starters></ul>
+      <p class="pl-more-wrap"><button type="button" class="la-btn" data-pl-more hidden>Show more</button></p>
     </section>
   </template>
 

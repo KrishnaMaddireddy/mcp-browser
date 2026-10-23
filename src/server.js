@@ -19,7 +19,7 @@ import { auditInstalled } from './audit.js';
 import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib, testedView } from './catalog-index.js';
 import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
-import { STARTERS, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
+import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { StackStore } from './stack.js';
 import { setupScript } from './stack-script.js';
@@ -513,7 +513,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   const routes = {
     'GET /api/pipelines': async (req, res) => {
       const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.servers || []).map(titleOf) })) });
-      json(res, 200, { starters: STARTERS.map(withTitles), mine: pipes().list.map(withTitles) });
+      json(res, 200, { starters: STARTERS.map(withTitles), library: loadLibrary().map(withTitles), topics: TOPICS, mine: pipes().list.map(withTitles) });
     },
     'POST /api/pipelines/save': async (req, res) => {
       try {

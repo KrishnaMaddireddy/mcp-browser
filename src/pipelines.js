@@ -11,6 +11,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { dataDir } from './config.js';
 
 const MAX_STEPS = 5;
@@ -88,6 +89,43 @@ export const STARTERS = [
     ],
   },
 ];
+
+// The pipeline library: tested pipelines by topic (src/data/pipeline-library.json, built
+// by running each one end to end in free mode). Topics, in the order the page shows them.
+export const TOPICS = [
+  ['featured', 'Featured'],
+  ['finance', 'Money & markets'],
+  ['science', 'Health, science & law'],
+  ['travel', 'Travel, places & media'],
+  ['business', 'Business & marketing'],
+  ['developer', 'Developers & data'],
+  ['security', 'Security & web checks'],
+  ['learning', 'Learning & work'],
+  ['everyday', 'Everyday life'],
+];
+const LIBRARY_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'pipeline-library.json');
+let library = null;
+/** Tested pipelines with their topic and when they last passed; the starters are "featured". */
+export function loadLibrary(file = LIBRARY_FILE) {
+  if (library && file === LIBRARY_FILE) return library;
+  let list = [];
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {}
+  const topics = new Set(TOPICS.map((t) => t[0]));
+  const out = [...STARTERS.map((p) => ({ ...p, category: 'featured' }))];
+  const seen = new Set(out.map((p) => p.id));
+  for (const raw of Array.isArray(list) ? list : []) {
+    try {
+      const p = cleanPipeline(raw);
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push({ ...p, category: topics.has(raw.category) ? raw.category : 'everyday', ...(raw.tested ? { tested: { on: String(raw.tested.on || '').slice(0, 10), ms: Number(raw.tested.ms) || 0 } } : {}) });
+    } catch {}
+  }
+  if (file === LIBRARY_FILE) library = out;
+  return out;
+}
 
 /** A pipeline from outside (the app, a saved file): checked and trimmed. */
 export function cleanPipeline(p) {
