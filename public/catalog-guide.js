@@ -76,7 +76,9 @@
         const takes = rt.valued.includes(flag) && inline == null && tk[i + 1] != null && !String(tk[i + 1]).startsWith('-');
         out.dropped.push(takes ? `${tok} ${tk[++i]}` : tok);
       } else if (type === 'oci') out.dropped.push(tok); // before the image it would be read as the image
-      else {
+      else if ((type === 'pypi' ? pyName(tok) === self : tok === bare('npm', row[F.pkgId]).split('/').pop()) && !out.viaFlag) {
+        // The package's own command name ("uvx basic-memory …"): npx / uvx already run it.
+      } else {
         // A plain word before the package is almost always the server's subcommand ("mcp"):
         // after the package only the server sees it.
         out.moved.push(tok);
@@ -87,6 +89,8 @@
       const n = String(n0 || '');
       const v = String(v0 ?? '').replace(/[\u0000-\u001f]/g, '');
       if (HOLE.test(v) || HOLE.test(n) || (!v && req && t === 'p')) {
+        // An optional setting that only holds a placeholder ("--storage-path ${PATH}"): leave it at the server's default.
+        if (!req && !HOLE.test(n)) continue;
         out.needs.push([n, v].filter(Boolean).join(' ') || d || 'an argument');
         continue;
       }

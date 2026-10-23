@@ -511,6 +511,11 @@
       `<li><div class="dc-t"><b>${esc(x.title)}</b> <span class="dc-c">${esc(x.category)}</span></div>${withPrompt && x.prompt ? `<button type="button" class="dc-q" data-dc-ask="${esc(x.id)}" data-dc-prompt="${esc(x.prompt)}">${esc(x.prompt)}</button>` : `<button type="button" class="link-btn dc-show" data-dc-show="${esc(x.id)}">${esc(x.desc)}</button>`}</li>`;
     $('[data-dc-try]', box).innerHTML = d.tryNow.map((x) => item(x, true)).join('');
     $('[data-dc-fresh]', box).innerHTML = (d.fresh || []).map((x) => item(x, true)).join('');
+    // Package servers we tested: MCP Browser starts them on this computer after you approve.
+    if (d.local?.length) {
+      $('[data-dc-local-h]', box).hidden = false;
+      $('[data-dc-local]', box).innerHTML = d.local.map((x) => `<li data-dc-li="${esc(x.id)}"><div class="dc-t"><b>${esc(x.title)}</b> <span class="dc-c">${esc(x.category)} · ${x.type === 'npm' ? 'npm' : 'Python'} package</span></div><button type="button" class="dc-q" data-dc-local="${esc(x.id)}" data-dc-prompt="${esc(x.prompt)}">${esc(x.prompt)}</button><div class="lr-host" data-dc-lr></div></li>`).join('');
+    }
     $('[data-dc-popular]', box).innerHTML = d.popular.map((x) => item(x, false)).join('');
     const n = { servers: d.counts?.servers, sites: d.sites?.count };
     for (const b of box.querySelectorAll('[data-dc-n]')) if (n[b.dataset.dcN]) b.insertAdjacentHTML('beforeend', ` <span class="dc-n">${Number(n[b.dataset.dcN]).toLocaleString()}</span>`);
@@ -521,6 +526,13 @@
         const x = all.find((y) => y.id === a.dataset.dcAsk);
         history.add(a.dataset.dcPrompt);
         return navigate(tab, { kind: 'search', query: a.dataset.dcPrompt, servers: [a.dataset.dcAsk], adhoc: x?.adhoc ? [x.adhoc] : undefined, label: a.dataset.dcPrompt });
+      }
+      const lo = e.target.closest('[data-dc-local]');
+      if (lo) {
+        const id = lo.dataset.dcLocal;
+        const go = () => (history.add(lo.dataset.dcPrompt), navigate(tab, { kind: 'search', query: lo.dataset.dcPrompt, servers: [id], label: lo.dataset.dcPrompt }));
+        if (window.MCPLocal?.canRun(id)) return go();
+        return window.MCPLocal?.ready().then(() => (window.MCPLocal.canRun(id) ? go() : window.MCPLocal.panel(lo.closest('li').querySelector('[data-dc-lr]'), id, { onReady: go })));
       }
       const s = e.target.closest('[data-dc-show]');
       if (s) return navigate(tab, { kind: 'catalog', view: 'all', show: s.dataset.dcShow });

@@ -120,6 +120,40 @@ function promptsFor(s, cat) {
   return samplePrompts({ ...s, title: clean(s.title), description: clean(s.description) }, cat, tools[s.name]?.tools || []).map(([p, t]) => [p, t ? 't:' + t : 'd']);
 }
 
+// Package servers tested for real in a throwaway machine (scripts/probe-packages.mjs):
+// a=answers s=starts n=no tools f=fails k=needs a key g=needs arguments.
+const PROBE_CODE = { answers: 'a', starts: 's', 'no-tools': 'n', fails: 'f', 'needs-key': 'k', 'needs-args': 'g' };
+const probe = {};
+const RANK = { a: 6, s: 5, n: 4, k: 3, g: 2, f: 1 };
+const probeFiles = (process.env.MCPB_PROBE_FILES || [file('package-probe.jsonl'), file('hosted-probe.jsonl')].join(',')).split(',');
+const answerTests = {}; // for routing: id → a | s | i | f
+for (const probeFile of probeFiles) {
+  if (!fs.existsSync(probeFile)) continue;
+  let n = 0;
+  for (const line of fs.readFileSync(probeFile, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const r = JSON.parse(line);
+      if (!PROBE_CODE[r.status]) continue;
+      const why = r.status === 'fails' ? r.error : r.status === 'answers' ? r.call?.preview : r.call?.error || r.note || r.error || '';
+      const rec = [PROBE_CODE[r.status], r.testedAt || '', r.tools || 0, clean(String(why || '')).slice(0, 140), r.version || ''];
+      // A later run of the same server replaces an earlier one; across files the better result wins.
+      if (!probe[r.id] || probe[r.id].file === probeFile || RANK[rec[0]] > RANK[probe[r.id][0]]) probe[r.id] = Object.assign(rec, { file: probeFile });
+      answerTests[r.id] = r.status === 'answers' ? 'a' : r.status === 'fails' ? 'f' : /AI model/.test(r.note || '') ? 'i' : r.status === 'starts' ? 's' : answerTests[r.id];
+      n++;
+    } catch {
+      /* skip a broken line */
+    }
+  }
+  log(`Tests from ${path.basename(probeFile)}: ${n} servers`);
+}
+for (const k of Object.keys(probe)) probe[k] = probe[k].slice(0, 5);
+if (Object.keys(answerTests).length) {
+  const at = JSON.stringify({ checkedAt: new Date().toISOString(), servers: answerTests });
+  fs.writeFileSync(path.join(dataDir(), 'answer-tests.json'), at);
+  if (args.has('--bundle')) fs.writeFileSync(path.join(root, 'src', 'data', 'answer-tests.json'), at);
+}
+
 const rows = [];
 for (const s of latest) {
   if (!s.name || s.status === 'deleted') continue;
@@ -149,14 +183,14 @@ for (const s of latest) {
     st?.p || '', st?.a ? 1 : 0, pubCount[s.name.split('/')[0]] || 1, guessed, s.status === 'deprecated' ? 1 : 0,
     day(versions[s.name]?.first || s.published || s.updated), versions[s.name]?.versions || 1,
     promptsFor(s, cat), (tools[s.name]?.tools || []).filter((t) => !t.w).map((t) => t.n).slice(0, 12), tools[s.name]?.tools?.length ? 1 : 0,
-    envs, (tools[s.name]?.tools || []).filter((t) => t.w).length, pkgArgs,
+    envs, (tools[s.name]?.tools || []).filter((t) => t.w).length, pkgArgs, probe[s.name] || 0,
   ]);
 }
 const out = {
   generatedAt: new Date().toISOString(),
   sources: { registry: 'registry.modelcontextprotocol.io', stars: 'ecosyste.ms and ungh open indexes', downloads: dl.fetchedAt || '' },
   cats: [...CATEGORIES.map((c) => [c[0], c[1]]), ['other', 'Other']],
-  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed', 'envs', 'writeTools', 'args'],
+  fields: ['name', 'title', 'desc', 'cat', 'also', 'website', 'repo', 'stars', 'pkgType', 'pkgId', 'downloads', 'remoteUrl', 'remoteType', 'reach', 'rank', 'updated', 'version', 'required', 'pushed', 'archived', 'pubCount', 'guessed', 'deprecated', 'added', 'versions', 'prompts', 'tools', 'listed', 'envs', 'writeTools', 'args', 'tested'],
   rows,
 };
 const gz = zlib.gzipSync(JSON.stringify(out).replace(/�/g, ''), { level: 9 });

@@ -96,3 +96,25 @@ test('an approved server runs over stdio with only its own settings, and its wri
   await pool.closeAll();
   await bad.closeAll();
 });
+
+test('self-healing starts: known failures get one fix, install-time code only when isolated', async () => {
+  const { healLaunch, explainFailure } = await import('../src/local-servers.js');
+  const py = { type: 'pypi', name: 'edgartools', version: '5.62.1', argv: ['--with', 'edgartools[ai]==5.62.1', 'edgartools@5.62.1', 'mcp'], isolation: 'sandbox' };
+  assert.deepEqual(healLaunch(py, '× No solution found: Because there is no version of edgartools==5.62.1 and you require…'), { refresh: true, why: 'the package index was out of date here' });
+  const exe = healLaunch({ ...py, name: 'llm-sandbox', version: '1.0', argv: ['llm-sandbox@1.0'] }, 'An executable named `llm-sandbox` is not provided by package `llm-sandbox`.\nThe following executables are available:\n- llm-sandbox-mcp\n');
+  assert.deepEqual(exe.argv, ['--from', 'llm-sandbox==1.0', 'llm-sandbox-mcp']);
+  const from = healLaunch({ ...py, name: 'llm-sandbox', argv: ['--from', 'llm-sandbox[mcp]==1.0', 'llm-sandbox'] }, 'An executable named `llm-sandbox` is not provided by package `llm-sandbox[mcp]`. The following executables are available: - llm-sandbox-mcp');
+  assert.deepEqual(from.argv, ['--from', 'llm-sandbox[mcp]==1.0', 'llm-sandbox-mcp']);
+  const sdist = 'Because pybars3==0.9.7 has no usable wheels and only pybars3<=0.9.7 is available…';
+  assert.equal(healLaunch(py, sdist).allowBuild, true);
+  assert.equal(healLaunch({ ...py, isolation: 'none' }, sdist), null, 'no source builds without a sandbox');
+  const npm = { type: 'npm', name: '@x/sem', version: '1.0.0', argv: ['@x/sem@1.0.0'], isolation: 'docker' };
+  assert.equal(healLaunch(npm, 'sem is not installed yet. Reinstall @x/sem to download the binary.').allowScripts, true);
+  assert.equal(healLaunch({ ...npm, isolation: 'none' }, 'postinstall script did not run'), null);
+  assert.deepEqual(healLaunch(npm, 'npm error could not determine executable to run', { bins: ['sem', 'sem-mcp'] }).argv, ['-p', '@x/sem@1.0.0', 'sem-mcp']);
+  assert.equal(healLaunch(py, 'Traceback: something else broke'), null);
+  assert.equal(explainFailure('\x1b[36mGITLAB_PERSONAL_ACCESS_TOKEN environment variable is not set\x1b[39m').kind, 'needs-key');
+  assert.equal(explainFailure('Usage: mcp-server-filesystem --allowed-directories <allowed-directories>').kind, 'needs-args');
+  assert.equal(explainFailure('e2e requires Node.js 22.22.3 or newer').kind, 'runtime');
+  assert.equal(explainFailure('Segmentation fault'), null);
+});

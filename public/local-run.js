@@ -53,8 +53,8 @@
   }
 
   function statusHtml(r) {
-    if (r.ok) return `<p class="lr-ok">Running on this Mac with ${r.tools.length} tool${r.tools.length === 1 ? '' : 's'}${r.tools.length ? `: ${r.tools.slice(0, 8).map((t) => `<code>${esc(t)}</code>`).join(' ')}${r.tools.length > 8 ? ' …' : ''}` : ''}.</p>`;
-    return `<div class="lr-fail"><p>It didn’t start: ${esc(String(r.error || 'unknown error').split('\n')[0])}</p>${r.log || String(r.error || '').includes('\n') ? `<details><summary>What it printed</summary><pre>${esc((r.log || r.error).slice(-3000))}</pre></details>` : ''}</div>`;
+    if (r.ok) return `${r.healed ? `<p class="hint">The first try failed; fixed it (${esc(r.healed)}).</p>` : ''}<p class="lr-ok">Running on this Mac with ${r.tools.length} tool${r.tools.length === 1 ? '' : 's'}${r.tools.length ? `: ${r.tools.slice(0, 8).map((t) => `<code>${esc(t)}</code>`).join(' ')}${r.tools.length > 8 ? ' …' : ''}` : ''}.</p>`;
+    return `<div class="lr-fail"><p>It didn’t start${r.hint ? `: ${esc(r.hint)}` : `: ${esc(String(r.error || 'unknown error').split('\n')[0])}`}.</p>${r.healed ? `<p class="hint">Tried a fix first (${esc(r.healed)}), but it still didn’t start.</p>` : ''}${r.log || String(r.error || '').includes('\n') ? `<details><summary>What it printed</summary><pre>${esc((r.log || r.error).slice(-3000))}</pre></details>` : ''}</div>`;
   }
 
   /**
@@ -110,6 +110,7 @@
       p.type === 'pypi' ? (p.wheel ? 'Installs from a prebuilt package: no code runs during install.' : 'Must be built from source, so it only runs in Docker.') : '',
       p.deprecated ? `Its publisher says: ${p.deprecated}` : '',
       c.args?.note && !c.args.needs?.length ? c.args.note : '',
+      c.tested ? `We tested ${c.tested.version ? `version ${c.tested.version}` : 'it'} in a throwaway machine on ${c.tested.on}: it ${c.tested.status}${c.tested.tools ? ` (${c.tested.tools} tools)` : ''}${!c.tested.ok && c.tested.detail ? `. ${c.tested.detail}` : ''}.` : '',
     ].filter(Boolean);
     box.innerHTML = `
       <h4>${update ? `Update ${esc(c.title)} to ${esc(p.version)}` : `Run ${esc(c.title)} on this Mac`}</h4>

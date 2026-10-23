@@ -16,8 +16,8 @@ import { listServers, getServer } from './subregistry.js';
 import { errMsg, log } from './util.js';
 import { catalogFile, catalogTools } from './catalog-data.js';
 import { auditInstalled } from './audit.js';
-import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib } from './catalog-index.js';
-import { packageInfo, runtimes, sandboxStatus } from './local-servers.js';
+import { searchCatalog, describe as describeCatalogRow, adhocFor, loadCatalog, scriptServers, runnable as catalogRunnable, trustOf, guideLib, testedView } from './catalog-index.js';
+import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from './local-servers.js';
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { STARTERS, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
@@ -309,14 +309,29 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     }
   });
 
-  async function startLocal(id) {
+  // Start it; when the start fails in a way we know how to fix (stale package index, a
+  // differently named command, a source build in the sandbox), fix the approval and try once more.
+  async function startLocal(id, { healed = null } = {}) {
     const server = engine.catalog.get(id);
     if (!server || server.kind !== 'local') return { ok: false, error: 'fill in its settings first' };
     try {
       const { tools } = await engine.pool.get(server);
-      return { ok: true, tools: tools.map((t) => t.name), state: engine.pool.state(id) };
+      return { ok: true, tools: tools.map((t) => t.name), state: engine.pool.state(id), ...(healed ? { healed } : {}) };
     } catch (e) {
-      return { ok: false, error: errMsg(e).slice(0, 1500), log: String(e.log || '').slice(-4000) };
+      const log = String(e.log || '');
+      const text = `${errMsg(e)}\n${log}`;
+      const a = engine.local.get(id);
+      if (a && !healed) {
+        const info = a.type === 'npm' ? await packageInfo('npm', a.name).catch(() => ({})) : {};
+        const fix = healLaunch(a, text, info);
+        if (fix) {
+          engine.local.patch(id, fix);
+          await engine.pool.close(id);
+          return startLocal(id, { healed: fix.why });
+        }
+      }
+      const why = explainFailure(text);
+      return { ok: false, error: errMsg(e).slice(0, 1500), log: log.slice(-4000), ...(why ? { hint: why.hint } : {}), ...(healed ? { healed } : {}) };
     }
   }
   function localView(a) {
@@ -393,7 +408,15 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       .sort((a, b) => String(b[F.added]).localeCompare(String(a[F.added])))
       .slice(0, 6)
       .map(brief);
-    const data = { tryNow, fresh, popular, newest, counts: { servers: rows.length, askable: rows.filter((r) => catalogRunnable(r, F)).length } };
+    // Package servers that started and answered in our test runs, best known first: run them on this Mac.
+    const local = F.tested == null
+      ? []
+      : rows
+          .filter((r) => r[F.tested]?.[0] === 'a' && ok(r) && !catalogRunnable(r, F) && trustOf(r).trusted && ((F.prompts != null && r[F.prompts]) || []).length)
+          .sort((a, b) => (b._pop || 0) - (a._pop || 0))
+          .slice(0, 6)
+          .map((r) => ({ ...brief(r), prompt: r[F.prompts][0][0], type: r[F.pkgType] }));
+    const data = { tryNow, fresh, popular, newest, local, counts: { servers: rows.length, askable: rows.filter((r) => catalogRunnable(r, F)).length } };
     discoverCache = { at: c.mtime, data };
     return data;
   }
@@ -549,6 +572,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         stars: f.stars,
         downloads: f.downloads,
         trust: f.trust,
+        tested: f.F.tested != null && f.row[f.F.tested] ? testedView(f.row[f.F.tested]) : null,
         settings: f.settings,
         how,
         prefer,

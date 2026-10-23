@@ -3,7 +3,7 @@
 import { CURATED } from './curated.js';
 import { loadRegistry } from './registry.js';
 import { tokenize, splitIdentifier } from './util.js';
-import { loadReachability, UNREACHABLE } from './reachability.js';
+import { loadReachability, loadAnswerTests, UNREACHABLE } from './reachability.js';
 
 // A publisher with this many registry servers is a "farm": one per question, weighted down.
 const FARM = 300;
@@ -34,6 +34,7 @@ export class Catalog {
   constructor({ health, settings, curated = CURATED, registry, embeddings = null } = {}) {
     this.health = health;
     this.reach = loadReachability();
+    this.tests = loadAnswerTests();
     this.embeddings = embeddings;
     this.settings = settings;
     this.curated = curated;
@@ -217,6 +218,15 @@ export class Catalog {
         // Free mode: the probe found its tools all need an AI model to fill (and it hasn't
         // been seen working here): rank it well below servers that take a plain question.
         if (s.freeMode && this.reach?.servers.get(r.server.id) === 'needs-ai' && this.health?.get(r.server.id)?.direct !== true) w *= 0.3;
+        // Our answer tests (a real sample question, asked in a test machine): answered → ask
+        // it sooner; needs an AI model → much later in free mode; failed → much later. Seen
+        // working here overrides all of it.
+        const tested = this.tests?.servers.get(r.server.id);
+        if (tested && this.health?.get(r.server.id)?.status !== 'ok') {
+          if (tested === 'a') w *= 1.25;
+          else if (tested === 'i' && s.freeMode) w *= 0.3;
+          else if (tested === 'f') w *= 0.35;
+        } else if (tested === 'a') w *= 1.1;
         // It answered this very question with nothing (or off-topic) in the last day: ask others first.
         const last = this.health?.recentFor?.(r.server.id, query);
         if (last && last !== 'ok') w *= 0.2;

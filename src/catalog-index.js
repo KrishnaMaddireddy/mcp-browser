@@ -98,6 +98,7 @@ export function describe(r, { full = false } = {}) {
     runs_in_mcp_browser: runnable(r, F),
     required_settings: ((F.envs != null && r[F.envs]) || []).map(([n, secret]) => (secret ? `${n} (secret)` : n)),
     sample_prompts: ((F.prompts != null && r[F.prompts]) || []).map(([p]) => p),
+    ...(F.tested != null && r[F.tested] ? { tested: testedView(r[F.tested]) } : {}),
   };
   if (full) {
     o.tools = (F.tools != null && r[F.tools]) || [];
@@ -107,6 +108,12 @@ export function describe(r, { full = false } = {}) {
     o.last_github_push = r[F.pushed] || null;
   }
   return o;
+}
+
+/** Our test run of a package server, in words: { status, on, tools, detail, version }. */
+export function testedView([code, on, tools, why, version]) {
+  const status = { a: 'starts and answers', s: 'starts', n: 'starts but has no tools', f: 'didn’t start', k: 'needs a key to test', g: 'needs arguments to test' }[code] || 'unknown';
+  return { status, ok: code === 'a' || code === 's', on, tools, detail: why || '', version: version || '' };
 }
 
 /** Setup snippets for one or more catalog rows. client: code | desktop | cursor | vscode | all */

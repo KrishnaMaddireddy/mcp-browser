@@ -97,7 +97,8 @@ export async function packageInfo(type, id, { fetchImpl } = {}) {
       if (!r.ok) throw new Error(`npm says ${r.status}`);
       const j = await r.json();
       const scripts = Object.keys(j.scripts || {}).filter((s) => /^(pre|post)?install$|^prepare$/.test(s));
-      info = { type, name, version: String(j.version || ''), installScripts: scripts, deprecated: typeof j.deprecated === 'string' ? j.deprecated.slice(0, 200) : '', homepage: j.homepage || '' };
+      const bins = typeof j.bin === 'string' ? [name.split('/').pop()] : Object.keys(j.bin || {}).slice(0, 10);
+      info = { type, name, version: String(j.version || ''), installScripts: scripts, bins, deprecated: typeof j.deprecated === 'string' ? j.deprecated.slice(0, 200) : '', homepage: j.homepage || '' };
     } else if (type === 'pypi') {
       const r = await get(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
       if (!r.ok) throw new Error(`PyPI says ${r.status}`);
@@ -260,7 +261,9 @@ export function launchSpec(a, values, { base = path.join(dataDir(), 'local-serve
     ...netEnv(),
     ...(process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot, PATHEXT: process.env.PATHEXT, APPDATA: path.join(dir, 'home'), LOCALAPPDATA: path.join(dir, 'home'), USERPROFILE: path.join(dir, 'home') } : {}),
   };
-  const npmEnv = { npm_config_ignore_scripts: 'true', npm_config_cache: path.join(dir, 'cache'), npm_config_userconfig: npmrc, npm_config_update_notifier: 'false', npm_config_fund: 'false', npm_config_audit: 'false', npm_config_yes: 'true', npm_config_loglevel: 'error' };
+  // Install-time code (npm scripts, PyPI source builds) only runs when the server is isolated.
+  const isolated = a.isolation === 'sandbox' || a.isolation === 'docker';
+  const npmEnv = { npm_config_ignore_scripts: a.allowScripts && isolated ? 'false' : 'true', npm_config_cache: path.join(dir, 'cache'), npm_config_userconfig: npmrc, npm_config_update_notifier: 'false', npm_config_fund: 'false', npm_config_audit: 'false', npm_config_yes: 'true', npm_config_loglevel: 'error' };
   const uvEnv = { UV_CACHE_DIR: path.join(dir, 'cache', 'uv'), UV_TOOL_DIR: path.join(dir, 'cache', 'uv-tools'), UV_PYTHON_INSTALL_DIR: path.join(dir, 'cache', 'uv-python'), UV_NO_CONFIG: '1', UV_NO_PROGRESS: '1' };
   const pkg = a.type === 'npm' ? `${a.name}@${a.version}` : a.type === 'pypi' ? `${a.name}@${a.version}` : a.name;
   // The approved command after npx / uvx / docker run (startup arguments included, pinned);
@@ -288,7 +291,7 @@ export function launchSpec(a, values, { base = path.join(dataDir(), 'local-serve
   } else if (a.type === 'pypi') {
     if (!rt.uvx) throw new Error('uv isn’t installed: brew install uv');
     command = rt.uvx;
-    args = ['--no-build', ...argv];
+    args = [...(a.allowBuild && isolated ? [] : ['--no-build']), ...(a.refresh ? ['--refresh-package', a.name] : []), ...argv];
     Object.assign(env, uvEnv);
   } else throw new Error(`MCP Browser can't start ${a.type} packages`);
   Object.assign(env, settingEnv);
@@ -299,6 +302,69 @@ export function launchSpec(a, values, { base = path.join(dataDir(), 'local-serve
     return { command: '/usr/bin/sandbox-exec', args: ['-p', sandboxProfile(dir), command, ...args], env, cwd: path.join(dir, 'work'), isolation: 'sandbox' };
   }
   return { command, args, env, cwd: path.join(dir, 'work'), isolation: 'none' };
+}
+
+// ---------- when a start fails ----------
+
+/**
+ * A known fix for a failed start, from what it printed, or null.
+ * { argv?, refresh?, allowBuild?, allowScripts?, why } — builds and install scripts only
+ * when the server is isolated (sandbox or Docker).
+ */
+export function healLaunch(a, log, info = {}) {
+  const t = String(log || '').replace(/\x1b\[[0-9;]*m/g, '');
+  const argv = Array.isArray(a.argv) && a.argv.length ? a.argv : null;
+  const isolated = a.isolation === 'sandbox' || a.isolation === 'docker';
+  if (a.type === 'pypi' && !a.refresh && /no version of [\w.\[\]-]+==|no versions? of [\w.-]+ (?:that|matching)/i.test(t)) return { refresh: true, why: 'the package index was out of date here' };
+  // uv: "An executable named `x` is not provided by package `p`. The following executables are available: - y"
+  const exe = /executable named `([^`]+)` is not provided by package `([^`]+)`[\s\S]*?available:\s*-\s*([\w.-]+)/i.exec(t);
+  if (a.type === 'pypi' && exe && argv) {
+    // "--from pkg[extra]==v wrong-name": just the command changes.
+    const f = argv.indexOf('--from');
+    if (f >= 0 && argv[f + 2] === exe[1]) {
+      const next = [...argv];
+      next[f + 2] = exe[3];
+      return { argv: next, why: `its command is ${exe[3]}` };
+    }
+    const i = argv.findIndex((x) => x === `${a.name}@${a.version}` || x.startsWith(`${a.name}@`));
+    if (i >= 0) {
+      const next = [...argv];
+      next.splice(i, 1, '--from', `${a.name}==${a.version}`, exe[3]);
+      // a stray word that was the wrong command name goes too
+      if (next[i + 3] === exe[1]) next.splice(i + 3, 1);
+      return { argv: next, why: `its command is ${exe[3]}` };
+    }
+  }
+  // npx: "could not determine executable to run": name the package's command.
+  if (a.type === 'npm' && /could not determine executable to run/i.test(t) && argv && info.bins?.length) {
+    const bin = info.bins.find((b) => /mcp/i.test(b)) || info.bins[0];
+    const i = argv.findIndex((x) => x === `${a.name}@${a.version}`);
+    if (i >= 0 && /^[\w@./-]{1,80}$/.test(bin)) {
+      const next = [...argv];
+      next.splice(i, 1, '-p', `${a.name}@${a.version}`, bin);
+      return { argv: next, why: `its command is ${bin}` };
+    }
+  }
+  if (a.type === 'pypi' && !a.allowBuild && /no usable wheels|--no-build|can't be built|not allowed to build|building source distributions is disabled/i.test(t)) {
+    return isolated ? { allowBuild: true, why: 'a dependency has to be built from source (allowed in the sandbox)' } : null;
+  }
+  if (a.type === 'npm' && !a.allowScripts && /postinstall|install script|not installed yet\. reinstall|run the install script|binary.*(?:not found|missing)/i.test(t)) {
+    return isolated ? { allowScripts: true, why: 'it needs its install script (allowed in the sandbox)' } : null;
+  }
+  return null;
+}
+
+/** Why a server didn't start, in words, when it's a setting rather than a bug: { kind, hint } or null. */
+export function explainFailure(log) {
+  const t = String(log || '').replace(/\x1b\[[0-9;]*m/g, '');
+  const env = /\b([A-Z][A-Z0-9_]{2,60})\b[^\n]{0,40}(?:environment variable )?(?:is )?(?:not set|missing|required|must be set)/.exec(t) || /(?:set|missing|requires?) (?:the )?([A-Z][A-Z0-9_]{2,60}) (?:environment variable|env var)/.exec(t);
+  if (env && /KEY|TOKEN|SECRET|PASSWORD|URL|HOST|DSN|ID\b/.test(env[1])) return { kind: 'needs-key', hint: `it needs ${env[1]}, which the registry doesn’t list` };
+  if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
+  const usage = /\bUsage:\s*([^\n]{0,120})/i.exec(t);
+  if (usage && /<[^>]+>|--[\w-]+ \S|required/i.test(usage[1] + t.slice(usage.index, usage.index + 400))) return { kind: 'needs-args', hint: `it needs startup arguments the registry doesn’t list: ${usage[1].trim()}` };
+  const node = /requires Node\.?js ([\d.]+)/i.exec(t);
+  if (node) return { kind: 'runtime', hint: `it needs Node.js ${node[1]} or newer` };
+  return null;
 }
 
 // ---------- approvals ----------
@@ -373,6 +439,16 @@ export class LocalServers {
     this.keys.set(id, clean(secrets, (k) => secretNames.has(k)));
     this.save();
     return rec;
+  }
+
+  /** Apply a fix from healLaunch to an approval (same version). */
+  patch(id, fix) {
+    const a = this.get(id);
+    if (!a) return null;
+    if (Array.isArray(fix.argv) && fix.argv.length <= 40 && fix.argv.every((x) => typeof x === 'string' && x.length <= 300 && !/[\u0000-\u001f]/.test(x))) a.argv = fix.argv;
+    for (const k of ['refresh', 'allowBuild', 'allowScripts']) if (fix[k]) a[k] = true;
+    this.save();
+    return a;
   }
 
   setKeys(id, secrets = {}) {
