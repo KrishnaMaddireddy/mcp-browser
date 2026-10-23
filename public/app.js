@@ -2409,6 +2409,10 @@
   function buildSettings() {
     const el = $('#tpl-settings').content.firstElementChild.cloneNode(true);
     const form = $('[data-settings-form]', el);
+    // (Today lives in this browser: turning it back on asks for the city again)
+    const todayShow = $('[data-today-show]', el);
+    todayShow.checked = todayCity.get() !== '';
+    todayShow.addEventListener('change', () => todayCity.set(todayShow.checked ? null : ''));
     const state = $('[data-provider-state]', el);
     const saved = $('[data-saved]', el);
 
