@@ -320,7 +320,10 @@ function judgeCore(parts, sentence) {
       const nearest = figs.reduce((a, b) => (dist(b) < dist(a) ? b : a));
       // (the same amount in another unit stays: "687 Earth days, or roughly 1.88 Earth years")
       const conv = (a, b) => /^[\s,;]*(?:or|i\.e\.|that is)?\s*(?:about|roughly|around|approximately|some)?\s*\(?\s*$/i.test(sentence.slice(a.end, b.at).replace(/^\s*(?:[\p{L}]+\s*){0,2}/u, ''));
-      figs = figs.filter((g) => g === nearest || (g.at > nearest.at && g.at - nearest.at <= 20 + nearest.raw.length) || (g.at < nearest.at && conv(g, nearest)));
+      // (a figure right after it counts only as the same amount converted: "330 m (1,083 ft)",
+      // not "Eiffel Tower · 324 m Zifeng Tower · 450 m")
+      const convAfter = (a, b) => /^\s*(?:[\p{L}]+\s*){0,2}?[\s,;]*(?:\(|\/|or\b|i\.e\.|that is|which is|equal to|equivalent to)/iu.test(sentence.slice(a.end, b.at)) && !/[·|]/.test(sentence.slice(a.end, b.at));
+      figs = figs.filter((g) => g === nearest || (g.at > nearest.at && g.at - nearest.at <= 20 + nearest.raw.length && convAfter(nearest, g)) || (g.at < nearest.at && conv(g, nearest)));
     }
     // "The face on the Statue of Liberty measures 8 feet": the face's figure, not the statue's.
     const part = /^(?:the|a|an|its)\s+([a-z]+)\s+(?:of|on|in|at|atop|inside)\s+(?:the\s+)?/i.exec(sentence);
