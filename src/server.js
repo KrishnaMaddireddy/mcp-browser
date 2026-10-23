@@ -445,13 +445,20 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const { F, rows, D } = c;
     const ok = (r) => !r[F.deprecated] && !r[F.archived] && r[F.pubCount] < 100 && r[F.desc] && (r[F.title] || '').length < 60;
     const cat = (r) => D.cats[r[F.cat]]?.[1] || '';
+    // A start-page example has to work for anyone: not "List my VPS instances" or
+    // "Review this component", which need your account or your files.
+    // Nor one that makes or changes something, or names a file you'd have to have.
+    const openPrompt = (r) =>
+      ((F.prompts != null && r[F.prompts]) || [])
+        .map((p) => p[0])
+        .find((p) => !/\b(?:my|mine|this|these|our)\b/i.test(p) && !/^(?:create|run|cut|deploy|delete|remove|send|post|write|build|generate|make|export|upload|install|book|buy|order|schedule|update|edit|add)\b/i.test(p) && !/\b[\w-]+\.(?:mp4|mov|mp3|wav|js|ts|py|pdf|csv|xlsx?|docx?|png|jpe?g|json|ya?ml|txt|md)\b/i.test(p)) || null;
     const brief = (r) => ({ id: r[F.name], title: r[F.title] || r[F.name].split('/').pop(), desc: String(r[F.desc]).slice(0, 140), category: cat(r), stars: r[F.stars], downloads: r[F.downloads], added: r[F.added] });
     const day = 864e5;
     const now = Date.now();
     // (servers that answered their sample question in our tests come first)
     const answered = (r) => (F.tested != null && r[F.tested]?.[0] === 'a' ? 1 : 0);
     const askable = rows
-      .filter((r) => ok(r) && catalogRunnable(r, F) && r[F.reach] === 1 && ((F.prompts != null && r[F.prompts]) || []).length && !(F.tested != null && ['f', 'k'].includes(r[F.tested]?.[0])))
+      .filter((r) => ok(r) && catalogRunnable(r, F) && r[F.reach] === 1 && openPrompt(r) && !(F.tested != null && ['f', 'k'].includes(r[F.tested]?.[0])))
       .sort((a, b) => answered(b) - answered(a) || (b._pop || 0) - (a._pop || 0));
     // The best-known servers that answer without a key, one per category so the list isn't six of a kind.
     const seenCat = new Set();
@@ -459,7 +466,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     for (const r of askable) {
       if (seenCat.has(r[F.cat]) || D.cats[r[F.cat]]?.[0] === 'other') continue;
       seenCat.add(r[F.cat]);
-      tryNow.push({ ...brief(r), prompt: r[F.prompts][0][0], adhoc: adhocFor(r) });
+      tryNow.push({ ...brief(r), prompt: openPrompt(r), adhoc: adhocFor(r) });
       if (tryNow.length >= 8) break;
     }
     // New in the last two weeks, with a little adoption already.
@@ -467,7 +474,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       .filter((r) => r[F.added] && now - Date.parse(r[F.added]) < 14 * day && (r[F.stars] >= 5 || r[F.rank] > 0 || r[F.downloads] >= 100))
       .sort((a, b) => String(b[F.added]).localeCompare(String(a[F.added])))
       .slice(0, 6)
-      .map((r) => ({ ...brief(r), prompt: r[F.prompts][0][0], adhoc: adhocFor(r) }));
+      .map((r) => ({ ...brief(r), prompt: openPrompt(r), adhoc: adhocFor(r) }));
     const popular = rows
       .filter((r) => ok(r) && r[F.downloads] > 0 && r[F.updated] && now - Date.parse(r[F.updated]) < 60 * day)
       .sort((a, b) => b[F.downloads] - a[F.downloads])
@@ -482,10 +489,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const local = F.tested == null
       ? []
       : rows
-          .filter((r) => r[F.tested]?.[0] === 'a' && ok(r) && !catalogRunnable(r, F) && trustOf(r).trusted && ((F.prompts != null && r[F.prompts]) || []).length)
+          // (the sample question our test asked, so the example is one we saw answered)
+          .filter((r) => r[F.tested]?.[0] === 'a' && ok(r) && !catalogRunnable(r, F) && trustOf(r).trusted && openPrompt(r) === r[F.prompts][0][0])
           .sort((a, b) => (b._pop || 0) - (a._pop || 0))
           .slice(0, 6)
-          .map((r) => ({ ...brief(r), prompt: r[F.prompts][0][0], type: r[F.pkgType] }));
+          .map((r) => ({ ...brief(r), prompt: openPrompt(r), type: r[F.pkgType] }));
     const data = { tryNow, fresh, popular, newest, local, counts: { servers: rows.length, askable: rows.filter((r) => catalogRunnable(r, F)).length } };
     discoverCache = { at: c.mtime, data };
     return data;
