@@ -89,7 +89,7 @@ const RELATIONS = 'invented|discovered|founded|wrote|won|created|directed|painte
 const BE = 'is|was|are|were|has been|became|remains';
 const PAST = /\b(?:was|were|served as|former(?:ly)?|old|previous(?:ly)?|until|once|used to be|had been|historic(?:al|ally)?|imperial|ancient|eternal|onetime|one-time)\b/i;
 const THIS_YEAR = new Date().getFullYear();
-const NEGATION = /\b(?:not|never|no longer|isn't|wasn't|aren't|weren't|didn't|did not|myth|false|misconception|incorrect|wrongly|mistakenly|falsely)\b/i;
+const NEGATION = /\b(?:not|never|no longer|\w+n['’]t|did not|myth|false|misconception|incorrect|wrongly|mistakenly|falsely)\b/i;
 
 /** Word positions in a sentence, lowercased, for "are these words near each other" checks. */
 // "Brasília" and "Brasilia" are one name: accents are folded after words are found.
@@ -192,7 +192,7 @@ export function claimParts(claim) {
   // ("one of the largest" isn't a count: a number in words counts only with the thing it counts)
   figures = figures.filter((f) => !f.word || f.noun);
   // "Canberra is not the capital": the claim says no, so agreeing sources say no too.
-  const negated = /\b(?:not|never|no longer|isn't|wasn't|aren't|weren't|didn't|doesn't|don't)\b/i.test(text);
+  const negated = /\b(?:not|never|no longer|\w+n['’]t)\b/i.test(text);
   // "X is the capital of Y": the "of" part, to catch "X is the capital of Z".
   const of = /^(?:the\s+|an?\s+)?(?:[\p{L}-]+\s+){0,3}?([\p{L}-]+)\s+(of|in|at)\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})$/u.exec(object.replace(/^(?:not|never)\s+/i, '').trim());
   for (const n of nameNums) proper.add(n);
@@ -221,7 +221,7 @@ export function claimParts(claim) {
 
 /** How one sentence bears on the claim: { stance, sentence, figure?, other? } or null when it's off the point. */
 // Hearsay, quizzes and stories report a claim, they don't make it ("many people assume Toronto is …").
-const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have)\b)/iu;
+const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out)\b)/iu;
 // A source that calls it a myth or false is saying no.
 const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
 const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;

@@ -157,3 +157,9 @@ test('review 2: numbered names, reported speech, wrong clauses and rival names',
   for (const s of ['The Eiffel Tower was completed in 1889 for the World Fair in Paris.', 'Neil Armstrong and Buzz Aldrin became the first men to walk on the Moon.']) assert.notEqual(stance(s.includes('Eiffel') ? 'Paris is the capital of France' : 'Neil Armstrong was the first person to walk on the Moon', s), 'differs', s);
   assert.deepEqual(figuresOf('Windows 11, COVID-19, 5G, the S&P 500 and 14:00').length, 0);
 });
+
+test('beliefs and depictions are mentions; any n’t is a denial', () => {
+  for (const s of ['Flat Earth belief denotes the assertion that the Earth is a flat, stationary plane.', 'Ancient Babylonian cosmology seems to present Earth as a flat object with four corners.']) assert.notEqual(stance('The Earth is flat', s), 'supports', s);
+  assert.equal(stance('Vaccines do not cause autism', 'The research is clear: vaccines don’t cause autism in children at all.'), 'supports');
+  assert.notEqual(stance('Vaccines do not cause autism', 'Studies have not ruled out the possibility that infant vaccines cause autism, the agency said.'), 'supports');
+});
