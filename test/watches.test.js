@@ -245,3 +245,29 @@ test('a dependency watch: each advisory is a source, so a new one is news', asyn
   assert.equal(after.unseen, 1);
   assert.equal(after.history[0].newSources[0].url, 'https://osv.dev/vulnerability/GHSA-2');
 });
+
+test('a page watch: any edited line is news, the reader’s own timestamps are not', async () => {
+  const fsm = await import('node:fs');
+  const osm = await import('node:os');
+  const pathm = await import('node:path');
+  const { WatchStore, WatchScheduler, PAGE_FETCH, pageDiff } = await import('../src/watches.js');
+  assert.deepEqual(pageDiff('as_of: 2026-10-23T01:00\nmarkdown:\n  Price: $10\n  Hello', 'as_of: 2026-10-24T01:00\nmarkdown:\n  Price: $12\n  Hello'), { added: ['Price: $12'], removed: ['Price: $10'] });
+  const store = new WatchStore({ file: pathm.join(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'mcpb-pw-')), 'w.json') });
+  assert.throws(() => store.add({ page: 'file:///etc/passwd' }));
+  assert.throws(() => store.add({ page: 'https://user:pw@example.com/' }));
+  const w = store.add({ page: 'https://example.com/pricing' });
+  let n = 0;
+  const pages = ['as_of: 1\nstatus: ok\nmarkdown:\n  Plan A: $10\n  FAQ', 'as_of: 2\nstatus: ok\nmarkdown:\n  Plan A: $10\n  FAQ', 'as_of: 3\nstatus: ok\nmarkdown:\n  Plan A: $15\n  FAQ'];
+  const callTool = async (id, tool, args) => {
+    assert.deepEqual([id, tool, args.url], [PAGE_FETCH, 'fetch_page', 'https://example.com/pricing']);
+    return { content: [{ type: 'text', text: pages[n++] }] };
+  };
+  const sch = new WatchScheduler({ store, agent: { search: async () => ({}) }, callTool });
+  for (let i = 0; i < 3; i++) {
+    store.get(w.id).nextRunAt = 0;
+    await sch.run(w.id);
+  }
+  const after = store.get(w.id);
+  assert.equal(after.unseen, 1);
+  assert.deepEqual([after.history[0].added, after.history[0].removed, after.history[1].changed], [['Plan A: $15'], ['Plan A: $10'], false]);
+});

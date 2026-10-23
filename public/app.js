@@ -519,7 +519,7 @@
       seen[w.id] = at;
       api.post('/api/watches/update', { id: w.id, notifiedAt: at }).catch(() => {});
       const what = w.deps ? ['new advisory', 'new advisories'] : ['new source', 'new sources'];
-      const body = w.met ? w.met.snippet : `${h.newSources?.length || 0} ${h.newSources?.length === 1 ? what[0] : what[1]}${h.newSources?.[0] ? `: ${h.newSources[0].title}` : ''}`;
+      const body = w.met ? w.met.snippet : w.page ? `The page changed: ${h.added?.[0] || `${h.removedCount || 0} line(s) removed`}` : `${h.newSources?.length || 0} ${h.newSources?.length === 1 ? what[0] : what[1]}${h.newSources?.[0] ? `: ${h.newSources[0].title}` : ''}`;
       try {
         const n = new Notification(w.label || w.query, { body: String(body).slice(0, 180), tag: `watch-${w.id}` });
         n.onclick = () => {
@@ -1066,7 +1066,11 @@
           : w.lastRun.error
             ? `Last run failed: ${w.lastRun.error}`
             : last?.first
-              ? `First run ${timeAgo(w.lastRun.at)}: ${w.lastRun.sources?.length || 0} ${src[1]} saved as the baseline`
+              ? w.page
+                ? `First read ${timeAgo(w.lastRun.at)}: saved as the baseline`
+                : `First run ${timeAgo(w.lastRun.at)}: ${w.lastRun.sources?.length || 0} ${src[1]} saved as the baseline`
+              : w.page && last?.changed
+                ? `Changed ${timeAgo(last.at)}: ${last.addedCount || 0} line${last.addedCount === 1 ? '' : 's'} added, ${last.removedCount || 0} removed`
               : last?.changed
                 ? `Changed ${timeAgo(last.at)}: ${last.newSources.length} new ${last.newSources.length === 1 ? src[0] : src[1]}${last.similarity < 0.75 && !w.deps ? ', answer reworded' : ''}`
                 : `No changes ${timeAgo(w.lastRun.at)}`;
@@ -1075,7 +1079,7 @@
           <div class="watch-title">${w.unseen ? '<span class="new-pill">New</span>' : ''}${esc(w.label || w.query)}</div>
           ${w.met ? (w.when ? `<div class="watch-met"><b>${esc(w.when.op === 'below' ? 'Below' : 'Above')} ${esc(w.when.value.toLocaleString())}</b> ${esc(timeAgo(w.met.at))}, so it stopped: ${esc(w.met.snippet)}</div>` : `<div class="watch-met"><b>Found “${esc(w.until)}”</b> ${esc(timeAgo(w.met.at))}, so it stopped: …${esc(w.met.snippet)}…</div>`) : ''}
           ${w.when && !w.met ? `<div class="watch-line">Tells you when it ${w.when.op === 'reach' ? 'reaches' : `goes ${esc(w.when.op)}`} <b>${esc(w.when.value.toLocaleString())}</b>${w.lastValue ? ` · last ${esc(Number(w.lastValue.value).toLocaleString())} (${esc(timeAgo(w.lastValue.at))})` : ''}</div>` : ''}
-          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : w.deps ? '<span class="cat-tag">Packages</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? (w.untilRe ? ` · stops when a source says it’s ${esc(w.until)}` : ` · stops when it mentions “${esc(w.until)}”`) : ''}</div>
+          <div class="watch-state">${w.pipeline ? '<span class="cat-tag">Pipeline</span> ' : w.deps ? '<span class="cat-tag">Packages</span> ' : w.page ? '<span class="cat-tag">Page</span> ' : ''}${esc(state)}${w.met ? '' : ` · next ${esc(w.nextRunAt > Date.now() ? new Date(w.nextRunAt).toLocaleString() : 'soon')}`}${w.until && !w.met ? (w.untilRe ? ` · stops when a source says it’s ${esc(w.until)}` : ` · stops when it mentions “${esc(w.until)}”`) : ''}</div>
           <details class="watch-hist">
             <summary>History (${w.history.length})</summary>
             <ol></ol>
@@ -1096,8 +1100,21 @@
       for (const h of w.history) {
         const item = document.createElement('li');
         const head = document.createElement('div');
-        head.textContent = `${new Date(h.at).toLocaleString()}: ${h.error ? `failed (${h.error})` : h.first ? 'first run' : h.changed ? `${h.newSources.length} new ${h.newSources.length === 1 ? src[0] : src[1]}` : 'no changes'}`;
+        head.textContent = `${new Date(h.at).toLocaleString()}: ${h.error ? `failed (${h.error})` : h.first ? 'first run' : h.changed ? (w.page ? `${h.addedCount || 0} added, ${h.removedCount || 0} removed` : `${h.newSources.length} new ${h.newSources.length === 1 ? src[0] : src[1]}`) : 'no changes'}`;
         item.appendChild(head);
+        // (a page: the lines that changed, as text)
+        if (w.page && h.changed && (h.added?.length || h.removed?.length)) {
+          const ul = document.createElement('ul');
+          ul.className = 'watch-diff';
+          for (const [sign, lines] of [['+', h.added || []], ['−', h.removed || []]])
+            for (const l of lines) {
+              const li2 = document.createElement('li');
+              li2.dataset.sign = sign;
+              li2.textContent = `${sign} ${l}`;
+              ul.appendChild(li2);
+            }
+          item.appendChild(ul);
+        }
         if (h.newSources?.length && !h.first) {
           const ul = document.createElement('ul');
           for (const s of h.newSources) {
@@ -1124,6 +1141,7 @@
       li.addEventListener('click', async (e) => {
         const b = e.target.closest('button[data-act]');
         if (!b) return;
+        if (b.dataset.act === 'open' && w.page) return navigate(active, { kind: 'web', url: w.page });
         if (b.dataset.act === 'open' && w.deps) return navigate(active, { kind: 'deps', text: w.deps.map((p) => (p.ecosystem === 'pypi' ? `${p.name}==${p.version}` : `${p.name}@${p.version}`)).join('\n') });
         if (b.dataset.act === 'open') return navigate(active, { kind: 'search', query: w.query, discovery: w.discovery, label: w.label });
         if (b.dataset.act === 'run') {
@@ -1334,7 +1352,7 @@
       const info = window.MCPLinkActions?.actionsFor(entry.url);
       const host = /^https?:/i.test(entry.url) ? hostOf(entry.url).replace(/^www\./, '') : '';
       // Any site: is it up, risky, its certificate, what people say (the website card).
-      const site = host && /\.[a-z]{2,}$/i.test(host) ? `<button type="button" class="la-btn" data-la-site="${esc(host)}" title="Uptime, risk check, certificate and reputation from several servers">Check this site</button>` : '';
+      const site = host && /\.[a-z]{2,}$/i.test(host) ? `<button type="button" class="la-btn" data-la-site="${esc(host)}" title="Uptime, risk check, certificate and reputation from several servers">Check this site</button><button type="button" class="la-btn" data-la-watch title="Read this page again every day and tell you when its text changes">Watch this page</button>` : '';
       if (!info && !site) return (bar.hidden = true);
       bar.hidden = false;
       const first = info?.groups[0];
@@ -1344,6 +1362,14 @@
     bar.addEventListener('click', (e) => {
       const sc = e.target.closest('[data-la-site]');
       if (sc) return newTab({ kind: 'search', query: `is ${sc.dataset.laSite} safe` });
+      const pw = e.target.closest('[data-la-watch]');
+      if (pw) {
+        pw.disabled = true;
+        return api
+          .post('/api/watches', { page: entry.url, label: entry.title && entry.title !== hostOf(entry.url) ? entry.title : '', every: 'daily' })
+          .then(() => ((pw.textContent = 'Watching: checked daily'), askNotify(), refreshStatus?.()))
+          .catch((err) => ((pw.textContent = `Couldn’t watch: ${err.message}`), (pw.disabled = false)));
+      }
       if (e.target.closest('[data-la-more]')) return navigate(tabs.find((t) => t.history.includes(entry)) || active, { kind: 'link', url: entry.url });
       const b = e.target.closest('[data-la]');
       if (b) newTab({ kind: 'link', url: entry.url, autorun: b.dataset.la });

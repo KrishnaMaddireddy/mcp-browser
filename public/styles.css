@@ -1149,3 +1149,7 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 @media (max-width: 600px) { .dp-table th:nth-child(5), .dp-table tr:not(.dp-adv) td:nth-child(5) { display: none; } .dp-table td, .dp-table th { padding: 7px 6px; } .dp-table tr.dp-adv td { padding-left: 8px; } }
 .ck-acts { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 .ck-verdict .dp-copy { float: right; margin: 2px 0 0 12px; }
+.watch-diff { list-style: none; margin: 4px 0 0; padding: 0; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.watch-diff li { overflow-wrap: anywhere; }
+.watch-diff li[data-sign="+"] { color: var(--signal); }
+.watch-diff li[data-sign="−"] { color: #c2410c; }

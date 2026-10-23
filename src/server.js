@@ -1046,7 +1046,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const b = await readJson(req);
       try {
         // (the "it happened" pattern is built here from the word; a client's regex is never run)
-        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when, deps: b.deps });
+        const w = engine.watches.add({ query: b.query, every: b.every, discovery: b.discovery === true, label: b.label, servers: Array.isArray(b.servers) ? b.servers : undefined, adhoc: b.adhoc, group: b.group, until: b.until, untilAbout: b.untilAbout, when: b.when, deps: b.deps, page: b.page });
         engine.scheduler.run(w.id).catch(() => {}); // baseline run now
         json(res, 201, engine.watches.view(w));
       } catch (e) {

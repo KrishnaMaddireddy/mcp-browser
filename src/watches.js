@@ -9,6 +9,25 @@ import crypto from 'node:crypto';
 import { dataDir } from './config.js';
 import { errMsg, log, tokenize } from './util.js';
 
+// "Watch this page": a public page read as text by a page-reading server; any real edit is news.
+export const PAGE_FETCH = 'app.openkrill/page-fetch';
+/** The page's own lines, without the reader's header (fetched-at times and the like). */
+export function pageLines(text) {
+  const t = String(text || '');
+  const body = /\bmarkdown:\s*\n([\s\S]*)$/.exec(t)?.[1] ?? t;
+  return body
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length >= 3 && !/^(?:as_of|fetched|retrieved|generated)[:\s]/i.test(l) && !/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(l));
+}
+/** What changed between two readings of a page: { added, removed } lines. */
+export function pageDiff(before, after) {
+  const A = new Set(pageLines(before));
+  const B = pageLines(after);
+  const Bs = new Set(B);
+  return { added: B.filter((l) => !A.has(l)), removed: [...A].filter((l) => !Bs.has(l)) };
+}
+
 export const EVERY = { hourly: 3600_000, daily: 24 * 3600_000, weekly: 7 * 24 * 3600_000 };
 const MAX_WATCHES = 50;
 const MAX_HISTORY = 12;
@@ -66,7 +85,19 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps }) {
+  add({ query, every = 'daily', discovery = false, label = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page }) {
+    // A public web page to watch for edits (http/https only, no credentials in it).
+    let pageUrl = null;
+    if (page) {
+      try {
+        const u = new URL(String(page));
+        if (!/^https?:$/.test(u.protocol) || u.username || u.password || !/\.[a-z]{2,}$/i.test(u.hostname)) throw new Error();
+        pageUrl = u.href.slice(0, 2000);
+      } catch {
+        throw new Error('only a public http(s) page can be watched');
+      }
+      if (!String(query || '').trim()) query = pageUrl;
+    }
     // Packages to re-check for new advisories: names and versions only.
     const pkgs = (Array.isArray(deps) ? deps : [])
       .slice(0, 150)
@@ -97,6 +128,7 @@ export class WatchStore {
         ? { untilRe: saidPattern(String(until).trim().toLowerCase()), untilAbout: untilAbout.slice(0, 6).map((w) => String(w).toLowerCase().slice(0, 40)).filter((w) => /^[\p{L}\p{N}]+$/u.test(w)) }
         : {}),
       ...(pkgs.length ? { deps: pkgs } : {}),
+      ...(pageUrl ? { page: pageUrl } : {}),
       // A threshold on the answer's figure: { op: 'below' | 'above' | 'reach', value, unit? }.
       ...(when && ['below', 'above', 'reach'].includes(when.op) && Number.isFinite(Number(when.value)) ? { when: { op: when.op, value: Number(when.value), ...(when.unit === '%' ? { unit: '%' } : {}) } } : {}),
       createdAt: this.now(),
@@ -149,18 +181,20 @@ export class WatchStore {
     const first = !w.lastRun || w.lastRun.text == null;
     const newSources = error ? [] : sources.filter((s) => s?.url && !seen.has(s.url)).map((s) => ({ url: s.url, title: s.title || '' }));
     // For written answers compare the text; for raw results compare each server's output.
-    const text = mode === 'llm' ? answer : results.map((r) => `${r.serverTitle}\n${r.text}`).join('\n\n');
+    const text = mode === 'llm' || mode === 'page' ? answer : results.map((r) => `${r.serverTitle}\n${r.text}`).join('\n\n');
     const prevText = w.lastRun?.text || '';
     const sim = first || error ? 1 : similarity(prevText, text);
     // A watch that waits for one thing (a price line, a release) only has news when that happens.
     const alertOnly = Boolean(w.when || w.untilRe);
-    const changed = !alertOnly && !first && !error && (newSources.length > 0 || sim < 0.75);
+    // A page: any line added or removed is a change (the reader's own timestamps aside).
+    const diff = w.page && !first && !error ? pageDiff(prevText, text) : null;
+    const changed = diff ? diff.added.length + diff.removed.length > 0 : !alertOnly && !first && !error && (newSources.length > 0 || sim < 0.75);
     for (const s of newSources) seen.add(s.url);
     w.seenUrls = [...seen].slice(-MAX_SEEN);
     w.lastRun = error
       ? { ...(w.lastRun || {}), at, error }
       : { at, mode, answer: answer.slice(0, 20000), text: text.slice(0, 40000), sources: sources.slice(0, 40), error: null, similarity: Math.round(sim * 100) / 100 };
-    const entry = { at, changed, first, error, newSources: newSources.slice(0, 20), similarity: Math.round(sim * 100) / 100 };
+    const entry = { at, changed, first, error, newSources: newSources.slice(0, 20), similarity: Math.round(sim * 100) / 100, ...(diff && changed ? { added: diff.added.slice(0, 8).map((l) => l.slice(0, 240)), removed: diff.removed.slice(0, 8).map((l) => l.slice(0, 240)), addedCount: diff.added.length, removedCount: diff.removed.length } : {}) };
     w.history = [entry, ...w.history].slice(0, MAX_HISTORY);
     if (changed) w.unseen += 1;
     w.nextRunAt = at + EVERY[w.every];
@@ -289,6 +323,14 @@ export class WatchScheduler {
           reject(new Error('the search took longer than 5 minutes'));
         }, this.runTimeoutMs);
       });
+      // A page: read it again and compare its lines.
+      if (w.page) {
+        if (!this.callTool) throw new Error('page watching is not available here');
+        const r = await Promise.race([this.callTool(PAGE_FETCH, 'fetch_page', { url: w.page, max_chars: 30000 }, { signal: ac.signal }), timeout]);
+        const text = (r?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+        if (!pageLines(text).length || /\bstatus:\s*(?!ok\b)\w+/.test(text.slice(0, 600))) throw new Error('the page could not be read');
+        return this.store.record(id, { mode: 'page', answer: text.slice(0, 20000), results: [{ serverTitle: 'page', text }], sources: [] });
+      }
       // Packages: each advisory is a source, so a new one is news.
       if (w.deps) {
         if (!this.callTool) throw new Error('dependency checks are not available here');
