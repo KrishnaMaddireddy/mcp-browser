@@ -686,7 +686,8 @@
       return;
     }
     const card = (title, q, body) => `<div class="today-card"><h3><button type="button" class="link-btn" data-today-q="${esc(q)}">${esc(title)}</button></h3>${body}</div>`;
-    box.innerHTML = `<div class="today-grid">${card(`Weather in ${city}`, `weather in ${city}`, '<p class="today-wait">Checking…</p>')}${card('Market', 'S&P 500 today', '<p class="today-wait">Checking…</p>')}${card('Today’s news', 'latest news', '<p class="today-wait">Checking…</p>')}</div><p class="today-foot"><button type="button" class="link-btn" data-today-change>Change city</button> · <button type="button" class="link-btn" data-today-off>Hide this</button></p>`;
+    box.innerHTML = `<div class="today-grid">${card(`Weather in ${city}`, `weather in ${city}`, '<p class="today-wait">Checking…</p>')}${card('Market', 'S&P 500 today', '<p class="today-wait">Checking…</p>')}${card('Today’s news', 'latest news', '<p class="today-wait">Checking…</p>')}</div><div class="today-topics" data-today-topics></div><p class="today-foot"><button type="button" class="link-btn" data-today-change>Change city</button> · <button type="button" class="link-btn" data-today-off>Hide this</button></p>`;
+    renderTopics(tab, $('[data-today-topics]', box));
     const wire = () => {
       box.querySelectorAll('[data-today-q]').forEach((b) => b.addEventListener('click', () => open(b.dataset.todayQ, tab)));
       $('[data-today-change]', box).addEventListener('click', () => (todayCity.set(null), renderToday(tab, el)));
@@ -719,6 +720,69 @@
         ? `<ul class="today-news">${d.news.items.map((it) => `<li><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span>${esc(it.site)}</span></li>`).join('')}</ul>`
         : '<p class="today-wait">No headlines found right now.</p>'
     );
+  }
+
+  // ---------- Today: your topics, each with its latest headlines ----------
+  // The topics stay in this browser only (up to 5).
+  const TOPICS_KEY = 'mcpb.today.topics';
+  const myTopics = {
+    get() {
+      try {
+        const v = JSON.parse(localStorage.getItem(TOPICS_KEY) || '[]');
+        return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 5) : [];
+      } catch {
+        return [];
+      }
+    },
+    set(list) {
+      try {
+        localStorage.setItem(TOPICS_KEY, JSON.stringify(list.slice(0, 5)));
+      } catch {}
+    },
+  };
+  function renderTopics(tab, host) {
+    const list = myTopics.get();
+    const topicCard = (t) => `<div class="today-card today-topic" data-topic="${esc(t)}"><h3><button type="button" class="link-btn" data-topic-q="${esc(t)}">${esc(t)}</button><span class="tt-acts"><button type="button" class="link-btn" data-topic-watch="${esc(t)}" title="Get a notification when there are new stories">Notify me</button><button type="button" class="link-btn tt-x" data-topic-rm="${esc(t)}" aria-label="Stop following ${esc(t)}">×</button></span></h3><p class="today-wait">Checking…</p></div>`;
+    host.innerHTML = `${list.length ? `<div class="today-tgrid">${list.map(topicCard).join('')}</div>` : ''}<form class="today-tform" data-topic-form>${list.length < 5 ? `<input type="text" data-topic-in maxlength="60" placeholder="${list.length ? 'Follow another topic' : 'Follow a topic: a team, a company, a subject…'}" aria-label="Follow a topic"><button type="submit">Follow</button>` : '<span>Following 5 topics (the most there’s room for).</span>'}</form>`;
+    host.onclick = (e) => {
+      const q = e.target.closest('[data-topic-q]');
+      if (q) return open(`${q.dataset.topicQ} news`, tab);
+      const rm = e.target.closest('[data-topic-rm]');
+      if (rm) {
+        myTopics.set(myTopics.get().filter((x) => x !== rm.dataset.topicRm));
+        return renderTopics(tab, host);
+      }
+      const w = e.target.closest('[data-topic-watch]');
+      if (w) return newTab({ kind: 'watches', track: `tell me about new ${w.dataset.topicWatch} news` });
+    };
+    const form = $('[data-topic-form]', host);
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const v = $('[data-topic-in]', host)?.value.replace(/\s+/g, ' ').trim();
+      if (!v || v.length < 2) return;
+      const cur = myTopics.get();
+      if (!cur.some((x) => x.toLowerCase() === v.toLowerCase())) myTopics.set([...cur, v]);
+      renderTopics(tab, host);
+    };
+    // (a list redrawn since these were asked for ignores their answers)
+    const gen = String((Number(host.dataset.gen) || 0) + 1);
+    host.dataset.gen = gen;
+    for (const t of list) {
+      api
+        .get(`/api/today/topic?q=${encodeURIComponent(t)}`)
+        .catch(() => null)
+        .then((d) => {
+          const el = [...host.querySelectorAll('[data-topic]')].find((x) => x.dataset.topic === t);
+          if (!el || host.dataset.gen !== gen) return;
+          el.querySelector('.today-wait')?.remove();
+          el.insertAdjacentHTML(
+            'beforeend',
+            d?.items?.length
+              ? `<ul class="today-news">${d.items.map((it) => `<li><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span>${esc(it.site)}${it.date ? ` · ${esc(niceDate(it.date))}` : ''}</span></li>`).join('')}</ul>`
+              : '<p class="today-wait">No fresh stories found. Click the topic to search.</p>'
+          );
+        });
+    }
   }
 
   // ---------- start page: recent searches, things to discover ----------

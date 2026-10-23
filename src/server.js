@@ -435,17 +435,17 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       .slice(0, n);
   // "Your topics" on Today: the latest headlines about one topic, kept 20 minutes.
   const topicCache = new Map();
-  async function topicNews(topic) {
-    const key = topic.toLowerCase();
+  async function topicNews(topic, readerLang = 'en') {
+    const key = `${topic.toLowerCase()}|${readerLang}`;
     const hit = topicCache.get(key);
     if (hit && Date.now() - hit.at < 20 * 60e3) return hit.data;
     const r = await todayOne(`${topic} latest news`, { items: 15 });
     // In the topic's language, dated, one story per site and one site per story.
-    const lang = langOf(topic) || 'en';
+    const lang = (langOf(topic) || 'en') === 'en' && readerLang !== 'en' ? 'any' : langOf(topic) || 'en';
     const seen = new Set();
     const lead = (t) => String(t).toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').split(/\s+/).slice(0, 6).join(' ');
     const picked = headlines(r.items, 15).filter((it) => {
-      if (langOf(it.title) !== lang && langOf(it.title)) return false;
+      if (lang !== 'any' && langOf(it.title) !== lang && langOf(it.title)) return false;
       // (an English topic: an edition in another language is another language's news)
       if (lang === 'en' && foreignEdition(it.url)) return false;
       const k1 = host(it.url).replace(/^www\./, '');
@@ -463,8 +463,8 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   // "Today" on the start page: the weather where you are, the market, the headlines.
   // Three ordinary searches (free mode works), kept for 10 minutes per city.
   const todayCache = new Map();
-  async function today(city) {
-    const key = city.toLowerCase();
+  async function today(city, lang = 'en') {
+    const key = `${city.toLowerCase()}|${lang}`;
     const hit = todayCache.get(key);
     if (hit && Date.now() - hit.at < 10 * 60e3) return hit.data;
     // Dated news searches return articles; "latest news" returns news sites' front pages.
@@ -474,7 +474,10 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       todayOne('SPY stock price today'),
       todayOne(`news ${day}`, { items: 12 }),
     ]);
-    if (news) news.items = headlines(news.items, 5);
+    // (in the reader's language: an English reader's front page isn't Arabic and Spanish headlines)
+    // (and not "What happens on October 23, 2026" pages: a date isn't a headline)
+    const dated = new RegExp(`${day.replace(/,/g, ',?')}|\\bon this day\\b|^(?:important )?news (?:by|for|on) `, 'i');
+    if (news) news.items = headlines(news.items.filter((it) => !dated.test(it.title) && (lang !== 'en' || ((langOf(it.title) || 'en') === 'en' && !foreignEdition(it.url)))), 5);
     const data = { city, weather, market, news, at: new Date().toISOString() };
     todayCache.set(key, { at: Date.now(), data });
     if (todayCache.size > 20) todayCache.delete(todayCache.keys().next().value);
@@ -612,11 +615,14 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'GET /api/today/topic': async (req, res, url) => {
       const topic = String(url.searchParams.get('q') || '').replace(/[^\p{L}\p{N} &.'+-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
       if (topic.length < 2) return json(res, 400, { error: 'topic required' });
-      json(res, 200, await topicNews(topic));
+      const lang = /^en\b/i.test(String(req.headers['accept-language'] || 'en')) ? 'en' : 'any';
+      json(res, 200, await topicNews(topic, lang));
     },
     'GET /api/today': async (req, res, url) => {
       const city = String(url.searchParams.get('city') || '').replace(/[^\p{L}\p{N} ,.'-]/gu, '').trim().slice(0, 60);
-      json(res, 200, await today(city));
+      // The reader's language from the browser: only English is told apart for now.
+      const lang = /^en\b/i.test(String(req.headers['accept-language'] || 'en')) ? 'en' : 'any';
+      json(res, 200, await today(city, lang));
     },
     // Cross-check a claim across independent sources (SSE: check_source …, check_verdict, done).
     'POST /api/crosscheck': async (req, res) => {
