@@ -102,6 +102,8 @@ function firstSentences(t) {
   }
   return out || String(t).slice(0, 300);
 }
+const ECHO_FACT = /^(?:input|query|q|url|normalized[ _]?url|host[ _]?name|domain|public[ _]?suffix|registrable[ _]?domain|tld|scheme|path|port|target|checked[ _]?url)$/i;
+const JUDGES = /risk|verdict|score|safe|malicious|phish|reputation|status|categor|block|threat|trust|flag|warning/i;
 const FILE_EXT = new Set('js ts jsx tsx mjs cjs py rb go rs java kt md txt json yaml yml toml xml csv html htm css scss exe dll zip tar gz pdf doc docx xls xlsx ppt pptx png jpg jpeg gif svg mp3 mp4 mov sh bat ps1 lock log ini cfg conf env'.split(' '));
 /** Servers' sales lines out of their answers ("Free email alerts …: https://…", "sign up at …"). */
 function unpitch(t) {
@@ -149,10 +151,15 @@ export async function runCard(agent, entity, { emit: emit0 = () => {}, signal, r
             if (type !== 'results' || d.isError || (d.kind || 'ok') !== 'ok' || d.offTopic) return;
             servers.push(d.serverTitle);
             const items = (d.view?.kind === 'items' ? d.view.items : []).filter((it) => it?.url && it.title);
-            for (const it of items) if (links.length < (s.links || 3) && !links.some((l) => l.url === it.url)) links.push({ title: String(it.title).slice(0, 160), url: it.url, host: hostOf(it.url), date: it.date || '' });
+            // ("what people say" about a site isn't the site itself)
+            for (const it of items) if (links.length < (s.links || 3) && !links.some((l) => l.url === it.url) && !(s.key === 'reputation' && hostOf(it.url) === entity.value)) links.push({ title: String(it.title).slice(0, 160), url: it.url, host: hostOf(it.url), date: it.date || '' });
             if (s.summary && items[0]?.text) summaries.push(firstSentences(items[0].text));
             if (!items.length && details.length < 1) {
-              const x = detailOf(d.view, d.text);
+              // (a record that repeats what was asked — "Input: example.com", "Hostname: …" — says
+              // nothing: those go, and the facts that judge it come first)
+              const same = (v) => String(v).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') === String(entity.value).toLowerCase();
+              const view = d.view?.kind === 'record' && d.view.facts?.length ? { ...d.view, facts: d.view.facts.filter((f) => !ECHO_FACT.test(String(f.label).trim()) && !same(f.value)).sort((a, b) => JUDGES.test(b.label) - JUDGES.test(a.label)) } : d.view;
+              const x = detailOf(view, d.text);
               if (x) details.push({ server: d.serverTitle, ...x });
             }
           },
@@ -166,7 +173,8 @@ export async function runCard(agent, entity, { emit: emit0 = () => {}, signal, r
       if (s.summary && !answer && summaries.length) answer = summaries[0];
       const clean = (d) => {
         if (!d.text) return d;
-        const t = firstSentences(unpitch(d.text));
+        // (a reply that goes on as raw JSON after its sentence: the sentence)
+        const t = firstSentences(unpitch(d.text.replace(/\s*[{[]\s*"[\s\S]*$/, '')));
         return { ...d, text: t.length >= 20 && !/^[[{]/.test(t) ? t : d.text.slice(0, 300) };
       };
       const shown = answer ? [] : details.map(clean).filter((d) => d.text || d.facts?.length);

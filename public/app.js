@@ -1332,13 +1332,18 @@
     bar.className = 'la-bar';
     const renderBar = () => {
       const info = window.MCPLinkActions?.actionsFor(entry.url);
-      if (!info) return (bar.hidden = true);
+      const host = /^https?:/i.test(entry.url) ? hostOf(entry.url).replace(/^www\./, '') : '';
+      // Any site: is it up, risky, its certificate, what people say (the website card).
+      const site = host && /\.[a-z]{2,}$/i.test(host) ? `<button type="button" class="la-btn" data-la-site="${esc(host)}" title="Uptime, risk check, certificate and reputation from several servers">Check this site</button>` : '';
+      if (!info && !site) return (bar.hidden = true);
       bar.hidden = false;
-      const first = info.groups[0];
-      bar.innerHTML = `<span class="la-name">Ask about this page:</span>${first.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="0:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('')}<button type="button" class="link-btn" data-la-more>More…</button>`;
+      const first = info?.groups[0];
+      bar.innerHTML = `<span class="la-name">Ask about this page:</span>${site}${first ? first.actions.map((a, ai) => `<button type="button" class="la-btn" data-la="0:${ai}" title="${esc(a.prompt)}">${esc(a.label)}</button>`).join('') : ''}${info ? '<button type="button" class="link-btn" data-la-more>More…</button>' : ''}`;
       bar.__info = info;
     };
     bar.addEventListener('click', (e) => {
+      const sc = e.target.closest('[data-la-site]');
+      if (sc) return newTab({ kind: 'search', query: `is ${sc.dataset.laSite} safe` });
       if (e.target.closest('[data-la-more]')) return navigate(tabs.find((t) => t.history.includes(entry)) || active, { kind: 'link', url: entry.url });
       const b = e.target.closest('[data-la]');
       if (b) newTab({ kind: 'link', url: entry.url, autorun: b.dataset.la });
