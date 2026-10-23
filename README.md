@@ -245,6 +245,56 @@ and answers that changed (by wording), and the eye icon in the toolbar shows a
 dot when something is new. Manage them at `mcp://watches`. Watches are stored in
 `~/.mcp-browser/watches.json`.
 
+**Tell me when.** Type a sentence in the address bar or on the Watches page:
+
+* *"tell me when NVDA drops below 200"*, *"…bitcoin goes above 100k"*, *"…mortgage rates
+  go above 7%"*: the quoted figure is read on each run (not the first number on the page;
+  a reading far from the last one is ignored) and you're told once when it crosses.
+  The preview shows what it reads right now.
+* *"tell me when GTA 6 is out"*: stops when a source says it happened, with the thing named
+  right before the verb, and not about a trailer, a pre-order or an expected date.
+* *"tell me about new recalls for Kia Sorento"*: new sources are the news.
+
+Price and release watches only notify when it happens. Desktop notifications start from
+the moment you turn them on (no backlog), and the server remembers what it already told you.
+
+## Cross-check (`mcp://check`)
+
+*"is it true that …"*, *"fact check: …"* or **Cross-check this** under a quick answer (and on
+selected text in the desktop app). The claim goes to web search, Wikipedia and specialist
+servers, and each independent source's own sentence is sorted into *says the same*,
+*says something different* and *mentions it*, with the overall reading on top. A sentence
+backs the claim only when the subject and object are bound in one clause, with the same
+figure for the same counted thing, in the present when the claim is; denials and "myth"
+count against it; hearsay, headings, forums, echoes of the question and uncited server
+text never count for it. Copies of one page, and one publisher's subdomains, count once.
+With an AI provider, the model can only make the reading more cautious. **Copy as
+Markdown** gives the verdict with every quote and link.
+
+## Answer cards
+
+A question that is just one company, city, website, CVE or piece of software ("Nvidia",
+"Lisbon", "is example.com safe", "log4j vulnerabilities", "Nvidia vs AMD") also asks a few
+vetted specialist servers at once and shows one card, each part labelled with its server.
+Servers you switched off are skipped; turn cards off under Settings → Routing.
+
+## Dependency check (`mcp://deps`)
+
+Paste a package.json, a requirements.txt or one package per line. Two OSV servers from
+different publishers are asked side by side (their counts are compared, aliases count
+once), with each advisory's severity, the one version that fixes them all, and links to
+OSV and the CVE card; a registry server adds the latest version and whether the package is
+deprecated or unmaintained. Only package names and versions are sent. **Tell me about new
+advisories** turns the list into a daily watch; **Copy as Markdown** gives a table for a
+pull request or an issue.
+
+## Today
+
+On the start page, with a city: the weather, the market and today's headlines (articles,
+in your language), plus up to five **topics you follow**, each with its three latest
+stories and a "Notify me" that turns it into a watch. The city and topics stay in this
+browser.
+
 ## MCP Rank
 
 Directories score MCP servers on their metadata. MCP Rank scores them on what
@@ -532,6 +582,11 @@ npm run test:live        # also hits the real curated servers
 | GET | `/api/catalog/find?q=&runnable=1&limit=` | catalog servers for a task (`runnable=1`: ones MCP Browser can call now, with what's needed to ask them) |
 | GET | `/api/audit` | MCP servers installed in this computer's clients, matched to the registry, with checks (never secret values) |
 | GET | `/api/catalog/tools?id=` | one catalog server's tools (name, description, required inputs, whether it changes things) |
+| POST | `/api/crosscheck` | `{claim}` → SSE `check_progress`, `check_source`, `check_verdict`, `done` |
+| POST | `/api/card` | `{query}` → SSE `card_start`, `card_section`, `card_done` (or `card_none`) |
+| POST | `/api/track/parse` | `{text}` "tell me when …" → a proposed watch (with the figure it reads now) |
+| POST | `/api/deps` | `{text}` a manifest → SSE `deps_start`, `deps_server`, `deps_row`, `deps_done` |
+| GET | `/api/today?city=` · `/api/today/topic?q=` | the start page's Today panel; one followed topic's latest stories |
 
 POST requests need `content-type: application/json` and `x-mcpb: 1`.
 
