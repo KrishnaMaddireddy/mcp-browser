@@ -413,3 +413,16 @@ test('help text and empty JSON searches are not answers', async () => {
   assert.equal(classifyResult('{"files":[],"total_matches":0,"files_searched":0,"files_matched":0,"truncated":false}', 'x').kind, 'empty');
   assert.equal(classifyResult('{"error":"This repository has no index yet.","remedy":"Build one first with the CLI"}', 'x').kind, 'empty');
 });
+
+test('instant answers: sums, percentages and the time somewhere, worked out here', async () => {
+  const { instantAnswer, timeAnswer, mathAnswer } = await import('../src/quality.js');
+  assert.equal(instantAnswer('what is 18% of 250').text, '18% of 250 = 45');
+  assert.equal(instantAnswer('45 is what percent of 180').text, '45 is 25% of 180');
+  assert.equal(instantAnswer('(3+4) x 5').text, '(3 + 4) × 5 = 35');
+  assert.equal(instantAnswer('how many ounces in a cup').text, '1 cup = 8 ounces');
+  for (const q of ['1-800-555-0100', '10/22/2026', '2024-2025', 'covid-19', 'top stocks 2026']) assert.equal(mathAnswer(q), null, q);
+  const at = new Date('2026-10-22T12:00:00Z');
+  assert.equal(timeAnswer('time in Tokyo', at).text, '9:00 PM in Tokyo, Thursday, October 22 (GMT+9)');
+  assert.match(timeAnswer('what time is it in New York?', at).text, /^8:00 AM in New York/);
+  assert.equal(timeAnswer('time in the market', at), null);
+});

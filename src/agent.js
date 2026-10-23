@@ -3,7 +3,7 @@ import { classifyTool, cleanDescription, detectInjection, detectBlocked, resultT
 import { extractSources, SourceBook } from './sources.js';
 import { toToolSchema } from './llm/index.js';
 import { mapLimit, errMsg, tokenize, splitIdentifier, truncate, withTimeout, parseJsonLenient } from './util.js';
-import { classifyResult, resultScore, simplerQueries, entityOf, tickersOf, tickerFor, quickAnswer, forecastAnswer, convertAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
+import { classifyResult, resultScore, simplerQueries, entityOf, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
 import { formatResult } from './format.js';
 
 // Servers connected (and, in free mode, searched) at the same time per question.
@@ -649,8 +649,8 @@ export class SearchAgent {
       const { kind, ...qa } = answered || {};
       return { mode: 'direct', answer: '', quickAnswer: answered ? qa : null };
     };
-    // A unit conversion needs no server: answer it at once, exactly.
-    const calc = convertAnswer(query);
+    // A unit conversion, a sum or the time somewhere needs no server: answer it at once, exactly.
+    const calc = instantAnswer(query);
     if (calc) {
       answered = { ...calc, kind: 'calculated' };
       calc.calculated = true;

@@ -355,6 +355,8 @@ export function quickAnswer(results, query) {
         // An article's warm-up, not an answer ("When you are working with …, you might encounter …",
         // "In this article we'll look at …", "Let's dive in").
         if (/\byou (?:might|may|will|could|often) (?:encounter|come across|run into|find yourself|need to|want to)\b|\bin this (?:article|post|tutorial|guide|blog|video)\b|\blet'?s (?:take a look|explore|dive|look at|see how)\b|\b(?:we|I)(?:'ll| will) (?:show|explore|look at|walk you|cover|discuss)\b|^(?:have you ever|ever wondered|are you looking)\b/i.test(s)) continue;
+        // An age question needs an age or a birth date, not any number in a biography.
+        if (/\bhow old\b|\bage\b/i.test(query) && !/\bborn\b|\(age \d|\baged? \d|\d+[- ]years?[- ]old|\bage(?: of|:)? \d|\bturn(?:s|ed)? \d/i.test(s)) continue;
         // A number question needs a value, not just years ("1950 - 2026") or dates.
         if (wantsNumber && !/\d/.test(s.replace(DATE_BITS, ''))) continue;
         // A price question needs an amount of money, not a percentage.
@@ -594,8 +596,11 @@ export function convertAnswer(query) {
     if (!m) return null;
     [to, value, from] = [m[1].trim(), Number(m[2]), m[3].trim()];
   }
-  const a = unitOf(from);
-  const b = unitOf(to);
+  let a = unitOf(from);
+  let b = unitOf(to);
+  // "ounces in a cup": ounces next to a volume are fluid ounces.
+  const fluid = (x, other) => (x?.kind === 'mass' && /^(?:oz|ounces?)$/.test(x.name) && other?.kind === 'volume' ? { kind: 'volume', factor: UNITS.volume['fl oz'], name: x.name } : x);
+  [a, b] = [fluid(a, b), fluid(b, a)];
   if (!a || !b || a.kind !== b.kind || !Number.isFinite(value)) return null;
   let out;
   if (a.kind === 'temp') {
@@ -605,6 +610,127 @@ export function convertAnswer(query) {
   // Units as the question wrote them ("5 miles = 8.047 km"); temperatures as °F / °C / K.
   const label = (x, typed) => (x.kind === 'temp' ? (x.scale === 'K' ? 'K' : `°${x.scale}`) : typed);
   return { text: `${round(value)} ${label(a, from)} = ${round(out)} ${label(b, to)}`, url: null, site: '', title: '', server: 'MCP Browser (calculated)' };
+}
+
+// ---------- arithmetic and percentages ----------
+
+/** A small arithmetic evaluator (+ − × ÷ ^ and brackets): no eval, numbers only. */
+function evalMath(expr) {
+  const src = expr.replace(/\s+/g, '');
+  let i = 0;
+  const peek = () => src[i];
+  const num = () => {
+    const m = /^\d+(?:\.\d+)?|^\.\d+/.exec(src.slice(i));
+    if (!m) throw new Error('number expected');
+    i += m[0].length;
+    return Number(m[0]);
+  };
+  const atom = () => {
+    if (peek() === '(') {
+      i++;
+      const v = sum();
+      if (peek() !== ')') throw new Error(') expected');
+      i++;
+      return v;
+    }
+    if (peek() === '-') {
+      i++;
+      return -atom();
+    }
+    return num();
+  };
+  const pow = () => {
+    const b = atom();
+    if (peek() === '^') {
+      i++;
+      return b ** pow();
+    }
+    return b;
+  };
+  const prod = () => {
+    let v = pow();
+    while (peek() === '*' || peek() === '/') v = src[i++] === '*' ? v * pow() : v / pow();
+    return v;
+  };
+  const sum = () => {
+    let v = prod();
+    while (peek() === '+' || peek() === '-') v = src[i++] === '+' ? v + prod() : v - prod();
+    return v;
+  };
+  const v = sum();
+  if (i !== src.length) throw new Error('unexpected input');
+  return v;
+}
+
+/** "what is 18% of 250", "15 percent of 80", "12*7+3", "what's 2^10": worked out exactly. */
+export function mathAnswer(query) {
+  let q = String(query || '').toLowerCase().trim().replace(/[?=]+\s*$/, '').replace(/^(?:what(?:'s| is)|calculate|compute|how much is|solve)\s+/, '').replace(/,(?=\d{3}\b)/g, '').trim();
+  const show = (v) => (Number.isInteger(v) ? v.toLocaleString('en-US') : Number(v.toPrecision(12)).toLocaleString('en-US', { maximumFractionDigits: 8 }));
+  const done = (text) => ({ text, url: null, site: '', title: '', server: 'MCP Browser (calculated)' });
+  let m = /^(-?\d+(?:\.\d+)?)\s*(?:%|percent|per cent)\s+of\s+(-?\d+(?:\.\d+)?)$/.exec(q);
+  if (m) return done(`${m[1]}% of ${show(Number(m[2]))} = ${show((Number(m[1]) * Number(m[2])) / 100)}`);
+  m = /^(-?\d+(?:\.\d+)?)\s+(?:is\s+)?what\s+(?:%|percent(?:age)?)\s+of\s+(-?\d+(?:\.\d+)?)$/.exec(q);
+  if (m && Number(m[2]) !== 0) return done(`${show(Number(m[1]))} is ${show((Number(m[1]) / Number(m[2])) * 100)}% of ${show(Number(m[2]))}`);
+  // Plain arithmetic: at least one operator between numbers, nothing but maths in it.
+  q = q.replace(/[×x](?=\s*[\d(.])/g, '*').replace(/÷/g, '/').replace(/\bplus\b/g, '+').replace(/\bminus\b/g, '-').replace(/\btimes\b|\bmultiplied by\b/g, '*').replace(/\bdivided by\b/g, '/').replace(/\bto the power of\b/g, '^');
+  if (!/^[\d\s.+\-*/^()]+$/.test(q) || !/\d\s*[+\-*/^]\s*[\d(.-]/.test(q)) return null;
+  // Phone numbers, dates and ranges look like sums but aren't (1-800-555-0100, 10/22/2026, 2024-2025).
+  if (/^\d+(?:[-/.]\d+){2,}$/.test(q) || /^(?:1[89]|20)\d\d-(?:1[89]|20)?\d\d$/.test(q)) return null;
+  try {
+    const v = evalMath(q);
+    if (!Number.isFinite(v)) return null;
+    return done(`${q.replace(/\s+/g, ' ').replace(/\s*([+\-*/^])\s*/g, ' $1 ').replace(/\*/g, '×').replace(/\//g, '÷').trim()} = ${show(v)}`);
+  } catch {
+    return null;
+  }
+}
+
+// ---------- the time in a place ----------
+
+// Cities whose time zone isn't named after them (the rest come from the time zone list itself).
+const CITY_ZONES = {
+  'new york': 'America/New_York', nyc: 'America/New_York', boston: 'America/New_York', washington: 'America/New_York', 'washington dc': 'America/New_York', miami: 'America/New_York', atlanta: 'America/New_York', philadelphia: 'America/New_York', toronto: 'America/Toronto', montreal: 'America/Toronto',
+  'san francisco': 'America/Los_Angeles', sf: 'America/Los_Angeles', 'los angeles': 'America/Los_Angeles', la: 'America/Los_Angeles', seattle: 'America/Los_Angeles', 'san diego': 'America/Los_Angeles', 'san jose': 'America/Los_Angeles', portland: 'America/Los_Angeles', 'las vegas': 'America/Los_Angeles', vancouver: 'America/Vancouver', california: 'America/Los_Angeles',
+  chicago: 'America/Chicago', dallas: 'America/Chicago', houston: 'America/Chicago', austin: 'America/Chicago', texas: 'America/Chicago', denver: 'America/Denver', phoenix: 'America/Phoenix',
+  london: 'Europe/London', uk: 'Europe/London', england: 'Europe/London', paris: 'Europe/Paris', france: 'Europe/Paris', berlin: 'Europe/Berlin', germany: 'Europe/Berlin', munich: 'Europe/Berlin', madrid: 'Europe/Madrid', spain: 'Europe/Madrid', barcelona: 'Europe/Madrid', rome: 'Europe/Rome', italy: 'Europe/Rome', milan: 'Europe/Rome', amsterdam: 'Europe/Amsterdam', zurich: 'Europe/Zurich', geneva: 'Europe/Zurich', lisbon: 'Europe/Lisbon', dublin: 'Europe/Dublin', moscow: 'Europe/Moscow', istanbul: 'Europe/Istanbul', athens: 'Europe/Athens', stockholm: 'Europe/Stockholm',
+  dubai: 'Asia/Dubai', 'abu dhabi': 'Asia/Dubai', india: 'Asia/Kolkata', delhi: 'Asia/Kolkata', 'new delhi': 'Asia/Kolkata', mumbai: 'Asia/Kolkata', bangalore: 'Asia/Kolkata', bengaluru: 'Asia/Kolkata', hyderabad: 'Asia/Kolkata', chennai: 'Asia/Kolkata', pune: 'Asia/Kolkata', kolkata: 'Asia/Kolkata',
+  tokyo: 'Asia/Tokyo', japan: 'Asia/Tokyo', osaka: 'Asia/Tokyo', kyoto: 'Asia/Tokyo', seoul: 'Asia/Seoul', korea: 'Asia/Seoul', beijing: 'Asia/Shanghai', shanghai: 'Asia/Shanghai', china: 'Asia/Shanghai', shenzhen: 'Asia/Shanghai', 'hong kong': 'Asia/Hong_Kong', taipei: 'Asia/Taipei', singapore: 'Asia/Singapore', bangkok: 'Asia/Bangkok', jakarta: 'Asia/Jakarta', manila: 'Asia/Manila',
+  sydney: 'Australia/Sydney', melbourne: 'Australia/Melbourne', brisbane: 'Australia/Brisbane', perth: 'Australia/Perth', auckland: 'Pacific/Auckland', 'new zealand': 'Pacific/Auckland', honolulu: 'Pacific/Honolulu', hawaii: 'Pacific/Honolulu',
+  'sao paulo': 'America/Sao_Paulo', 'são paulo': 'America/Sao_Paulo', brazil: 'America/Sao_Paulo', 'rio de janeiro': 'America/Sao_Paulo', 'mexico city': 'America/Mexico_City', mexico: 'America/Mexico_City', 'buenos aires': 'America/Argentina/Buenos_Aires', cairo: 'Africa/Cairo', lagos: 'Africa/Lagos', nairobi: 'Africa/Nairobi', johannesburg: 'Africa/Johannesburg',
+  utc: 'UTC', gmt: 'UTC',
+};
+let zoneNames = null;
+function zoneFor(place) {
+  const p = place.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+  if (CITY_ZONES[p]) return CITY_ZONES[p];
+  if (!zoneNames) {
+    zoneNames = new Map();
+    try {
+      for (const z of Intl.supportedValuesOf('timeZone')) zoneNames.set(z.split('/').pop().replace(/_/g, ' ').toLowerCase(), z);
+    } catch {}
+  }
+  return zoneNames.get(p) || null;
+}
+
+/** "time in Tokyo", "what time is it in London": the clock there, now. */
+export function timeAnswer(query, now = new Date()) {
+  const q = String(query || '').toLowerCase().trim().replace(/[?.!]+$/, '');
+  const m = /^(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:current\s+|local\s+)?time\s+(?:is\s+it\s+)?(?:now\s+)?(?:in|at)\s+(.{2,40})$/.exec(q) || /^what\s+time\s+is\s+it\s+(?:now\s+)?in\s+(.{2,40})$/.exec(q) || /^(.{2,40}?)\s+(?:local\s+)?time(?:\s+now)?$/.exec(q);
+  if (!m) return null;
+  const place = m[1].replace(/\s+(?:right\s+)?now$/, '').trim();
+  const zone = zoneFor(place);
+  if (!zone) return null;
+  const fmt = (o) => new Intl.DateTimeFormat('en-US', { timeZone: zone, ...o }).format(now);
+  const time = fmt({ hour: 'numeric', minute: '2-digit' });
+  const day = fmt({ weekday: 'long', month: 'long', day: 'numeric' });
+  const tz = fmt({ timeZoneName: 'short' }).split(' ').pop();
+  const name = place.replace(/\b\p{Ll}/gu, (c) => c.toUpperCase()).replace(/^(Uk|Utc|Gmt|Nyc|Sf|La)$/i, (x) => x.toUpperCase());
+  return { text: `${time} in ${name}, ${day} (${tz})`, url: null, site: '', title: '', server: 'MCP Browser (clock)' };
+}
+
+/** Questions answered here without asking any server: conversions, sums, the time somewhere. */
+export function instantAnswer(query) {
+  return convertAnswer(query) || mathAnswer(query) || timeAnswer(query);
 }
 
 // ---------- stock quotes ----------
