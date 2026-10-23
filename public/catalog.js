@@ -382,6 +382,12 @@
         })();
         return;
       }
+      if (e.target.closest('[data-cat-works]')) {
+        filters.add('works');
+        el.querySelector('[data-cat-filter="works"]')?.setAttribute('aria-pressed', 'true');
+        setView('all');
+        return render();
+      }
       const op = e.target.closest('[data-open]');
       if (op) return hooks.open?.(op.dataset.open);
       const rt = e.target.closest('[data-run-tab]');
@@ -475,6 +481,13 @@
       const dl = rows.filter((r) => r[F.downloads] >= 0).length;
       const remote = rows.filter((r) => r[F.remoteUrl]).length;
       $('[data-cat-lede]').innerHTML = `<b>${nf.format(rows.length)}</b> servers from the official MCP Registry in ${cats.length - 1} categories, as of ${esc(fmtDate(D.generatedAt))}. <b>${nf.format(gh)}</b> have GitHub stars, <b>${nf.format(dl)}</b> have package download counts and <b>${nf.format(remote)}</b> run at a hosted URL. Start from what you want to do, or browse every server.`;
+      // What our own tests found (scripts/probe-*.mjs): real starts and a real sample question.
+      if (F.tested != null) {
+        const tc = {};
+        for (const r of rows) if (r[F.tested]) tc[r[F.tested][0]] = (tc[r[F.tested][0]] || 0) + 1;
+        const tested = Object.values(tc).reduce((a, b) => a + b, 0);
+        if (tested) $('[data-cat-lede]').insertAdjacentHTML('beforeend', ` <span class="cat-tested-sum">We tested <b>${nf.format(tested)}</b> of them for real: <b>${nf.format(tc.a || 0)}</b> answered a sample question, <b>${nf.format(tc.m || 0)}</b> answered once an AI model filled in their inputs, <b>${nf.format(tc.s || 0)}</b> connected but didn’t answer it, <b>${nf.format(tc.f || 0)}</b> failed${tc.k ? ` and <b>${nf.format(tc.k)}</b> need a key` : ''}. <button type="button" class="link-btn" data-cat-works>Show the ones that work</button></span>`);
+      }
       for (const r of rows) byName.set(r[F.name], r);
       Object.assign(ctx, { F, rows, byName, catIndex: (id) => cats.findIndex((c) => c.id === id) });
       if (window.MCPUseCases) {

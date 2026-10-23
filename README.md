@@ -548,3 +548,15 @@ About 12,600 servers in the catalog need no key but ship as npm or Python packag
   - How it works: `electron/webmcp-bridge.js` runs in each page before the page's own scripts (a session preload that only injects it), provides the API where the browser doesn't (Electron's Chromium has no native WebMCP yet), or wraps the native one, and collects the tools. MCP Browser's window reads and calls them only when you ask.
 - **Websites with AI tools** (`mcp://webmcp`, in the menu): the [webmcp.com](https://webmcp.com) directory, run by nekuda.ai, of about 6,500 sites and 39,000 tools, searchable by what the tools do (answer questions, act on the page, buy or book) and by category. Open a site in a tab to use its tools.
 - The directory is downloaded about once a day and checked **on your computer**: the pages you visit are never sent to webmcp.com. **Open with** also says when a link's site offers tools.
+
+## Testing the servers for real
+
+The catalog's "Tested" labels come from running the servers, not from their descriptions. Run these only on a throwaway machine (a container or VM): they start other people's code with no sandbox.
+
+- `node scripts/probe-hosted.mjs [--limit 8000] [--concurrency 8]` asks hosted, keyless servers their sample question through MCP Browser's own free mode.
+- `node scripts/probe-packages.mjs [--trusted] [--limit 600] [--concurrency 4] [--refails]` starts npm and PyPI servers exactly the way MCP Browser does (pinned version, the registry's startup arguments, install-time code only as when isolated), lists their tools and asks their sample question. Each test gets its own caches, deleted afterwards. Failures get the same self-healing retry as the app, and missing keys or arguments are labelled as such.
+- `node scripts/probe-ai-args.mjs <args.json>` calls one read-only tool per server with inputs an AI model wrote from its schema (`[{ id, tool, args }]`), for servers whose tools free mode can't fill.
+
+Results go to `<data dir>/catalog-build/*-probe.jsonl`; `node scripts/build-catalog.js --bundle` turns them into the catalog's `tested` field (labels, the "Tested working" filter, Discover) and `src/data/answer-tests.json`, which routing uses: servers that answered are asked sooner, ones that failed or need an AI model (in free mode) later. What your own MCP Browser sees working always wins.
+
+Statuses: answers · answers with an AI model · starts (didn't answer the sample question) · no tools · didn't start (with the reason) · needs a key · needs arguments.
