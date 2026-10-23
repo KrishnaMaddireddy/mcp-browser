@@ -601,6 +601,37 @@ export function forecastAnswer(results, query) {
   return { text: place ? `${place}: ${text}` : text, url: null, site: '', title: '', server: best.serverTitle };
 }
 
+/**
+ * "sunrise in Paris tomorrow", "when is sunset in Tokyo": the times from a forecast
+ * reply's own sunrise/sunset fields, in the place's local time. Null otherwise.
+ */
+export function sunAnswer(results, query) {
+  const q = String(query || '');
+  const want = /\bsunrise\b/i.test(q) ? (/\bsunset\b/i.test(q) ? 'both' : 'sunrise') : /\bsunset\b/i.test(q) ? 'sunset' : null;
+  if (!want) return null;
+  for (const r of results) {
+    if (r.general || wrongPlace(query, r.text)) continue;
+    const raw = String(r.text || '');
+    // The first day the reply lists ("daily": [{ "date", "sunrise", "sunset" }]), else any pair.
+    const rise = /"sunrise"\s*:\s*"(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(raw);
+    const set = /"sunset"\s*:\s*"(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(raw);
+    if (!rise && !set) continue;
+    const clock = (m) => {
+      const h = Number(m[2]);
+      return `${((h + 11) % 12) + 1}:${m[3]} ${h < 12 ? 'AM' : 'PM'}`;
+    };
+    const day = (m) => new Date(`${m[1]}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    const parts = [];
+    if ((want === 'sunrise' || want === 'both') && rise) parts.push(`sunrise ${clock(rise)}`);
+    if ((want === 'sunset' || want === 'both') && set) parts.push(`sunset ${clock(set)}`);
+    if (!parts.length) continue;
+    const place = forecastPlace(raw) || (/^Using ([^(.]+?)\s*(?:\(|\.)/.exec((/"answer"\s*:\s*"([^"]{0,300})/.exec(raw) || [])[1] || '') || [])[1];
+    const text = `${place ? `${place.trim()}, ` : ''}${day(rise || set)}: ${parts.join(', ')} (local time)`;
+    return { text: text.charAt(0).toUpperCase() + text.slice(1), url: null, site: '', title: '', server: r.serverTitle };
+  }
+  return null;
+}
+
 /** The place a forecast reply says it covers ("location": "Seattle, WA"). */
 function forecastPlace(text) {
   const m = /"(?:location|place|city|area)"\s*:\s*"([^"]{2,60})"/.exec(String(text || '').slice(0, 2000));

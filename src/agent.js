@@ -3,7 +3,7 @@ import { classifyTool, cleanDescription, detectInjection, detectBlocked, resultT
 import { extractSources, SourceBook } from './sources.js';
 import { toToolSchema } from './llm/index.js';
 import { mapLimit, errMsg, tokenize, splitIdentifier, truncate, withTimeout, parseJsonLenient } from './util.js';
-import { classifyResult, resultScore, simplerQueries, entityOf, followUpQuery, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, agreeingSources, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
+import { classifyResult, resultScore, simplerQueries, entityOf, followUpQuery, tickersOf, tickerFor, quickAnswer, forecastAnswer, instantAnswer, agreeingSources, sunAnswer, quoteAnswer, relevance, orderItems, wrongPlace } from './quality.js';
 import { formatResult } from './format.js';
 
 // Servers connected (and, in free mode, searched) at the same time per question.
@@ -24,8 +24,9 @@ const QUERY_PARAM_NAMES = ['query', 'q', 'search', 'search_query', 'searchquery'
 export function placeOf(query) {
   const p = String(query || '')
     .replace(/(?:の)?天気(?:予報)?|날씨|일기\s*예보|天气/g, ' ')
+    .replace(/\b(?:sunrise|sunset)\s+and\s+(?:sunrise|sunset)\b/gi, ' ')
     .replace(/[?!.,;:¿¡]/g, ' ')
-    .replace(/\b(?:what(?:'s| is)?|how(?:'s| is)?|will it|is it|going to|weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|sunny|cloudy|windy|umbrella|need an?|today|tomorrow|tonight|this|next|weekend|week|now|right now|the|in|for|at|on|be|like|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|tiempo|clima|pronóstico|en|para|hoy|mañana|el|la|météo|à|demain|aujourd'hui|wetter|morgen|heute|in)\b/gi, ' ')
+    .replace(/\b(?:what(?:'s| is)?|how(?:'s| is)?|will it|is it|going to|weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|sunny|cloudy|windy|umbrella|need an?|today|tomorrow|tonight|this|next|weekend|week|now|right now|the|in|for|at|on|be|like|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|sunrise|sunset|time|when|does|do|sun|rise|set|is|tiempo|clima|pronóstico|en|para|hoy|mañana|el|la|météo|à|demain|aujourd'hui|wetter|morgen|heute|in)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return p.length >= 2 ? EXONYMS[p.toLowerCase()] || EXONYMS[p] || p : '';
@@ -41,7 +42,7 @@ const EXONYMS = {
 };
 
 // (not "sales forecast" or "weather API docs": weather words, and no software/business words)
-const WEATHER_WORDS = /\b(?:weather|rain(?:ing|y)?|snow(?:ing)?|temperature|umbrella|sunny|cloudy|windy|cold|hot|warm|tiempo|clima|météo|wetter)\b|天気|날씨|天气/i;
+const WEATHER_WORDS = /\b(?:weather|rain(?:ing|y)?|snow(?:ing)?|temperature|umbrella|sunny|cloudy|windy|cold|hot|warm|sunrise|sunset|tiempo|clima|météo|wetter)\b|天気|날씨|天气/i;
 const NOT_WEATHER = /\b(?:api|sdk|docs?|documentation|tool|library|code|endpoint|station ids?|sales|revenue|demand|budget|earnings|model|dataset)\b/i;
 const WEATHER_INTENT = { test: (q) => WEATHER_WORDS.test(String(q)) && !NOT_WEATHER.test(String(q)) };
 const TICKER_PARAM = /^(?:ticker|tickers|symbol|symbols|stock_symbol|stock|coin)$/i;
@@ -629,7 +630,7 @@ export class SearchAgent {
     function tryAnswer(final) {
       checkEarly();
       if (answered?.kind === 'calculated') return;
-      const fa = quoteAnswer(useful, query) || fxAnswer(useful, query) || forecastAnswer(useful, query);
+      const fa = quoteAnswer(useful, query) || fxAnswer(useful, query) || sunAnswer(useful, query) || forecastAnswer(useful, query);
       if (fa) {
         if (answered?.kind !== 'forecast' || answered.text !== fa.text) {
           answered = { ...fa, kind: 'forecast' };

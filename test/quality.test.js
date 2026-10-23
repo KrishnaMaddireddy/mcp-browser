@@ -462,3 +462,12 @@ test('days until a date or holiday are counted here', async () => {
   assert.equal(dateAnswer('what day is 2027-01-01', now).text, 'Friday, January 1, 2027');
   assert.equal(dateAnswer('days until the election', now), null);
 });
+
+test('sunrise and sunset come from the forecast reply, in local time', async () => {
+  const { sunAnswer } = await import('../src/quality.js');
+  const text = JSON.stringify({ answer: 'Using Paris, Île-de-France Region, France (there are others). Mild.', data: { forecast: { daily: [{ date: '2026-10-23', sunrise: '2026-10-23T08:23:10+02:00', sunset: '2026-10-23T18:47:02+02:00' }] } } });
+  const r = [{ text, serverTitle: 'Weather', view: { kind: 'record' } }];
+  assert.equal(sunAnswer(r, 'sunrise in Paris tomorrow').text, 'Paris, Île-de-France Region, France, Friday, October 23: sunrise 8:23 AM (local time)');
+  assert.equal(sunAnswer(r, 'sunrise and sunset in Paris').text, 'Paris, Île-de-France Region, France, Friday, October 23: sunrise 8:23 AM, sunset 6:47 PM (local time)');
+  assert.equal(sunAnswer(r, 'weather in Paris'), null);
+});
