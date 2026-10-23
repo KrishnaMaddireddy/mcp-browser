@@ -365,3 +365,44 @@ test('a dotted capital İ (İstanbul) keeps words and their positions lined up',
   assert.doesNotThrow(() => judgeText(claimParts('Istanbul is the capital of Turkey'), 'İstanbul, the capital of Türkiye until 1923, is its largest city. İstanbul is a big city.'));
   assert.equal(judgeSentence(claimParts('Istanbul is in Turkey'), 'İstanbul is in Turkey, on the Bosphorus.')?.stance, 'supports');
 });
+
+test('"It …" is read as the subject only when nothing else could be "it"', () => {
+  const st = (c, t) => judgeText(claimParts(c), t)?.stance ?? null;
+  // read with the subject
+  assert.equal(st('The Thames flows through London', 'The River Thames is the longest river in England. It flows through London.'), 'supports');
+  assert.equal(st('The Panama Canal opened in 1930', 'The Panama Canal is an artificial waterway. It opened in 1914.'), 'differs');
+  assert.equal(st('The Titanic sank in 1912', 'The Titanic was a British ocean liner. It sank in 1912.'), 'supports');
+  assert.equal(st('Oxygen has the symbol O', 'Oxygen is a chemical element; it has the symbol O and atomic number 8.'), 'supports');
+  // not: a cleft, another name before, a name that only contains the subject, a different thing
+  const no = [
+    ['Thomas Edison invented the telephone', 'Thomas Edison was a prolific American inventor. It was Alexander Graham Bell who invented the telephone.'],
+    ['Canberra is the largest city in Australia', 'Canberra is the capital, but Sydney is bigger. It is the largest city in Australia.'],
+    ['Canberra is the largest city in Australia', 'Canberra lies inland from Sydney. It is the largest city in Australia.'],
+    ['York is the largest city in the United States', 'New York is a city on the East Coast. It is the largest city in the United States.'],
+    ['The Titanic sank in 1915', 'The Titanic exhibit tells of the Lusitania too. It sank in 1915.'],
+    ['Paris is the largest country in Western Europe', 'Paris is the capital of France. It is the largest country in Western Europe.'],
+    ['The Amazon is the longest river in the world', 'The Amazon is shorter than the Nile. It is the longest river in the world.'],
+    ['Mars has three moons', 'Mars is the fourth planet. It may have three moons, some say.'],
+    ['The Danube flows through Paris', 'The Danube flows through ten countries. "It flows through Paris," the guide joked.'],
+  ];
+  for (const [c, t] of no) assert.notEqual(st(c, t), 'supports', c);
+});
+
+test('"The Sun is orbited by the Earth" does not back "The Sun orbits the Earth"', () => {
+  assert.equal(judgeSentence(claimParts('The Sun orbits the Earth'), 'The Sun is orbited by the Earth.')?.stance, 'mentions');
+  assert.equal(judgeSentence(claimParts('Jeff Bezos founded Amazon'), 'Amazon was founded by Jeff Bezos in 1994.')?.stance, 'supports');
+});
+
+test('recall: the claim\'s own "into", "<work> is a novel by <maker>"; no echoes in quotes, no "the myth of <title>"', () => {
+  const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
+  assert.equal(st('The Danube flows into the Black Sea', 'The Danube River flows into the Black Sea through the vast Danube Delta.'), 'supports');
+  assert.notEqual(st('The Volga flows into the Black Sea', 'The Volga flows into the Caspian Sea.'), 'supports');
+  assert.equal(st('Henry Ford invented the automobile', 'Henry Ford invented the assembly line for the automobile.'), 'mentions');
+  assert.equal(st('Edvard Munch painted The Scream', 'The Scream is a painting by Norwegian artist Edvard Munch, created in 1893.'), 'supports');
+  assert.equal(st('Gustav Klimt painted The Scream', 'The Scream is a painting by Norwegian artist Edvard Munch, created in 1893.'), 'differs');
+  assert.notEqual(st('George Orwell wrote Nineteen Eighty-Four', 'Nineteen Eighty-Four is a novel by the friend of George Orwell.'), 'supports');
+  assert.notEqual(st('George Orwell wrote Nineteen Eighty-Four', 'Jura is where the myth of Nineteen Eighty-Four takes hold, on a rock in the Hebrides.'), 'differs');
+  assert.equal(st('Humans use only 10 percent of their brains', 'It is a myth that humans use only 10 percent of their brains.'), 'differs');
+  assert.equal(st('Mount Everest is in Chile', 'Nothing matching "Mount Everest is in Chile" among the 247 models published on this site.'), 'mentions');
+  assert.equal(st('The Nile flows into the Red Sea', 'The Nile river flows into the (red or Mediterranean) sea.'), 'mentions');
+});
