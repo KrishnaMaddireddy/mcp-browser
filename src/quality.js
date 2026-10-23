@@ -364,6 +364,8 @@ export function quickAnswer(results, query) {
         if (repeatsItself(s)) continue;
         if (/[{}[\]<>|]|https?:\/\//.test(s)) continue; // markup, tables, links
         if (/\?\s*$/.test(s) || /^\(/.test(s)) continue; // a question, or an aside
+        if (/\?\s+[-–|]\s+\S/.test(s)) continue; // a question's page title ("… per invocation? - Stack Overflow")
+        if (/\)\s*$/.test(s) && !/[.!]/.test(s)) continue; // a label, not a sentence ("US football team season (won Super Bowl)")
         if (/\s(?:\.\.\.|…)\s/.test(s)) continue; // snippets stitched together with "…"
         // A population question in Japanese, Chinese or Korean needs a head count (…万人, …명).
         if (/人口|인구/.test(query) && !/\d[\d,.]*\s*(?:万|億|千|만|억|천)?\s*(?:人|명)/.test(s)) continue;
@@ -376,6 +378,13 @@ export function quickAnswer(results, query) {
         // An article's warm-up, not an answer ("When you are working with …, you might encounter …",
         // "In this article we'll look at …", "Let's dive in").
         if (/\byou (?:might|may|will|could|often) (?:encounter|come across|run into|find yourself|need to|want to)\b|\bin this (?:article|post|tutorial|guide|blog|video)\b|\blet'?s (?:take a look|explore|dive|look at|see how)\b|\b(?:we|I)(?:'ll| will) (?:show|explore|look at|walk you|cover|discuss)\b|^(?:have you ever|ever wondered|are you looking)\b/i.test(s)) continue;
+        // "Who won the last Super Bowl": the sentence has to be about a recent one (a recent
+        // year, or "reigning"/"defending"), not a general fact ("20 franchises have won").
+        if (/^who\b/i.test(query) && /\b(?:last|latest|most recent|current|reigning|this year'?s?)\b/i.test(query)) {
+          const y = new Date().getFullYear();
+          const years = (s.match(/\b(?:19|20)\d\d\b/g) || []).map(Number);
+          if (!years.some((n) => n >= y - 1) && !/\b(?:reigning|defending|current) (?:champion|title|winner)/i.test(s)) continue;
+        }
         // An age question needs an age or a birth date, not any number in a biography.
         if (/\bhow old\b|\bage\b/i.test(query) && !/\bborn\b|\(age \d|\baged? \d|\d+[- ]years?[- ]old|\bage(?: of|:)? \d|\bturn(?:s|ed)? \d/i.test(s)) continue;
         // A number question needs a value, not just years ("1950 - 2026") or dates.
@@ -1019,7 +1028,7 @@ function plainWeatherAnswer(results, query) {
     // "Using Paris, Île-de-France Region, France (there are others …). Say the state if …" →
     // "Paris, Île-de-France Region, France: <the weather sentences>".
     // ("03:30 to tomorrow 03:30: mild, dry …" → "mild, dry …": the window is just "the next day")
-    const sentences = text.split(/(?<=[.!?])\s+/).map((x) => x.replace(/^\d{1,2}:\d{2}\s+to\s+(?:tomorrow\s+)?\d{1,2}:\d{2}:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase()));
+    const sentences = text.split(/(?<=[.!?])\s+/).map((x) => x.replace(/^\d{1,2}:\d{2}(?:\s*[AP]M)?\s+to\s+(?:tomorrow\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase()));
     const place = (/^Using ([^(.]+?)\s*(?:\(|\.)/.exec(text) || [])[1];
     const body = sentences.filter((x) => !/^Using |^Say |^Tell me|^Add /i.test(x) && !/jacket|coat|layer|\bhat\b|umbrella|shorts|pants|sunscreen|boots|sweater|hoodie|gloves/i.test(x) && /°|\b(?:rain|snow|sunny|cloud|wind|showers?|clear|storm|dry|drizzle|cool|warm|cold|hot|mild)\b/i.test(x)).slice(0, 2).join(' ');
     if (!body) continue;
