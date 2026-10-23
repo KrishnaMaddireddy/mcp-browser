@@ -219,6 +219,24 @@ appear in Claude Desktop / Claude Code as prompts (slash commands) in MCP server
 Marketing templates switch on Discovery for that one search, so community servers
 (ad libraries, social, SEO tools) can be used. Add your own in `src/templates.js`.
 
+## Pipelines (`mcp://pipelines`)
+
+Servers working together: each step asks a server something and can use what the step
+before found (`{input}`, `{answer}`, `{titles}`, or once per result with `{title}` `{url}`
+`{host}`). When a server answers with a record instead of links (a quote, a rating, a CVE
+score), the step shows what it said.
+
+**The library** (`src/data/pipeline-library.json`): 100 pipelines in 8 topics, plus the 6
+starters, browsable by topic and searchable on the page. They were designed against
+servers that passed our tests, run end to end in free mode with their example input, read
+through by a separate reviewer (off-topic, stale or duplicate ones dropped), and run again.
+Each card says when it last passed. To re-check them:
+
+    node scripts/test-pipelines.mjs [file.json] [--only id,id] [--write] [--prune] [--dump out.json]
+
+`--write` stamps the ones that pass, `--prune` drops the ones that fail twice, `--dump`
+writes everything each step got, for reading through.
+
 ## Watches
 
 Press **Watch** next to any question to re-run it every hour, day or week while
