@@ -512,7 +512,11 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
 
   const routes = {
     'GET /api/pipelines': async (req, res) => {
-      const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.servers || []).map(titleOf) })) });
+      // (one lookup table per request: catalog.get() scans every server, and the library names hundreds)
+      const known = new Map(engine.catalog.all().map((sv) => [sv.id, sv.title]));
+      const c = loadCatalog();
+      const title = (id) => known.get(id) || c?.byName.get(id)?.[c.F.title] || id;
+      const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.servers || []).map(title) })) });
       json(res, 200, { starters: STARTERS.map(withTitles), library: loadLibrary().map(withTitles), topics: TOPICS, mine: pipes().list.map(withTitles) });
     },
     'POST /api/pipelines/save': async (req, res) => {
@@ -569,7 +573,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     'GET /api/discover': async (req, res) => {
       const d = discover();
       const w = webmcpDir?.data ? webmcp().info() : null;
-      json(res, 200, { ...(d || {}), sites: w ? { count: w.sites, tools: w.tools } : null });
+      json(res, 200, { ...(d || {}), sites: w ? { count: w.sites, tools: w.tools } : null, pipelines: loadLibrary().length });
     },
     'GET /api/suggest': async (req, res, url) => {
       const q = url.searchParams.get('q') || '';

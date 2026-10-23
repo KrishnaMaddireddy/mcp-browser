@@ -595,7 +595,7 @@
       $('[data-dc-local]', box).innerHTML = d.local.map((x) => `<li data-dc-li="${esc(x.id)}"><div class="dc-t"><b>${esc(x.title)}</b> <span class="dc-c">${esc(x.category)} · ${x.type === 'npm' ? 'npm' : 'Python'} package</span></div><button type="button" class="dc-q" data-dc-local="${esc(x.id)}" data-dc-prompt="${esc(x.prompt)}">${esc(x.prompt)}</button><div class="lr-host" data-dc-lr></div></li>`).join('');
     }
     $('[data-dc-popular]', box).innerHTML = d.popular.map((x) => item(x, false)).join('');
-    const n = { servers: d.counts?.servers, sites: d.sites?.count };
+    const n = { servers: d.counts?.servers, sites: d.sites?.count, pipelines: d.pipelines };
     for (const b of box.querySelectorAll('[data-dc-n]')) if (n[b.dataset.dcN]) b.insertAdjacentHTML('beforeend', ` <span class="dc-n">${Number(n[b.dataset.dcN]).toLocaleString()}</span>`);
     const all = [...d.tryNow, ...(d.fresh || [])];
     box.addEventListener('click', (e) => {

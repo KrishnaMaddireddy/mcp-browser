@@ -196,7 +196,9 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
           for (const it of linked) listed.push({ title: String(it.title).slice(0, 200), url: it.url, host: hostOf(it.url), score: d.score || 0 });
           if (!linked.length && details.length < 2) {
             const d2 = detailOf(d.view, d.text);
-            if (d2) details.push({ server: d.serverTitle, ...d2 });
+            // (two servers fronting the same data say the same thing: once is enough)
+            const key = d2 && JSON.stringify([d2.title, d2.text, d2.facts]);
+            if (d2 && !details.some((x) => JSON.stringify([x.title, x.text, x.facts]) === key)) details.push({ server: d.serverTitle, ...d2 });
           }
         }
         if (type === 'quick_answer') quick = d;

@@ -20,7 +20,7 @@ export const ERROR_REPLY = /^\W{0,4}(?:error|exception|traceback)\b|^\W{0,4}(?:f
 const NO_RESULT = [
   /\bno (?:results?|matches|matching|listed|items?|records?|data|stocks?|companies|entries|hits|articles|papers|documents)\b/i,
   /\bno (?:[\w/-]+ ){0,3}(?:were |was )?(?:found|match|matches|matched|available)\b/i, // "No stored diagrams match …"
-  /\bno match(?:es)?\b|\b(?:not[_ ]found|nothing found|did not match|could not (?:resolve|find)|couldn'?t find|unable to find|0 results|zero results)\b/i,
+  /\bno [\w-]+ (?:named|called) ["“']|\bno match(?:es)?\b|\b(?:not[_ ]found|nothing found|did not match|could not (?:resolve|find)|couldn'?t find|unable to find|0 results|zero results)\b/i,
   /일치하는 .{0,12}없습니다|결과가 없습니다|찾을 수 없습니다/,
   /見つかりませんでした|該当(?:する)?.{0,6}ありません|結果はありません/,
   /\bno se (?:encontr|hall)aron\b|\bsin resultados\b|\baucun résultat\b|\bkeine (?:ergebnisse|treffer)\b/i,

@@ -1,1 +1,3217 @@
-[]
+[
+ {
+  "id": "stock-snapshot",
+  "title": "Stock snapshot: price, rating and trend",
+  "description": "Gets a live quote and a 0-100 stock rating for a ticker, then the latest headlines.",
+  "category": "finance",
+  "input": {
+   "label": "Stock ticker",
+   "example": "NVDA"
+  },
+  "steps": [
+   {
+    "ask": "Get the daily price history for {input}",
+    "servers": [
+     "ai.marketcrew/market-data",
+     "marketcrew"
+    ]
+   },
+   {
+    "ask": "What's the Market Eyes rating for {input}?",
+    "servers": [
+     "io.github.marketeyeslive/market-eyes-live"
+    ]
+   },
+   {
+    "ask": "{input} stock latest news",
+    "servers": [
+     "keenable",
+     "tanod-web"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7804
+  }
+ },
+ {
+  "id": "fx-three-sources",
+  "title": "Compare an exchange rate across sources",
+  "description": "Checks a currency pair against the ECB, a reference-rate service and a live converter so you can see if they agree.",
+  "category": "finance",
+  "input": {
+   "label": "Currency pair",
+   "example": "EUR to GBP"
+  },
+  "steps": [
+   {
+    "ask": "What's the latest {input} reference rate from the ECB?",
+    "servers": [
+     "com.invokera/currency-rates"
+    ]
+   },
+   {
+    "ask": "What's the latest {input} reference rate?",
+    "servers": [
+     "io.github.Jenpo/fxpeek"
+    ]
+   },
+   {
+    "ask": "What is 1000 {input} right now?",
+    "servers": [
+     "com.allratestoday/mcp"
+    ]
+   },
+   {
+    "ask": "{input} exchange rate forecast outlook",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6534
+  }
+ },
+ {
+  "id": "scam-site-check",
+  "title": "Is this investment site a scam?",
+  "description": "Checks a website or firm against regulator scam warning lists, then looks for complaints online.",
+  "category": "finance",
+  "input": {
+   "label": "Website or firm name",
+   "example": "Quantum AI trading"
+  },
+  "steps": [
+   {
+    "ask": "Is {input} on any regulator scam warning list?",
+    "servers": [
+     "com.realcryptosignals/scam-warnings"
+    ]
+   },
+   {
+    "ask": "{input} scam reviews complaints",
+    "servers": [
+     "keenable",
+     "tanod-web"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1640
+  }
+ },
+ {
+  "id": "uk-company-check",
+  "title": "Company due diligence: LEI and news",
+  "description": "Checks a company in the global LEI registry, then looks for news on funding and regulators.",
+  "category": "finance",
+  "input": {
+   "label": "Company name",
+   "example": "Revolut"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.globalfinreg/lei"
+    ]
+   },
+   {
+    "ask": "{input} company news funding regulator",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4822
+  }
+ },
+ {
+  "id": "wire-transfer-prep",
+  "title": "Prepare an international wire",
+  "description": "For sending money from the US to a euro-area bank: its SWIFT code, the EUR to USD rate and tips about fees.",
+  "category": "finance",
+  "input": {
+   "label": "Bank and city",
+   "example": "Deutsche Bank Frankfurt"
+  },
+  "steps": [
+   {
+    "ask": "Find the SWIFT/BIC code for {input}",
+    "servers": [
+     "ai.ohmyfin/banking-intelligence"
+    ]
+   },
+   {
+    "ask": "What's the latest EUR to USD reference rate?",
+    "servers": [
+     "io.github.Jenpo/fxpeek",
+     "com.invokera/currency-rates"
+    ]
+   },
+   {
+    "ask": "international wire transfer fees to {input} tips",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7731
+  }
+ },
+ {
+  "id": "canada-funding-finder",
+  "title": "Canadian funding finder",
+  "description": "Finds Canadian grants, tax credits and loans for a type of business, then looks up how to apply for each.",
+  "category": "finance",
+  "input": {
+   "label": "Business type",
+   "example": "clean energy startups"
+  },
+  "steps": [
+   {
+    "ask": "Search Canadian grants for {input}",
+    "servers": [
+     "ca.netgrant/canadian-grants"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} how to apply eligibility",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "each": true
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6779
+  }
+ },
+ {
+  "id": "macro-rates-brief",
+  "title": "Macro and rates brief",
+  "description": "A market-news pulse and web analysis of where the central bank and yields are heading.",
+  "category": "finance",
+  "input": {
+   "label": "Macro topic",
+   "example": "the Fed's rate path and Treasury yields"
+  },
+  "steps": [
+   {
+    "ask": "latest market news on {input}",
+    "servers": [
+     "marketcrew"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} analysis outlook",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4747
+  }
+ },
+ {
+  "id": "subcontractor-insurance",
+  "title": "What insurance to require from a subcontractor",
+  "description": "Finds guides on the insurance limits and certificates to demand from a trade subcontractor, then examples of requirements.",
+  "category": "finance",
+  "input": {
+   "label": "Trade",
+   "example": "HVAC"
+  },
+  "steps": [
+   {
+    "ask": "What insurance should I require from an {input} subcontractor on a 2 million dollar project?",
+    "servers": [
+     "ai.certifikit/coi-tools"
+    ]
+   },
+   {
+    "ask": "{input} subcontractor insurance requirements general liability limits workers comp",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3109
+  }
+ },
+ {
+  "id": "prediction-market-scan",
+  "title": "Prediction market odds plus the news",
+  "description": "Searches Polymarket for live bets on a topic and finds the news behind the odds.",
+  "category": "finance",
+  "input": {
+   "label": "Topic",
+   "example": "2026 US midterm election"
+  },
+  "steps": [
+   {
+    "ask": "{input} odds forecast polls latest",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} prediction market Polymarket Kalshi",
+    "servers": [
+     "tanod-web"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6138
+  }
+ },
+ {
+  "id": "itin-loan-guides",
+  "title": "Loans and credit with an ITIN (no SSN)",
+  "description": "Finds guides on borrowing with an ITIN instead of a Social Security number, then lenders and tips beyond the directory.",
+  "category": "finance",
+  "input": {
+   "label": "Loan type",
+   "example": "ITIN auto loan"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "io.github.bguillow-rgb/itin-finance"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} lenders requirements 2026",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4091
+  }
+ },
+ {
+  "id": "earnings-call-digest",
+  "title": "Earnings reaction digest",
+  "description": "News and analyst reactions to a company's latest quarter and guidance.",
+  "category": "finance",
+  "input": {
+   "label": "Company",
+   "example": "Microsoft"
+  },
+  "steps": [
+   {
+    "ask": "{input} latest earnings results reaction",
+    "servers": [
+     "marketcrew",
+     "keenable"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} earnings analyst takeaways guidance",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2515
+  }
+ },
+ {
+  "id": "science-evidence-review",
+  "title": "Medical evidence review",
+  "description": "Systematic reviews first, then the newest studies and a plain-language overview of a treatment question.",
+  "category": "science",
+  "input": {
+   "label": "Treatment or condition",
+   "example": "vitamin D and fractures"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.olyport/cochrane"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} randomized trial",
+    "servers": [
+     "com.olyport/pubmed",
+     "pubmed-community"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} guideline recommendations",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4739
+  }
+ },
+ {
+  "id": "science-supplement-check",
+  "title": "Supplement safety and evidence check",
+  "description": "How strong the evidence is for what a supplement does, plus the latest trials.",
+  "category": "science",
+  "input": {
+   "label": "Supplement",
+   "example": "magnesium"
+  },
+  "steps": [
+   {
+    "ask": "What does {input} do in the body, and how strong is the evidence?",
+    "servers": [
+     "ai.catalystproject/evidence-graph"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} supplementation trial",
+    "servers": [
+     "pubmed-community"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2978
+  }
+ },
+ {
+  "id": "science-trial-scout",
+  "title": "Clinical trial scout",
+  "description": "Find clinical trials for a disease, recruiting and results news, and published trial papers.",
+  "category": "science",
+  "input": {
+   "label": "Disease and therapy",
+   "example": "type 1 diabetes cell therapy"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.negativeresistance/cure-protocol"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} clinical trial recruiting results",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} clinical trial",
+    "servers": [
+     "pubmed-community"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4211
+  }
+ },
+ {
+  "id": "science-claim-check",
+  "title": "Health claim fact-check",
+  "description": "Fact-checks, then Cochrane reviews and PubMed studies, for a claim you have heard.",
+  "category": "science",
+  "input": {
+   "label": "Claim",
+   "example": "vaccines cause autism"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "app.cutgpt/research"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.olyport/cochrane"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input}",
+    "servers": [
+     "pubmed-community"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2361
+  }
+ },
+ {
+  "id": "science-federal-rules-watch",
+  "title": "Federal rules watch",
+  "description": "Federal Register rules and notices on a topic, then news coverage of each.",
+  "category": "science",
+  "input": {
+   "label": "Topic",
+   "example": "PFAS"
+  },
+  "steps": [
+   {
+    "ask": "Search the Federal Register for EPA rules on {input}",
+    "servers": [
+     "com.datakoot/federal-register-rules",
+     "com.1102tools/federal-register-mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title}",
+    "servers": [
+     "exa"
+    ],
+    "each": true,
+    "max": 1
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2571
+  }
+ },
+ {
+  "id": "science-grant-finder",
+  "title": "Grant opportunity finder",
+  "description": "Federal grants matching a topic, then how to apply to each.",
+  "category": "science",
+  "input": {
+   "label": "Grant topic",
+   "example": "small business innovation research"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.modernmustardseed/funding-finder"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} how to apply eligibility",
+    "servers": [
+     "exa"
+    ],
+    "each": true,
+    "max": 1
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2061
+  }
+ },
+ {
+  "id": "science-food-check",
+  "title": "Packaged food check",
+  "description": "Open Food Facts details and nutrition and health background for a food product.",
+  "category": "science",
+  "input": {
+   "label": "Food product",
+   "example": "Nutella"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "app.openkrill/food"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} ingredients health",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2470
+  }
+ },
+ {
+  "id": "science-nursing-care-plan",
+  "title": "Nursing care plan",
+  "description": "A student nursing care plan for a condition, plus the latest guidance and research.",
+  "category": "science",
+  "input": {
+   "label": "Condition",
+   "example": "congestive heart failure"
+  },
+  "steps": [
+   {
+    "ask": "Give me a nursing care plan for {input}",
+    "servers": [
+     "com.careplankit/care-plans"
+    ]
+   },
+   {
+    "ask": "{input} nursing guidelines",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} nursing interventions evidence",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2224
+  }
+ },
+ {
+  "id": "country-safety-check",
+  "title": "Is it safe to go? Advice, risks and news",
+  "description": "Climate and disaster risk and the latest travel warnings and news before you book a trip to a country.",
+  "category": "travel",
+  "input": {
+   "label": "Country",
+   "example": "Turkey"
+  },
+  "steps": [
+   {
+    "ask": "Climate and disaster risk warnings for {input}",
+    "servers": [
+     "com.criora/criora"
+    ]
+   },
+   {
+    "ask": "{input} travel warning latest news tourists",
+    "servers": [
+     "keenable",
+     "tanod-web"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3718
+  }
+ },
+ {
+  "id": "destination-guides-then-reviews",
+  "title": "Travel guides, then fresh traveller reports",
+  "description": "Reported travel guides for a destination or activity, then recent traveller write-ups on each guide.",
+  "category": "travel",
+  "input": {
+   "label": "Destination or activity",
+   "example": "hiking in the Dolomites"
+  },
+  "steps": [
+   {
+    "ask": "Find travel guides about {input}",
+    "servers": [
+     "com.meridiandispatch/travel-guides"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} travel tips what to know before you go",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3811
+  }
+ },
+ {
+  "id": "scenic-train-journeys",
+  "title": "Scenic train journeys and how to ride them",
+  "description": "Famous rail routes for a region, then booking tips and traveller advice for each route.",
+  "category": "travel",
+  "input": {
+   "label": "Region",
+   "example": "Europe"
+  },
+  "steps": [
+   {
+    "ask": "Find famous train journeys in {input}",
+    "servers": [
+     "com.trainrouter/atlas"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} train how to book tickets tips",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3516
+  }
+ },
+ {
+  "id": "japan-autumn-leaves",
+  "title": "Autumn foliage spots and when to go",
+  "description": "Forecast peak leaf-colour dates for spots in Japan, then visitor tips for each spot.",
+  "category": "travel",
+  "input": {
+   "label": "City and date",
+   "example": "Kyoto"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "ai.roamtime/foliage"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{title} autumn leaves visiting tips crowds",
+    "servers": [
+     "keenable"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2264
+  }
+ },
+ {
+  "id": "travel-esim-compare",
+  "title": "Travel eSIM shopping",
+  "description": "Compare eSIM data plans for a trip, then check what travellers recommend.",
+  "category": "travel",
+  "input": {
+   "label": "Destination and days",
+   "example": "Japan for 7 days"
+  },
+  "steps": [
+   {
+    "ask": "Search eSIMs for {input}",
+    "servers": [
+     "com.esimoa/esim"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "best travel eSIM {input} recommendations",
+    "servers": [
+     "keenable",
+     "tanod-web"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3205
+  }
+ },
+ {
+  "id": "art-deco-walk",
+  "title": "Art Deco building walk",
+  "description": "Find verified Art Deco buildings in a city, then read more about each building.",
+  "category": "travel",
+  "input": {
+   "label": "City",
+   "example": "Bruxelles"
+  },
+  "steps": [
+   {
+    "ask": "Cherche des bâtiments Art déco à {input}",
+    "servers": [
+     "be.art-deco-belgique/art-deco-belgique"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{title} Art Deco building",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6595
+  }
+ },
+ {
+  "id": "patagonia-tour-scout",
+  "title": "Adventure tour scout (Chile)",
+  "description": "Find guided hiking and adventure tours in Chile and Latin America, then reviews and tips for each.",
+  "category": "travel",
+  "input": {
+   "label": "Place and activity",
+   "example": "hiking tours in Torres del Paine"
+  },
+  "steps": [
+   {
+    "ask": "Search {input}",
+    "servers": [
+     "cl.tuki/travel-mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} review tips",
+    "servers": [
+     "keenable"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4318
+  }
+ },
+ {
+  "id": "norway-activities",
+  "title": "Norway activity finder",
+  "description": "Local experiences in Norway for your group and season, then what visitors say about each.",
+  "category": "travel",
+  "input": {
+   "label": "Place, group and season",
+   "example": "Lofoten for a group of 8 in summer"
+  },
+  "steps": [
+   {
+    "ask": "Find activities in {input}",
+    "servers": [
+     "io.github.slookisen/opplevagent-mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} review",
+    "servers": [
+     "keenable"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3109
+  }
+ },
+ {
+  "id": "move-abroad-brief",
+  "title": "Moving abroad brief",
+  "description": "What a country is like, nomad visa rules and the monthly cost of living.",
+  "category": "travel",
+  "input": {
+   "label": "Country",
+   "example": "Portugal"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "wikexa",
+     "keenable"
+    ],
+    "max": 2
+   },
+   {
+    "ask": "{input} digital nomad visa requirements",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} monthly cost of living expat budget",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3246
+  }
+ },
+ {
+  "id": "salary-goes-furthest",
+  "title": "Where does my salary go furthest?",
+  "description": "Guides to the countries where a US income goes furthest for living, retiring or working remotely.",
+  "category": "travel",
+  "input": {
+   "label": "US dollar income per year",
+   "example": "90,000"
+  },
+  "steps": [
+   {
+    "ask": "best countries to live abroad on ${input} a year cost of living",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "retire or work remotely abroad on ${input} a year",
+    "servers": [
+     "tanod-web"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 998
+  }
+ },
+ {
+  "id": "reaction-and-sound-kit",
+  "title": "Sound effects and memes kit",
+  "description": "Free CC0 sound effects and memes for a theme, for a video, post or game.",
+  "category": "travel",
+  "input": {
+   "label": "Theme",
+   "example": "cat"
+  },
+  "steps": [
+   {
+    "ask": "free CC0 {input} sound effects",
+    "servers": [
+     "com.sfxmint/sounds"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} memes",
+    "servers": [
+     "com.memecub/memecub"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6149
+  }
+ },
+ {
+  "id": "vintage-design-finds",
+  "title": "Second-hand design finds, then their story",
+  "description": "Search curated second-hand design furniture and lighting, then look up the designer and market value of each piece.",
+  "category": "travel",
+  "input": {
+   "label": "Item",
+   "example": "floor lamp"
+  },
+  "steps": [
+   {
+    "ask": "Search second-hand design {input}",
+    "servers": [
+     "com.whoppah/commerce"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} designer value history",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "each": true,
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6846
+  }
+ },
+ {
+  "id": "ai-art-prompt-ideas",
+  "title": "AI art prompt ideas",
+  "description": "Tested AI image prompts and decoded art styles for a visual idea, plus where the style comes from.",
+  "category": "travel",
+  "input": {
+   "label": "Visual idea",
+   "example": "vintage travel poster"
+  },
+  "steps": [
+   {
+    "ask": "Find a tested AI image prompt for {input}",
+    "servers": [
+     "com.promptfrenzy/promptfrenzy"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "Use AIKIZI to search decoded art styles and their prompts for {input}",
+    "servers": [
+     "com.aikizi/mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} design history examples inspiration",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7297
+  }
+ },
+ {
+  "id": "football-rules-explained",
+  "title": "Football rules explained",
+  "description": "Look up a Law of the Game, then background and famous controversies around it.",
+  "category": "travel",
+  "input": {
+   "label": "Rule or term",
+   "example": "offside"
+  },
+  "steps": [
+   {
+    "ask": "What do the Laws of the Game say about {input}?",
+    "servers": [
+     "app.futbolatlas/futbol-atlas"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input}",
+    "servers": [
+     "wikexa",
+     "keenable"
+    ],
+    "max": 2
+   },
+   {
+    "ask": "{input} controversial decision football",
+    "servers": [
+     "keenable",
+     "tanod-web"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4109
+  }
+ },
+ {
+  "id": "guitar-chord-lesson",
+  "title": "Guitar chord lesson",
+  "description": "Easy songs that use a chord, then how to finger it, from guitar lesson sites.",
+  "category": "travel",
+  "input": {
+   "label": "Chord name",
+   "example": "Am7"
+  },
+  "steps": [
+   {
+    "ask": "easy songs that use the {input} guitar chord",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} chord guitar lesson fingering tips",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2490
+  }
+ },
+ {
+  "id": "surf-trip-check",
+  "title": "Surf trip check",
+  "description": "Seven-day wave forecast for a spot, plus weather and local surf advice.",
+  "category": "travel",
+  "input": {
+   "label": "Surf spot or city",
+   "example": "Biarritz"
+  },
+  "steps": [
+   {
+    "ask": "Get surf forecast in {input}",
+    "servers": [
+     "com.globalsurfari/globalsurfari"
+    ]
+   },
+   {
+    "ask": "{input} weather forecast this week",
+    "servers": [
+     "weather-worldwide"
+    ]
+   },
+   {
+    "ask": "{input} surf spots beginners guide",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4303
+  }
+ },
+ {
+  "id": "place-profile",
+  "title": "Place profile: background, weather and tours",
+  "description": "What a destination is known for, its weather, and travel guides to it.",
+  "category": "travel",
+  "input": {
+   "label": "Destination",
+   "example": "Prague"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "wikexa",
+     "keenable"
+    ],
+    "max": 2
+   },
+   {
+    "ask": "{input} weather forecast this week",
+    "servers": [
+     "weather-worldwide"
+    ]
+   },
+   {
+    "ask": "Find travel guides about {input}",
+    "servers": [
+     "com.meridiandispatch/travel-guides"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2572
+  }
+ },
+ {
+  "id": "product-shop-and-reviews",
+  "title": "Find products, then read reviews",
+  "description": "Search products across independent stores and big retailers, then find reviews for each top result.",
+  "category": "business",
+  "input": {
+   "label": "Product to buy",
+   "example": "handmade leather wallet"
+  },
+  "steps": [
+   {
+    "ask": "Search independent stores for {input}",
+    "servers": [
+     "ai.nobi/shop-nobi",
+     "com.trychannel3/shopping"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} review pros and cons",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 5197
+  }
+ },
+ {
+  "id": "affiliate-program-vetting",
+  "title": "Affiliate programs, then real reviews",
+  "description": "Find affiliate programs with strong commissions, then check what affiliates say about each one.",
+  "category": "business",
+  "input": {
+   "label": "Kind of program",
+   "example": "SaaS affiliate programs with 30% recurring commission"
+  },
+  "steps": [
+   {
+    "ask": "Find {input}",
+    "servers": [
+     "cc.bestaffiliateprograms/directory"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} affiliate program review payout experience",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 9415
+  }
+ },
+ {
+  "id": "ga4-fix-guide",
+  "title": "Fix a GA4 or tracking problem",
+  "description": "Practitioner fix guides for an analytics problem, plus official docs and forum discussions.",
+  "category": "business",
+  "input": {
+   "label": "Analytics problem",
+   "example": "GA4 unassigned traffic"
+  },
+  "steps": [
+   {
+    "ask": "Find skills for fixing {input}",
+    "servers": [
+     "com.martechdevs.www/skills"
+    ]
+   },
+   {
+    "ask": "how to fix {input} Google Analytics",
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4756
+  }
+ },
+ {
+  "id": "ai-visibility-tools",
+  "title": "AI search visibility tools",
+  "description": "Compare tools that track how brands show up in AI answers, then check pricing and reviews for each.",
+  "category": "business",
+  "input": {
+   "label": "What you want to track",
+   "example": "AI visibility tracking for brands"
+  },
+  "steps": [
+   {
+    "ask": "Look up {input}",
+    "servers": [
+     "com.citedindex/mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} pricing review",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3092
+  }
+ },
+ {
+  "id": "brand-name-check",
+  "title": "Is this brand name free?",
+  "description": "Check a business name across domains and handles, and search for existing companies using it.",
+  "category": "business",
+  "input": {
+   "label": "Brand name",
+   "example": "Brightloom"
+  },
+  "steps": [
+   {
+    "ask": "Is the name {input} available as a .com domain and npm package?",
+    "servers": [
+     "app.namehound/namehound"
+    ]
+   },
+   {
+    "ask": "{input} company brand",
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4034
+  }
+ },
+ {
+  "id": "trading-card-value",
+  "title": "What is this trading card worth?",
+  "description": "Recent sold prices for a trading card across its printings, then PSA graded price guides.",
+  "category": "business",
+  "input": {
+   "label": "Card",
+   "example": "1999 Pokemon Base Set Charizard"
+  },
+  "steps": [
+   {
+    "ask": "How much is a {input} worth?",
+    "servers": [
+     "com.cardcenteringtool/card-prices"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} PSA graded price guide",
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 5888
+  }
+ },
+ {
+  "id": "company-announcements",
+  "title": "Company announcements and market view",
+  "description": "A listed company's latest news releases and its stock quote.",
+  "category": "business",
+  "input": {
+   "label": "Company",
+   "example": "Shopify"
+  },
+  "steps": [
+   {
+    "ask": "What did {input} announce in its latest news releases?",
+    "servers": [
+     "com.6ix/mcp"
+    ]
+   },
+   {
+    "ask": "{input} stock price today",
+    "servers": [
+     "marketcrew"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2941
+  }
+ },
+ {
+  "id": "creator-sponsor-intel",
+  "title": "YouTube creator sponsor intel",
+  "description": "A growth audit of a YouTube channel, plus who sponsors it and what it charges.",
+  "category": "business",
+  "input": {
+   "label": "YouTube creator handle",
+   "example": "@mkbhd"
+  },
+  "steps": [
+   {
+    "ask": "Audit the YouTube channel {input} and score it",
+    "servers": [
+     "com.dapdip/youtube-growth"
+    ]
+   },
+   {
+    "ask": "{input} YouTube channel sponsorship rates",
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1886
+  }
+ },
+ {
+  "id": "ad-headline-research",
+  "title": "Ad headlines plus competitor angles",
+  "description": "Draft ad headlines for a product and see what competitors and marketing stats say.",
+  "category": "business",
+  "input": {
+   "label": "Product",
+   "example": "bamboo standing desk"
+  },
+  "steps": [
+   {
+    "ask": "Write 10 ad headlines for a {input}",
+    "servers": [
+     "com.adcreator-ai/generate-ad-headlines"
+    ]
+   },
+   {
+    "ask": "{input} best selling brands marketing",
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6238
+  }
+ },
+ {
+  "id": "sales-tool-finder",
+  "title": "Sales and HR tool finder",
+  "description": "Find recruiting or sales software with prices and alternatives, then reviews for each tool.",
+  "category": "business",
+  "input": {
+   "label": "Tool type",
+   "example": "applicant tracking systems"
+  },
+  "steps": [
+   {
+    "ask": "Search Work Insiders for {input}",
+    "servers": [
+     "com.workinsiders/directory"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} pricing reviews",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2023
+  }
+ },
+ {
+  "id": "perfume-finder",
+  "title": "Perfume finder and reviews",
+  "description": "Scent profile and similar fragrances for a perfume, then reviews and where to buy.",
+  "category": "business",
+  "input": {
+   "label": "Fragrance",
+   "example": "Creed Aventus"
+  },
+  "steps": [
+   {
+    "ask": "What's the scent profile of {input}?",
+    "servers": [
+     "com.scentverdict/fragrances"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} fragrance review longevity price",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6903
+  }
+ },
+ {
+  "id": "guitar-pedal-buying",
+  "title": "Guitar pedal buying guide",
+  "description": "Find pedals with specs and prices, then reviews and demos for each.",
+  "category": "business",
+  "input": {
+   "label": "Pedal type",
+   "example": "Boss DS-1 distortion"
+  },
+  "steps": [
+   {
+    "ask": "Search for {input} pedals",
+    "servers": [
+     "com.pedalbro/pedalbro"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} pedal review",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2524
+  }
+ },
+ {
+  "id": "marketing-stat-checker",
+  "title": "Check a marketing statistic",
+  "description": "Check a marketing claim against primary sources, then find the original research behind it.",
+  "category": "business",
+  "input": {
+   "label": "Marketing claim or topic",
+   "example": "email marketing ROI"
+  },
+  "steps": [
+   {
+    "ask": "Check stat about {input}",
+    "servers": [
+     "com.groundedkit/marketing-stats"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} original study source",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1745
+  }
+ },
+ {
+  "id": "growth-podcast-insights",
+  "title": "Growth advice from podcasts",
+  "description": "Podcast episodes on a marketing or growth topic, then the key takeaways from each.",
+  "category": "business",
+  "input": {
+   "label": "Topic",
+   "example": "product-led growth"
+  },
+  "steps": [
+   {
+    "ask": "Search podcast episodes about {input}",
+    "servers": [
+     "com.podlexicon/podlexicon"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} podcast episode key takeaways",
+    "each": true,
+    "servers": [
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 8951
+  }
+ },
+ {
+  "id": "brazil-deals",
+  "title": "Brazil deal hunter",
+  "description": "Active promotions and coupons in Brazilian stores for a product, plus reviews.",
+  "category": "business",
+  "input": {
+   "label": "Product",
+   "example": "air fryers"
+  },
+  "steps": [
+   {
+    "ask": "Find active deals on {input} in Brazil",
+    "servers": [
+     "ai.pechincha/deals"
+    ]
+   },
+   {
+    "ask": "melhores {input} avaliação",
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1875
+  }
+ },
+ {
+  "id": "python-lib-picker",
+  "title": "Find a maintained library, then check its docs",
+  "description": "Finds actively maintained open-source libraries for a job, then pulls up the documentation and usage for each.",
+  "category": "developer",
+  "input": {
+   "label": "What you need to do",
+   "example": "extract text and tables from PDF files in Python"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.leewaystudio/code-synapse"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} usage example documentation",
+    "each": true,
+    "servers": [
+     "context7",
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6497
+  }
+ },
+ {
+  "id": "website-health-check",
+  "title": "Website health check",
+  "description": "Checks a domain's DNS records, security certificate expiry and email spoofing protection in one go.",
+  "category": "developer",
+  "input": {
+   "label": "Domain",
+   "example": "github.com"
+  },
+  "steps": [
+   {
+    "ask": "Look up the DNS records for {input}",
+    "servers": [
+     "io.github.lazymac2x/domain-intel"
+    ]
+   },
+   {
+    "ask": "When does the TLS certificate for {input} expire?",
+    "servers": [
+     "io.github.hal-boring-utils/expiry-watch"
+    ]
+   },
+   {
+    "ask": "Can the domain {input} be email-spoofed?",
+    "servers": [
+     "io.github.Integrity-Os/deliverability-doctor"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3917
+  }
+ },
+ {
+  "id": "aws-cost-saver",
+  "title": "Cut a cloud bill: guides and free tiers",
+  "description": "Collects practical cost-saving articles, the official AWS guidance, and free tiers or credits you could use.",
+  "category": "developer",
+  "input": {
+   "label": "Cloud service",
+   "example": "AWS Lambda"
+  },
+  "steps": [
+   {
+    "ask": "Search for {input} cost articles",
+    "servers": [
+     "io.github.karandaid/karandeepsingh-blog"
+    ]
+   },
+   {
+    "ask": "{input} pricing optimization best practices",
+    "servers": [
+     "aws-knowledge"
+    ]
+   },
+   {
+    "ask": "free tiers for {input}",
+    "servers": [
+     "exa",
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4391
+  }
+ },
+ {
+  "id": "open-source-landscape",
+  "title": "Open-source landscape for a topic",
+  "description": "Evidence-backed open-source project picks for a topic, plus roundup articles comparing the options.",
+  "category": "developer",
+  "input": {
+   "label": "Topic",
+   "example": "vector databases"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "io.github.haocn-ops/git-top"
+    ]
+   },
+   {
+    "ask": "best open source {input} compared",
+    "servers": [
+     "exa",
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3317
+  }
+ },
+ {
+  "id": "site-ai-and-access-audit",
+  "title": "Is my site ready for AI and everyone?",
+  "description": "Checks whether AI crawlers and AI search can read a website, and scores its accessibility.",
+  "category": "developer",
+  "input": {
+   "label": "Domain",
+   "example": "allbirds.com"
+  },
+  "steps": [
+   {
+    "ask": "Will {input} let AI crawlers fetch its pages?",
+    "servers": [
+     "io.github.taylorsmithgg/crawl-census"
+    ]
+   },
+   {
+    "ask": "Can ChatGPT and Perplexity read {input}?",
+    "servers": [
+     "io.rankli.www/ai-search-readiness"
+    ]
+   },
+   {
+    "ask": "Audit https://{input} for WCAG accessibility issues",
+    "servers": [
+     "io.github.lazymac2x/a11y-scorer"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6437
+  }
+ },
+ {
+  "id": "ai-concept-explainer",
+  "title": "Explain an AI concept, with examples",
+  "description": "Defines an AI or prompting term, then pulls plain-language explanations and worked examples for related terms.",
+  "category": "developer",
+  "input": {
+   "label": "Concept",
+   "example": "chain-of-thought prompting"
+  },
+  "steps": [
+   {
+    "ask": "What is {input}?",
+    "servers": [
+     "com.protologue/protologue"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} explained with examples",
+    "each": true,
+    "servers": [
+     "exa",
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7912
+  }
+ },
+ {
+  "id": "find-mcp-and-skills",
+  "title": "Find MCP servers and agent skills for a task",
+  "description": "Searches MCP server and agent skill directories for tools that do what you need.",
+  "category": "developer",
+  "input": {
+   "label": "What you want your AI agent to do",
+   "example": "query PostgreSQL databases"
+  },
+  "steps": [
+   {
+    "ask": "Find MCP servers that can {input}",
+    "servers": [
+     "ai.everymcp/every-mcp",
+     "dev.plugandship/plugandship-mcp"
+    ]
+   },
+   {
+    "ask": "Search for agent skills that {input}",
+    "servers": [
+     "ai.sharebench/registry",
+     "io.911fund.skills/directory"
+    ]
+   },
+   {
+    "ask": "best MCP server to {input}",
+    "servers": [
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7550
+  }
+ },
+ {
+  "id": "api-finder",
+  "title": "Find an API for a job, then read its docs",
+  "description": "Searches an agent-readable registry for APIs and tools that do a job, then looks up pricing and documentation for each.",
+  "category": "developer",
+  "input": {
+   "label": "What the API should do",
+   "example": "converts currencies"
+  },
+  "steps": [
+   {
+    "ask": "Search the registry for a tool that {input}",
+    "servers": [
+     "com.wellknownhq/wellknown"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} API documentation pricing",
+    "each": true,
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 8777
+  }
+ },
+ {
+  "id": "claude-code-howto",
+  "title": "Claude Code how-to",
+  "description": "Official docs, community guides and agent skills for a Claude Code feature.",
+  "category": "developer",
+  "input": {
+   "label": "Feature or task",
+   "example": "hooks"
+  },
+  "steps": [
+   {
+    "ask": "Claude Code {input} guide examples",
+    "servers": [
+     "exa",
+     "keenable"
+    ]
+   },
+   {
+    "ask": "Search for agent skills about Claude Code {input}",
+    "servers": [
+     "io.911fund.skills/directory",
+     "com.skillmd/skillmd"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 9606
+  }
+ },
+ {
+  "id": "cve-full-brief",
+  "title": "CVE brief: severity, exploitation, fixes",
+  "description": "Look up a vulnerability ID, then find the fixed version, patches and workarounds.",
+  "category": "security",
+  "input": {
+   "label": "CVE ID",
+   "example": "CVE-2021-44228"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.cve-security/cve-intelligence"
+    ],
+    "max": 2
+   },
+   {
+    "ask": "{title} patch fixed version workaround advisory",
+    "each": true,
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 2
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2018
+  }
+ },
+ {
+  "id": "phishing-domain-check",
+  "title": "Is this website a scam?",
+  "description": "Check a suspicious domain for phishing tricks, see its certificate and DNS history, and find scam reports about it.",
+  "category": "security",
+  "input": {
+   "label": "Suspicious domain",
+   "example": "paypal-account-verify.com"
+  },
+  "steps": [
+   {
+    "ask": "Is this URL risky: {input}",
+    "servers": [
+     "io.github.insivotron/agent-utility-mcp"
+    ]
+   },
+   {
+    "ask": "domain records for {input}",
+    "servers": [
+     "com.scanmalware.mcp/scanmalware-mcp"
+    ]
+   },
+   {
+    "ask": "is {input} a scam website phishing",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 5212
+  }
+ },
+ {
+  "id": "security-website-health-check",
+  "title": "Website up-and-secure check",
+  "description": "Is a site up right now, and how does it score on a basic security scan.",
+  "category": "security",
+  "input": {
+   "label": "Website domain",
+   "example": "wikipedia.org"
+  },
+  "steps": [
+   {
+    "ask": "Is https://www.{input} down right now?",
+    "servers": [
+     "io.ohsnap/mcp"
+    ]
+   },
+   {
+    "ask": "Run a free security scan on {input}",
+    "servers": [
+     "io.github.gweber/siteguardian"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2407
+  }
+ },
+ {
+  "id": "website-legal-seo-audit",
+  "title": "Website legal and SEO audit",
+  "description": "Check which legal pages a site needs, audit its page markup and search tags, then find fixes for what is missing.",
+  "category": "security",
+  "input": {
+   "label": "Website URL",
+   "example": "https://www.patagonia.com"
+  },
+  "steps": [
+   {
+    "ask": "Check {input} for legal compliance",
+    "servers": [
+     "io.github.marcosnovo/lexvibe"
+    ]
+   },
+   {
+    "ask": "Audit {input} for HTML and SEO issues",
+    "servers": [
+     "io.github.AKzar1el/mcp-web-validator"
+    ]
+   },
+   {
+    "ask": "website privacy policy cookie banner GDPR requirements checklist",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 8184
+  }
+ },
+ {
+  "id": "vehicle-recall-check",
+  "title": "Car safety recall check",
+  "description": "Look up official recalls for a vehicle, then find news and owner discussion for each recall.",
+  "category": "security",
+  "input": {
+   "label": "Vehicle",
+   "example": "2019 Tesla Model 3"
+  },
+  "steps": [
+   {
+    "ask": "Are there recalls on {input}?",
+    "servers": [
+     "com.plainrecords/us-recalls-food-products-vehicles"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title}",
+    "each": true,
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2124
+  }
+ },
+ {
+  "id": "app-log-finder",
+  "title": "Where an app keeps its logs",
+  "description": "Find the exact folder where an app writes its log files, plus step-by-step troubleshooting help for it.",
+  "category": "security",
+  "input": {
+   "label": "App name",
+   "example": "Slack"
+  },
+  "steps": [
+   {
+    "ask": "Where does {input} write its log files?",
+    "servers": [
+     "app.wherethemlogs/log-locations"
+    ]
+   },
+   {
+    "ask": "{input} troubleshooting collect logs support",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4040
+  }
+ },
+ {
+  "id": "uk-car-running-costs",
+  "title": "UK car running costs",
+  "description": "Typical UK repair costs for a car model, plus common faults and reliability reports from owners.",
+  "category": "security",
+  "input": {
+   "label": "Car model",
+   "example": "Ford Fiesta"
+  },
+  "steps": [
+   {
+    "ask": "How much does a brake pad replacement cost on a {input}",
+    "servers": [
+     "io.github.iwanek86/pricemyrepair-mcp"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} common faults MOT failures reliability",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3687
+  }
+ },
+ {
+  "id": "software-exploited-check",
+  "title": "Is my software on the exploited list?",
+  "description": "Check a product against CISA's list of vulnerabilities attackers are actively using, look up related CVEs, then find the latest patch advisories.",
+  "category": "security",
+  "input": {
+   "label": "Software or product",
+   "example": "Apache Struts"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "app.vercel.exploitwatch-kappa/exploitwatch"
+    ]
+   },
+   {
+    "ask": "{input}",
+    "servers": [
+     "io.echelongraph/echelongraph-mcp"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} security advisory patch latest",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4741
+  }
+ },
+ {
+  "id": "find-safe-mcp-server",
+  "title": "Find a safe MCP server for a job",
+  "description": "Search several MCP server directories for a task and see their trust scores and risk grades side by side, then read independent security reviews.",
+  "category": "security",
+  "input": {
+   "label": "What you need it to do",
+   "example": "PDF"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "io.github.mcpexplorer/mcpexplorer",
+     "com.policylayer/registry",
+     "com.openforallofus/agora"
+    ]
+   },
+   {
+    "ask": "best {input} MCP server security review trust",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3435
+  }
+ },
+ {
+  "id": "ai-crawler-policy",
+  "title": "Who may crawl this site? AI bot rules",
+  "description": "Which AI crawlers exist and how they treat robots.txt, and whether a site blocks GPTBot, ClaudeBot and others.",
+  "category": "security",
+  "input": {
+   "label": "Website domain",
+   "example": "nytimes.com"
+  },
+  "steps": [
+   {
+    "ask": "Which AI crawlers obey robots.txt?",
+    "servers": [
+     "com.whosthatbot/botcard"
+    ],
+    "max": 5
+   },
+   {
+    "ask": "{input} robots.txt block AI crawlers GPTBot ClaudeBot",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4678
+  }
+ },
+ {
+  "id": "compliance-auditor-finder",
+  "title": "Find ISO 27001 / SOC 2 help",
+  "description": "Find security compliance consultants and auditors for a standard and region, then read how to choose one and what it costs.",
+  "category": "security",
+  "input": {
+   "label": "Standard and region",
+   "example": "ISO 27001 consultancies in Germany"
+  },
+  "steps": [
+   {
+    "ask": "Find {input}",
+    "servers": [
+     "com.ismsdirectory/isms-directory"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "how to choose and cost of {input}",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3381
+  }
+ },
+ {
+  "id": "federal-contractor-background",
+  "title": "Company background check",
+  "description": "See a company's US government contract awards, then search for lawsuits and fraud reports, and its latest news.",
+  "category": "security",
+  "input": {
+   "label": "Company name",
+   "example": "Palantir"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "dev.hatchloop/company-verification"
+    ]
+   },
+   {
+    "ask": "{input} lawsuits fraud investigation complaints",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} company news this month",
+    "servers": [
+     "tanod-web",
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 8551
+  }
+ },
+ {
+  "id": "career-reality-check",
+  "title": "Career reality check: daily work and pay",
+  "description": "What a job really involves day to day and what it typically pays.",
+  "category": "learning",
+  "input": {
+   "label": "Job title",
+   "example": "paralegal"
+  },
+  "steps": [
+   {
+    "ask": "what does a {input} do day to day skills needed",
+    "servers": [
+     "exa"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} average salary",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2324
+  }
+ },
+ {
+  "id": "papers-then-explainers",
+  "title": "Research reviews, then related studies",
+  "description": "Find research reviews on a topic on PubMed, then related studies and full texts for each one.",
+  "category": "learning",
+  "input": {
+   "label": "Topic",
+   "example": "spaced repetition"
+  },
+  "steps": [
+   {
+    "ask": "{input} review",
+    "servers": [
+     "pubmed-community"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title} explained summary",
+    "each": true,
+    "servers": [
+     "keenable"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2564
+  }
+ },
+ {
+  "id": "pdf-read-explain",
+  "title": "Read a PDF or paper link and get context",
+  "description": "Turns a PDF or paper link into readable text, then finds explainers and discussion about it.",
+  "category": "learning",
+  "input": {
+   "label": "PDF or article link",
+   "example": "https://arxiv.org/pdf/1706.03762"
+  },
+  "steps": [
+   {
+    "ask": "Extract this PDF to Markdown: {input}",
+    "servers": [
+     "page.doc/pdf-extract"
+    ]
+   },
+   {
+    "ask": "explain {input}",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4033
+  }
+ },
+ {
+  "id": "claude-api-learn",
+  "title": "Learn a Claude API feature",
+  "description": "The official Claude documentation on a feature, plus tutorials and real examples from the web.",
+  "category": "learning",
+  "input": {
+   "label": "Claude API feature",
+   "example": "tool use"
+  },
+  "steps": [
+   {
+    "ask": "How do I use {input} with the Claude API?",
+    "servers": [
+     "com.claude.platform/docs"
+    ]
+   },
+   {
+    "ask": "{input} Claude API tutorial example",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2099
+  }
+ },
+ {
+  "id": "estate-docs-by-state",
+  "title": "Legal documents a state requires",
+  "description": "Which estate-planning documents your state requires, plus plain-English guides to getting them done.",
+  "category": "learning",
+  "input": {
+   "label": "US state",
+   "example": "Texas"
+  },
+  "steps": [
+   {
+    "ask": "What documents does {input} require for estate planning?",
+    "servers": [
+     "co.finalpeace/estate-planning"
+    ]
+   },
+   {
+    "ask": "{input} will and power of attorney requirements witnesses notary",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3469
+  }
+ },
+ {
+  "id": "llc-dissolve-guide",
+  "title": "Close a company: state fees and forms",
+  "description": "Exact state fees and forms for dissolving an LLC, then guidance on the steps people forget.",
+  "category": "learning",
+  "input": {
+   "label": "US state",
+   "example": "Delaware"
+  },
+  "steps": [
+   {
+    "ask": "What does it take to dissolve an LLC in {input}?",
+    "servers": [
+     "com.exitcleanly/dissolution"
+    ]
+   },
+   {
+    "ask": "dissolve LLC in {input} checklist final tax return",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1316
+  }
+ },
+ {
+  "id": "ai-engineering-archive",
+  "title": "Catch up on an AI engineering topic",
+  "description": "Curated AI-engineering coverage and essays on a topic, plus papers and recent articles.",
+  "category": "learning",
+  "input": {
+   "label": "AI topic",
+   "example": "Claude Code"
+  },
+  "steps": [
+   {
+    "ask": "Search the archive for coverage of {input}",
+    "servers": [
+     "com.newruntime/archive"
+    ]
+   },
+   {
+    "ask": "Search The Durability Curve for essays on {input}",
+    "servers": [
+     "com.durabilitycurve/archive"
+    ]
+   },
+   {
+    "ask": "{input} explained",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4119
+  }
+ },
+ {
+  "id": "notary-exam-prep",
+  "title": "Exam prep: practice questions and study guides",
+  "description": "Real practice questions for a licensing exam, plus study guides and tips from around the web.",
+  "category": "learning",
+  "input": {
+   "label": "Exam",
+   "example": "California notary public exam"
+  },
+  "steps": [
+   {
+    "ask": "Which exam prep tracks does PassExamHQ offer for the {input}?",
+    "servers": [
+     "com.softician.examprep/notary-exam-prep"
+    ]
+   },
+   {
+    "ask": "{input} study guide tips pass first time",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3848
+  }
+ },
+ {
+  "id": "holiday-time-off",
+  "title": "Plan time off around public holidays",
+  "description": "Upcoming public holidays for a country, plus tips for bridge days and long weekends.",
+  "category": "learning",
+  "input": {
+   "label": "Country",
+   "example": "Germany"
+  },
+  "steps": [
+   {
+    "ask": "When is the next public holiday in {input}?",
+    "servers": [
+     "io.github.physics-star-cat/databutler-calendar"
+    ]
+   },
+   {
+    "ask": "{input} bridge days long weekends best time to take vacation",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4597
+  }
+ },
+ {
+  "id": "ai-failure-modes",
+  "title": "Why do AI systems fail like this?",
+  "description": "A taxonomy of AI failure modes for a problem, then write-ups on how to fix it.",
+  "category": "learning",
+  "input": {
+   "label": "AI problem",
+   "example": "LLM ignoring its instructions"
+  },
+  "steps": [
+   {
+    "ask": "What failure modes cause an {input}?",
+    "servers": [
+     "io.github.elyngved/failmodes"
+    ]
+   },
+   {
+    "ask": "{input} how to fix",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2667
+  }
+ },
+ {
+  "id": "find-ai-helper",
+  "title": "Find the right AI skill or agent for a task",
+  "description": "Search Claude agent and MCP server directories for tools that do a given job.",
+  "category": "learning",
+  "input": {
+   "label": "Task",
+   "example": "code review"
+  },
+  "steps": [
+   {
+    "ask": "Find Claude Code agents for {input} in the HeyClaude directory",
+    "servers": [
+     "io.github.JSONbored/heyclaude"
+    ]
+   },
+   {
+    "ask": "Find MCP servers for {input}",
+    "servers": [
+     "com.mcptoplist/mcptoplist"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3277
+  }
+ },
+ {
+  "id": "book-brief",
+  "title": "Book brief: summary, author and similar reads",
+  "description": "What a book is about, who wrote it, and what to read next.",
+  "category": "learning",
+  "input": {
+   "label": "Book title",
+   "example": "Atomic Habits"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "wikexa",
+     "keenable"
+    ]
+   },
+   {
+    "ask": "{input} book summary key takeaways",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "books similar to {input}",
+    "servers": [
+     "exa",
+     "tanod-web"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4438
+  }
+ },
+ {
+  "id": "learn-topic-kit",
+  "title": "Learn a topic: overview, videos and courses",
+  "description": "A quick explainer, YouTube tutorials and the best free courses for anything you want to learn.",
+  "category": "learning",
+  "input": {
+   "label": "What do you want to learn?",
+   "example": "Rust programming"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "wikexa",
+     "keenable"
+    ]
+   },
+   {
+    "ask": "Search YouTube for {input} tutorial for beginners",
+    "servers": [
+     "io.github.eteleieto/lection-mcp"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "best free course to learn {input}",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3538
+  }
+ },
+ {
+  "id": "lawn-care-plan",
+  "title": "Lawn care plan for your state",
+  "description": "A month-by-month lawn care guide for your state, plus seasonal tips and university extension advice.",
+  "category": "everyday",
+  "input": {
+   "label": "State or region",
+   "example": "Ohio"
+  },
+  "steps": [
+   {
+    "ask": "When should I fertilize my lawn in {input}?",
+    "servers": [
+     "center.lawncare/lawncare-center"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "lawn care tips {input} this season mistakes to avoid",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} university extension lawn care guide grass type watering",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3030
+  }
+ },
+ {
+  "id": "moving-cost-planner",
+  "title": "Plan and price a home move",
+  "description": "Moving guides and typical costs, then current tips for saving money on movers.",
+  "category": "everyday",
+  "input": {
+   "label": "Type of move",
+   "example": "2-bedroom home move"
+  },
+  "steps": [
+   {
+    "ask": "How much does a {input} cost?",
+    "servers": [
+     "com.haulest/haulest"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} cost average movers tips save money checklist",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2301
+  }
+ },
+ {
+  "id": "cancel-subscription",
+  "title": "Cancel a subscription step by step",
+  "description": "How to cancel a subscription service, where it is billed, and what people say about the process.",
+  "category": "everyday",
+  "input": {
+   "label": "Service",
+   "example": "Adobe Creative Cloud"
+  },
+  "steps": [
+   {
+    "ask": "How do I cancel my {input} subscription?",
+    "servers": [
+     "io.stackcut/stackcut"
+    ]
+   },
+   {
+    "ask": "cancel {input} subscription early termination fee refund",
+    "servers": [
+     "keenable"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1663
+  }
+ },
+ {
+  "id": "procedure-cost-check",
+  "title": "What does a medical procedure cost",
+  "description": "Typical prices and billing codes for a procedure in your state, plus how to get a lower price.",
+  "category": "everyday",
+  "input": {
+   "label": "Procedure and state",
+   "example": "colonoscopy in Connecticut"
+  },
+  "steps": [
+   {
+    "ask": "How much does a {input} cost?",
+    "servers": [
+     "io.github.costkits/costkits-mcp"
+    ]
+   },
+   {
+    "ask": "{input} cost without insurance cash price how to lower",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4846
+  }
+ },
+ {
+  "id": "things-to-do-tonight",
+  "title": "Things to do in a city, plus the weather",
+  "description": "Bookable tours and experiences in a city, the forecast, and what's on this week.",
+  "category": "everyday",
+  "input": {
+   "label": "City",
+   "example": "London"
+  },
+  "steps": [
+   {
+    "ask": "What's on tonight in {input}?",
+    "servers": [
+     "io.github.tickadoo/tickadoo-mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "weather forecast {input}",
+    "servers": [
+     "weather-worldwide"
+    ]
+   },
+   {
+    "ask": "best things to do in {input} this week",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 5493
+  }
+ },
+ {
+  "id": "perfume-shortlist",
+  "title": "Perfume shortlist, reviews and dupes",
+  "description": "Search a big fragrance index by scent style, then see expert reviews and cheaper lookalikes.",
+  "category": "everyday",
+  "input": {
+   "label": "Scent style",
+   "example": "fresh citrus"
+  },
+  "steps": [
+   {
+    "ask": "Search for {input} perfumes",
+    "servers": [
+     "com.10ml/perfume-finder"
+    ]
+   },
+   {
+    "ask": "best {input} perfumes review longevity",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} perfume dupes cheaper alternatives",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3933
+  }
+ },
+ {
+  "id": "youth-coach-playbook",
+  "title": "Youth coaching playbook",
+  "description": "Advice from an experienced soccer coach, plus practice plans and drills from the web.",
+  "category": "everyday",
+  "input": {
+   "label": "Coaching topic",
+   "example": "small-sided games for youth soccer"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.360tft/coaching-brain"
+    ]
+   },
+   {
+    "ask": "{input} practice plan drills for kids",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} common mistakes coaches make",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4220
+  }
+ },
+ {
+  "id": "book-picks",
+  "title": "Best books on a topic, recommended by experts",
+  "description": "Books that well-known people recommend on a topic, plus reviews and summaries of the top picks.",
+  "category": "everyday",
+  "input": {
+   "label": "Topic",
+   "example": "investing"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "com.mostrecommendedbooks/books"
+    ]
+   },
+   {
+    "ask": "best books about {input} review summary",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3052
+  }
+ },
+ {
+  "id": "dance-night-out",
+  "title": "Plan a salsa night out",
+  "description": "Salsa and bachata nights in a city, the forecast, and beginner-friendly clubs.",
+  "category": "everyday",
+  "input": {
+   "label": "City",
+   "example": "Barcelona"
+  },
+  "steps": [
+   {
+    "ask": "Find salsa events in {input} this weekend",
+    "servers": [
+     "com.salsavida/mcp"
+    ]
+   },
+   {
+    "ask": "weather forecast {input}",
+    "servers": [
+     "weather-worldwide"
+    ]
+   },
+   {
+    "ask": "best salsa clubs in {input} for beginners",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2999
+  }
+ },
+ {
+  "id": "city-tech-events",
+  "title": "Tech and startup events in a city",
+  "description": "Meetups and events this month in a city, then more detail on each one.",
+  "category": "everyday",
+  "input": {
+   "label": "City",
+   "example": "Bangalore"
+  },
+  "steps": [
+   {
+    "ask": "What tech events are happening in {input} this month?",
+    "servers": [
+     "io.github.himanshusaleria/events-mcp"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{title}",
+    "each": true,
+    "servers": [
+     "keenable",
+     "exa"
+    ]
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 6298
+  }
+ },
+ {
+  "id": "pet-health-guides-br",
+  "title": "Guias de saúde para pets",
+  "description": "Guias de saúde e adoção de cães e gatos, mais orientações de veterinários sobre o mesmo assunto.",
+  "category": "everyday",
+  "input": {
+   "label": "Assunto",
+   "example": "vacinas para cães"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "br.com.adoteca/adoteca"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} calendário orientações veterinário",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 2077
+  }
+ },
+ {
+  "id": "scuba-tank-guide",
+  "title": "Pick a scuba tank",
+  "description": "Specs, weight and buoyancy of dive cylinders by size, plus advice on aluminum versus steel.",
+  "category": "everyday",
+  "input": {
+   "label": "Cylinder size (cubic feet)",
+   "example": "80"
+  },
+  "steps": [
+   {
+    "ask": "{input}",
+    "servers": [
+     "app.divekit/mcp"
+    ]
+   },
+   {
+    "ask": "{input} cubic foot scuba tank aluminum vs steel which to buy",
+    "servers": [
+     "keenable",
+     "exa"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 4306
+  }
+ },
+ {
+  "id": "tannlege-finn",
+  "title": "Finn tannlege i byen din",
+  "description": "Tannklinikker i byen din, pluss regler for refusjon fra Helfo.",
+  "category": "everyday",
+  "input": {
+   "label": "By",
+   "example": "Trondheim"
+  },
+  "steps": [
+   {
+    "ask": "Finn tannlege i {input} som tar imot nye pasienter",
+    "servers": [
+     "io.github.slookisen/finn-tannlege-mcp"
+    ]
+   },
+   {
+    "ask": "Helfo refusjon tannbehandling hvem har rett",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 3833
+  }
+ },
+ {
+  "id": "lokal-mat-tur",
+  "title": "Lokal mat og gårdsbutikker",
+  "description": "Lokale matprodusenter og gårdsbutikker i et område, pluss opplevelser og turtips.",
+  "category": "everyday",
+  "input": {
+   "label": "Område",
+   "example": "Hardanger"
+  },
+  "steps": [
+   {
+    "ask": "Finn lokale produsenter i {input}",
+    "servers": [
+     "io.github.slookisen/lokal-mcp"
+    ]
+   },
+   {
+    "ask": "{input} gårdsbutikk matopplevelser besøk",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   },
+   {
+    "ask": "{input} lokalmat reiseliv",
+    "servers": [
+     "exa"
+    ],
+    "max": 3
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 7076
+  }
+ },
+ {
+  "id": "rescue-story-ideas",
+  "title": "Pet rescue stories and ways to help",
+  "description": "Real animal-rescue stories from charities, plus how to volunteer or donate.",
+  "category": "everyday",
+  "input": {
+   "label": "Cause",
+   "example": "animal rescue"
+  },
+  "steps": [
+   {
+    "ask": "Find charity stories about {input} I could make a video about",
+    "servers": [
+     "com.getstorra/creators"
+    ],
+    "max": 3
+   },
+   {
+    "ask": "{input} charity volunteer donate how to help",
+    "servers": [
+     "keenable"
+    ],
+    "max": 4
+   }
+  ],
+  "tested": {
+   "on": "2026-10-22",
+   "ms": 1721
+  }
+ }
+]
