@@ -5,6 +5,8 @@
   'use strict';
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const EXAMPLES = ['The Eiffel Tower is 330 meters tall', 'Mount Everest is 9,500 meters high', 'The default port for PostgreSQL is 5432', 'Saturn is the largest planet in the Solar System', 'The human body has 206 bones', 'Thomas Edison invented the telephone'];
+  // (the same labels as the results page: a preprint or a package page is not "Official")
+  const KIND = { official: 'Official', primary: 'Primary source', own: 'Official site', package: 'Package page', preprint: 'Preprint' };
   const GROUPS = [
     ['supports', 'Say the same'],
     ['differs', 'Say something different'],
@@ -55,7 +57,7 @@
           const list = ev.filter((e) => e.stance === k);
           if (!list.length) return '';
           const items = list
-            .map((e) => `<li class="ck-src"><blockquote>${mark(e.sentence, e.figure || e.other)}</blockquote><p class="ck-cite">${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source)}</a>` : esc(e.source)}${e.kind ? ` <span class="src-kind" data-kind="${esc(e.kind)}">${e.kind === 'primary' ? 'Primary source' : 'Official'}</span>` : ''}${e.via && e.via !== e.source ? ` <span>via ${esc(e.via)}</span>` : ''}${e.other ? ` <span>names ${esc(e.other)}</span>` : ''}</p></li>`)
+            .map((e) => `<li class="ck-src"><blockquote>${mark(e.sentence, e.figure || e.other)}</blockquote><p class="ck-cite">${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source)}</a>` : esc(e.source)}${KIND[e.kind] ? ` <span class="src-kind" data-kind="${esc(e.kind)}">${KIND[e.kind]}</span>` : ''}${e.via && e.via !== e.source ? ` <span>via ${esc(e.via)}</span>` : ''}${e.other ? ` <span>names ${esc(e.other)}</span>` : ''}</p></li>`)
             .join('');
           const body = `<ul class="ck-list">${items}</ul>`;
           return k === 'mentions'

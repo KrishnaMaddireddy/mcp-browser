@@ -22,6 +22,9 @@ export function figuresOf(text) {
   for (const m of src.matchAll(NUM)) {
     let value = Number(m[1].replace(/,/g, ''));
     if (!Number.isFinite(value)) continue;
+    // "5G", "3D", "4K": a name glued to capitals, not grams or kelvin
+    const glued = /^[A-Z]{1,2}\b/.exec(src.slice(m.index + m[1].length));
+    if (glued && !/^(?:C|F|M|B|T|GB|MB|KB|TB|GW|MW|KW|W|V|Hz|MPa|kPa)$/.test(glued[0])) continue;
     const word = (m[2] || '').split(/\s/)[0];
     let unit = '';
     let raw = m[1];
@@ -35,20 +38,42 @@ export function figuresOf(text) {
     } else if (/^(?:%|percent|per cent)$/i.test(m[2] || '')) {
       unit = '%';
       raw = m[0].trim();
+    } else if (/^(?:degrees?|°)$/i.test(word) || /^°[CF]$/i.test(word)) {
+      // "100 degrees Celsius", "212°F": a temperature
+      const t = /^°([CF])$/i.exec(word)?.[1] || /^\s*(?:degrees?\s+|°\s*)?(celsius|fahrenheit|c|f)\b/i.exec(src.slice(m.index + m[1].length).replace(/^\s*(?:degrees?|°)/i, ''))?.[1];
+      if (t) {
+        unit = t[0].toLowerCase() === 'c' ? 'c' : 'f';
+        raw = `${m[1]} °${unit.toUpperCase()}`;
+      }
     } else if (word && (unitOf(m[2] || '') || unitOf(word) || COUNTS.has(word.toLowerCase()))) {
       unit = (unitOf(m[2] || '') ? m[2] : word).toLowerCase();
       raw = `${m[1]} ${unit}`;
     }
     const year = !unit && !scale && /^(?:1[5-9]|20)\d\d$/.test(m[1]);
+    // A number that is part of a name isn't a measurement: "Windows 11", "iPhone 15", "COVID-19",
+    // "F-35", "5G", "S&P 500", "Apollo 11", "June 5", "14:00".
+    if (!unit && !scale && !year && isNameNumber(src, m.index, m[1].length)) continue;
     // (end: after the unit or scale word, else right after the number, so the next word is what's counted)
     out.push({ value, unit, raw: raw.trim(), year, at: m.index, end: m.index + (unit || scale ? m[0].length : m[1].length) });
   }
-  return out;
+  // "two moons": counts in words, marked so they're only compared as counts of a named thing.
+  for (const m of src.matchAll(NUMBER_WORDS)) out.push({ value: WORD_VALUE[m[1].toLowerCase()], unit: '', raw: m[1], year: false, at: m.index, end: m.index + m[0].length, word: true });
+  return out.sort((a, b) => a.at - b.at);
 }
+export function isNameNumber(src, at, len) {
+  const before = src.slice(Math.max(0, at - 14), at);
+  const after = src.slice(at + len, at + len + 3);
+  return /[A-Za-z]-$/.test(before) || /^[A-Za-z]/.test(after) || /^:\d\d/.test(after) || /\d:$/.test(before) || /(?:^|[\s(])(?:[A-Z][\w&.+'’-]*|[a-z]+[A-Z][\w]*)\s$/.test(before);
+}
+const WORD_VALUE = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, hundred: 100 };
+const NUMBER_WORDS = new RegExp(`\\b(${Object.keys(WORD_VALUE).join('|')})\\b`, 'gi');
 
 /** Two figures say the same thing: equal within 1% (or after converting units, 2%). */
+const toC = (f) => (f.unit === 'f' ? ((f.value - 32) * 5) / 9 : f.value);
 export function sameFigure(a, b, tol = 0.01) {
   if (a.year || b.year) return a.year && b.year && a.value === b.value;
+  // temperatures compare in Celsius
+  if (/^[cf]$/.test(a.unit) && /^[cf]$/.test(b.unit)) return Math.abs(toC(a) - toC(b)) <= Math.max(0.5, Math.abs(toC(a)) * tol);
   const close = (x, y, tol) => (x === 0 ? y === 0 : Math.abs(x - y) / Math.abs(x) <= tol);
   if (a.unit && b.unit && a.unit !== b.unit) {
     const ua = unitOf(a.unit);
@@ -60,21 +85,24 @@ export function sameFigure(a, b, tol = 0.01) {
 }
 
 // Verbs a claim can turn on ("X invented Y"), besides "is / was".
-const RELATIONS = 'invented|discovered|founded|wrote|won|created|directed|painted|built|designed|composed|developed|launched|released|acquired|bought|owns|leads|runs|discovered|introduced|first climbed|signed|killed|married|beat|defeated|hosts|hosted|produces|makes|manufactures';
+const RELATIONS = 'invented|discovered|founded|wrote|won|created|directed|painted|built|designed|composed|developed|launched|released|acquired|bought|owns|leads|runs|discovered|introduced|first climbed|signed|killed|married|beat|defeated|hosts|hosted|produces|makes|manufactures|orbits|orbit|causes|cause|cures|cure|contains|contain|borders|border|assassinated|founded';
 const BE = 'is|was|are|were|has been|became|remains';
 const PAST = /\b(?:was|were|served as|former(?:ly)?|old|previous(?:ly)?|until|once|used to be|had been|historic(?:al|ally)?|imperial|ancient|eternal|onetime|one-time)\b/i;
+const THIS_YEAR = new Date().getFullYear();
 const NEGATION = /\b(?:not|never|no longer|isn't|wasn't|aren't|weren't|didn't|did not|myth|false|misconception|incorrect|wrongly|mistakenly|falsely)\b/i;
 
 /** Word positions in a sentence, lowercased, for "are these words near each other" checks. */
+// "Brasília" and "Brasilia" are one name: accents are folded after words are found.
+const fold = (w) => w.normalize('NFD').replace(/\p{M}/gu, '');
 function wordsAt(s) {
-  return (String(s).toLowerCase().match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []).map((w) => w.replace(/['’]s$/, ''));
+  return (String(s).toLowerCase().match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []).map((w) => fold(w.replace(/['’]s$/, '')));
 }
 /** A claim word matches a sentence word by its stem: "invented" ~ "invention", "discovered" ~ "discovery". */
 const stemOf = (w) => (w.length <= 4 ? w : w.slice(0, Math.max(4, w.length - (w.endsWith('ed') || w.endsWith('es') ? 2 : 1))));
 let EXACT = new Set(); // the claim's proper nouns, while a sentence is judged
 const matches = (claimWord, w) => (Array.isArray(claimWord) ? claimWord.some((c) => matches(c, w)) : w === claimWord || (!EXACT.has(claimWord) && (w === `${claimWord}s` || w === `${claimWord}es`)) || (!EXACT.has(claimWord) && claimWord.length > 3 && w.startsWith(stemOf(claimWord))) || (EXACT.has(claimWord) && w === `${claimWord}s`));
 // Irregular forms, so "won" finds "to win" and "wrote" finds "written".
-const FORMS = { won: ['won', 'win', 'wins', 'winning', 'winner', 'victory', 'champion'], wrote: ['wrote', 'write', 'written', 'author'], built: ['built', 'build'], made: ['made', 'make'], makes: ['make', 'made'], led: ['led', 'lead'], leads: ['lead', 'led'], bought: ['bought', 'buy', 'acquired'], beat: ['beat', 'defeat'], defeated: ['defeat', 'beat'], founded: ['founded', 'founder', 'founding', 'co-founded', 'cofounded'], invented: ['invent', 'inventor', 'invention'], discovered: ['discover', 'discoverer', 'discovery'] };
+const FORMS = { won: ['won', 'win', 'wins', 'winning', 'winner', 'victory', 'champion'], wrote: ['wrote', 'write', 'written', 'author', 'published'], built: ['built', 'build'], made: ['made', 'make'], makes: ['make', 'made'], led: ['led', 'lead'], leads: ['lead', 'led'], bought: ['bought', 'buy', 'acquired'], beat: ['beat', 'defeat'], defeated: ['defeat', 'beat'], founded: ['founded', 'founder', 'founding', 'co-founded', 'cofounded'], invented: ['invent', 'inventor', 'invention'], discovered: ['discover', 'discoverer', 'discovery'] };
 /** The smallest span of sentence words containing every claim word (Infinity if one is missing). */
 function span(ws, need) {
   if (!need.length) return 0;
@@ -137,29 +165,37 @@ const BE_WORD = /^(?:is|was|are|were|remains|remained|became|becomes)$/;
 export function claimParts(claim) {
   const text = String(claim || '').trim().replace(/[.!]+$/, '');
   const all = figuresOf(text);
-  const figures = all.filter((f) => !f.year);
+  let figures = all.filter((f) => !f.year);
   const years = all.filter((f) => f.year);
-  const content = (str) => tokenize(String(str).replace(NUM, ' ')).filter((w) => !FILLER.has(w) && !/^\d/.test(w));
-  const words = [...new Set(content(text))];
+  const content = (str) => tokenize(String(str).replace(NUM, ' ')).map(fold).filter((w) => !FILLER.has(w) && !/^\d/.test(w));
+  // Numbers that are part of names ("Windows 11", "iPhone 15") are words that must match exactly.
+  const nameNums = [...text.matchAll(/\d+/g)].filter((x) => isNameNumber(text, x.index, x[0].length) && !/^(?:1[5-9]|20)\d\d$/.test(x[0])).map((x) => x[0]);
+  const words = [...new Set([...content(text), ...nameNums])];
   // "The Mona Lisa was painted by Leonardo da Vinci" reads as "Leonardo da Vinci painted the Mona Lisa".
   const pass = new RegExp(`^(.{2,80}?)\\s+(?:was|were|is|are|has been|had been)\\s+(${RELATIONS}|painted|written|made|led|composed|directed|discovered|invented|founded|created|built|designed|developed|launched|introduced|acquired|bought|killed|signed)\\s+(?:in\\s+\\d{4}\\s+)?by\\s+(.{2,120}?)(?:\\s+in\\s+\\d{4})?$`, 'i').exec(text);
-  const m = pass ? null : new RegExp(`^(.{2,80}?)\\s+(${BE}|${RELATIONS})\\s+(?:the\\s+|an?\\s+)?(.{2,140})$`, 'i').exec(text);
+  const m = pass ? null : new RegExp(`^(.{2,80}?)\\s+(?:(?:do|does|did)\\s+not\\s+|never\\s+)?(${BE}|${RELATIONS})\\s+(?:the\\s+|an?\\s+)?(.{2,140})$`, 'i').exec(text);
   const subject = pass ? pass[3] : m ? m[1].replace(/^the\s+/i, '') : '';
   const relation = pass ? (pass[2].toLowerCase() === 'written' ? 'wrote' : pass[2].toLowerCase()) : m ? m[2].toLowerCase() : '';
   const object = pass ? pass[1].replace(/^the\s+/i, '') : m ? m[3] : '';
   // Names in the claim match only themselves: "Canada" is not "Canadian".
-  const proper = new Set(tokenize((text.match(/(?<!^)\b\p{Lu}[\p{L}'’-]+/gu) || []).join(' ')));
+  const proper = new Set(tokenize((text.match(/(?<!^)\b\p{Lu}[\p{L}'’-]+/gu) || []).join(' ')).map(fold));
   // "more than 340 m" is a bound, not a value; "206 bones": the thing counted.
   for (const f of figures) {
     const before = text.slice(0, f.at).toLowerCase();
     f.cmp = /\b(?:less than|fewer than|under|below|at most|no more than|up to)\s*\$?$/.test(before) ? 'lt' : /\b(?:more than|over|greater than|in excess of|above|exceeding|upwards of)\s*\$?$/.test(before) ? 'gt' : /\bat least\s*\$?$/.test(before) ? 'ge' : null;
     const after = /^\s+([a-z][a-z-]+)/i.exec(text.slice(f.end));
     f.noun = !f.unit && after && !/^(?:of|in|on|at|to|the|a|an|and|or|is|are|was|were|for|from|by|with|as|per|than|tall|high|long|wide|deep|old|years?)$/i.test(after[1]) ? after[1].toLowerCase() : '';
+    // "46 chromosome pairs": the second noun counts too
+    const after2 = f.noun && /^\s+[a-z][a-z-]+\s+([a-z][a-z-]+)/i.exec(text.slice(f.end));
+    f.noun2 = after2 && /^(?:pairs?|sets?|groups?|teams?|layers?|types?|kinds?)$/i.test(after2[1]) ? after2[1].toLowerCase() : '';
   }
+  // ("one of the largest" isn't a count: a number in words counts only with the thing it counts)
+  figures = figures.filter((f) => !f.word || f.noun);
   // "Canberra is not the capital": the claim says no, so agreeing sources say no too.
   const negated = /\b(?:not|never|no longer|isn't|wasn't|aren't|weren't|didn't|doesn't|don't)\b/i.test(text);
   // "X is the capital of Y": the "of" part, to catch "X is the capital of Z".
-  const of = /^(?:the\s+|an?\s+)?(?:[\p{L}-]+\s+){0,3}?([\p{L}-]+)\s+of\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})$/u.exec(object.replace(/^(?:not|never)\s+/i, '').trim());
+  const of = /^(?:the\s+|an?\s+)?(?:[\p{L}-]+\s+){0,3}?([\p{L}-]+)\s+(of|in|at)\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})$/u.exec(object.replace(/^(?:not|never)\s+/i, '').trim());
+  for (const n of nameNums) proper.add(n);
   return {
     proper,
     text,
@@ -169,13 +205,14 @@ export function claimParts(claim) {
     negated,
     passive: Boolean(pass),
     ofHead: of ? of[1].toLowerCase() : '',
-    ofWhat: of ? of[2] : '',
+    ofPrep: of ? of[2].toLowerCase() : 'of',
+    ofWhat: of ? of[3] : '',
     words: negated ? words.filter((w) => !/^(?:not|never|longer)$/.test(w)) : words,
     subject,
     relation,
     be: Boolean(relation && new RegExp(`^(?:${BE})$`).test(relation)),
     present: /^(?:is|are|remains|owns|leads|runs|hosts|produces|makes|manufactures)$/.test(relation),
-    subjectWords: content(subject),
+    subjectWords: [...content(subject), ...nameNums.filter((n) => new RegExp(`(?:^|\\D)${n}(?:\\D|$)`).test(subject))],
     // "was discovered in 1928 by Fleming": the object's words, without the year
     objectWords: content(object).filter((w) => !/^(?:not|never)$/.test(w)),
     entity: entityOf(text),
@@ -184,9 +221,9 @@ export function claimParts(claim) {
 
 /** How one sentence bears on the claim: { stance, sentence, figure?, other? } or null when it's off the point. */
 // Hearsay, quizzes and stories report a claim, they don't make it ("many people assume Toronto is …").
-const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode))/iu;
+const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have)\b)/iu;
 // A source that calls it a myth or false is saying no.
-const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to)\b/i;
+const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
 const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;
 // Page titles and headlines name a topic; they aren't statements ("Discovery of penicillin - Wikipedia").
 const isHeading = (s) => {
@@ -246,7 +283,7 @@ function judgeCore(parts, sentence) {
     const kindOf = (f) => (f.unit ? unitOf(f.unit)?.kind || f.unit : '');
     // "206 bones" isn't "206 muscles": a counted thing has to be named right after the figure.
     const after = (g) => wordsAt(sentence.slice(g.end, g.end + 60)).slice(0, 3);
-    const comparable = (g) => parts.figures.some((f) => (kindOf(f) ? kindOf(f) === kindOf(g) : f.noun ? !g.unit && after(g).some((w) => matches(f.noun, w)) : !g.unit || sameFigure(f, g, tol)));
+    const comparable = (g) => parts.figures.some((f) => (g.word && !f.noun ? false : kindOf(f) ? kindOf(f) === kindOf(g) : f.noun ? !g.unit && after(g).some((w) => matches(f.noun, w)) && (!f.noun2 || after(g).some((w) => matches(f.noun2, w))) : !g.unit || sameFigure(f, g, tol)));
     // The figure has to be in a clause about the subject ("…, while Germany has 84 million"
     // is Germany's figure, not France's).
     const low = sentence.toLowerCase();
@@ -278,6 +315,14 @@ function judgeCore(parts, sentence) {
       // "is not 300 metres tall": a denial; "was 300 metres tall" (a past value) for an "is" claim.
       if (/\b(?:not|never|no longer|isn['’]t|wasn['’]t|aren['’]t|weren['’]t|nor|rather than|instead of)\b/.test(lead)) return { stance: 'differs', sentence, figure: g.raw };
       if (parts.present && /\b(?:was|were|had been|used to be|formerly|previously|once|until|originally)\b/.test(lead) && !/\b(?:is|are|now|today|currently)\b/.test(lead)) return { stance: 'mentions', sentence };
+      // "nearly 9,000 m" doesn't say 9,000 m
+      if (!parts.approx && !match.cmp && /\b(?:nearly|almost|about|around|approximately|roughly|over|under|more than|less than|short of|close to|up to)\s*\$?$/.test(lead.slice(-24))) return { stance: 'mentions', sentence };
+      // A claim with a year: the figure's clause has to have that year too.
+      if (parts.years.length) {
+        const cl = clauseAtChar(orig, ids, g.at);
+        const ys = figuresOf(sentence).filter((y) => y.year && clauseAtChar(orig, ids, y.at) === cl).map((y) => y.value);
+        if (!ys.some((y) => parts.years.includes(y))) return ys.length ? { stance: 'differs', sentence, figure: String(ys[0]) } : { stance: 'mentions', sentence };
+      }
       return { stance: 'supports', sentence, figure: g.raw };
     }
     // A different figure counts only for the same kind of thing ("long" ↔ length, not an elevation).
@@ -352,12 +397,17 @@ function judgeCore(parts, sentence) {
     if (!parts.subjectWords.some((w) => named.includes(w))) return { stance: 'differs', sentence, other: label[1].trim().replace(/[.,;:]+$/, '') };
   }
   // Which year the sentence ties to the claim: in the object's clause, near it.
+  // (the year right after the verb is its year: "delivered the address in 1863 and was
+  // assassinated in 1865"; one year alone in the clause can sit further away)
   const yearCheck = (anchor) => {
     if (!parts.years.length) return null;
-    const near = ws.map((w, i) => (/^(?:1[5-9]|20)\d\d$/.test(w) && idsAnd[i] === idsAnd[anchor] && Math.abs(i - anchor) <= 8 ? Number(w) : null)).filter((y) => y != null);
-    if (near.some((y) => parts.years.includes(y))) return 'same';
-    const other = near.find((y) => !parts.years.includes(y));
-    return other != null ? String(other) : 'none';
+    const inClause = ws.map((w, i) => (/^(?:1[5-9]|20)\d\d$/.test(w) && idsAnd[i] === idsAnd[anchor] ? i : -1)).filter((i) => i >= 0);
+    const after = inClause.filter((i) => i > anchor && i - anchor <= (inClause.length === 1 ? 14 : 8));
+    const before = inClause.filter((i) => i < anchor && anchor - i <= 8);
+    const pick = after.length ? after[0] : before.length ? before.at(-1) : null;
+    if (pick == null) return 'none';
+    const y = Number(ws[pick]);
+    return parts.years.includes(y) ? 'same' : String(y);
   };
   // Once the subject and object are bound in one clause: the checks that can still say no.
   // A denial in the clause that says it ("…, though he did not realize …" is another clause).
@@ -374,8 +424,17 @@ function judgeCore(parts, sentence) {
     if (/\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|2nd|3rd|4th|5th|one of|among|another|provincial|regional|state|former|deputy|co|second-largest|third-largest|dwarf|minor|ex|sub|pseudo|quasi|so-called|honorary|unofficial|de facto)\b/.test(lead)) return { stance: 'differs', sentence };
     const tail = ws.slice(headAt, headAt + 2 * obj.length + 4).join(' ');
     if (/\b(?:province|state|county|prefecture|region|district|territory)\s+of\b/.test(tail) && !parts.words.some((w) => /^(?:province|state|county|prefecture|region|district|territory)$/.test(w))) return { stance: 'differs', sentence };
-    // "is the capital" vs "was the capital": a former state isn't the present one.
+    // "is the capital" vs "was the capital": a former state isn't the present one, nor
+    // "historically … the capital from 794 to 1868".
     if (parts.present && PAST.test(ws.slice(Math.max(0, headAt - 4), headAt + 1).join(' '))) return { stance: 'differs', sentence };
+    const clauseText = orig.filter((_, i) => ids[i] === ids[headAt]).map((x) => x.w).join(' ');
+    if (parts.present && /\bhistorically\b/i.test(clauseText)) return { stance: 'differs', sentence };
+    const span2 = /\bfrom\s+(\d{3,4})\s+(?:to|until|till|through)\s+(\d{3,4})\b/i.exec(sentence.slice(orig[headAt].at, orig[headAt].at + 160));
+    if (parts.present && span2 && Number(span2[2]) < THIS_YEAR - 1) return { stance: 'differs', sentence, figure: `${span2[1]}–${span2[2]}` };
+    // "the capital city of Kyoto Prefecture", "the largest country after Russia"
+    const right = sentence.slice(orig[headAt].at, orig[headAt].at + 120);
+    if (/^[^,;.]{0,40}?\bof\s+(?:the\s+)?\p{Lu}[\p{L}-]*\s+(?:Prefecture|Province|State|County|Region|District|Oblast|Canton|Governorate|Department)\b/u.test(right) && !parts.words.some((w) => /^(?:prefecture|province|state|county|region|district|oblast|canton|governorate|department)$/.test(w))) return { stance: 'differs', sentence };
+    if (/^[^,;.]{0,60}?\b(?:after|behind|second to|next to|apart from|excluding)\s+(?:the\s+)?\p{Lu}/u.test(right) && !/\b(?:after|behind)\b/i.test(parts.text)) return { stance: 'mentions', sentence };
     const y = yearCheck(headAt);
     if (y && y !== 'same') return y === 'none' ? { stance: 'mentions', sentence } : { stance: 'differs', sentence, figure: y };
     return { stance: 'supports', sentence };
@@ -385,6 +444,18 @@ function judgeCore(parts, sentence) {
   const someoneElse = () => {
     const verb = parts.be ? BE : parts.relation;
     const other = verb && new RegExp(`((?:[A-Z][\\p{L}'’.-]+\\s?){1,4})\\s+(?:${verb})\\b`, 'u').exec(sentence);
+    // ("Neil Armstrong and Buzz Aldrin became …": one of a pair is still the claim's own)
+    // (only a name that says the claim's thing: "Madrid is the capital of Spain", not "The Eiffel Tower was completed")
+    if (other) {
+      const cl = clauseAtChar(orig, ids, other.index + other[0].length - 1);
+      const inCl = obj.filter((n) => ws.some((w, i) => ids[i] === cl && matches(n, w))).length;
+      if (inCl < Math.max(1, Math.ceil(obj.length * 0.6))) return null;
+    }
+    if (other) {
+      const lead = wordsAt(sentence.slice(Math.max(0, other.index - 60), other.index)).slice(-6);
+      const at = lead.findIndex((w) => subj.some((n) => matches(n, w)));
+      if (at >= 0 && lead.slice(at + 1).some((w) => /^(?:and|with)$/.test(w))) return null;
+    }
     // (a name from the claim itself isn't someone else: "…the capital of Australia is…")
     if (other && !wordsAt(other[1]).some((w) => subj.some((n) => matches(n, w)) || parts.words.some((n) => matches(n, w))) && !/^(?:The|This|It|He|She|They|We|His|Her|Their|In|On|At)$/.test(other[1].trim())) return { stance: 'differs', sentence, other: other[1].trim() };
     return null;
@@ -413,8 +484,10 @@ function judgeCore(parts, sentence) {
       // "Lisbon is the capital of Portugal" for "… of Spain"
       if (parts.ofHead) {
         const rest = sentence.slice(orig[p].at);
-        const m = new RegExp(`^(?:[\\p{L}'’.-]+\\s+){0,3}?(?:is|was|are|were|remains)\\s+(?:the\\s+|an?\\s+)?(?:[\\p{L}-]+\\s+){0,3}?${parts.ofHead.replace(/[^\p{L}-]/gu, '')}\\w*(?:\\s+[\\p{L}-]+){0,3}?\\s+of\\s+(?:the\\s+)?(\\p{Lu}[\\p{L}'’.-]*(?:\\s+\\p{Lu}[\\p{L}'’.-]*){0,3})`, 'u').exec(rest);
-        if (m && !tokenize(m[1]).some((w) => tokenize(parts.ofWhat).includes(w))) {
+        const m = new RegExp(`^(?:[\\p{L}'’.-]+\\s+){0,3}?(?:is|was|are|were|remains)\\s+(?:the\\s+|an?\\s+)?(?:[\\p{L}-]+\\s+){0,3}?${parts.ofHead.replace(/[^\p{L}-]/gu, '')}\\w*(?:\\s+[\\p{L}-]+){0,3}?\\s+${parts.ofPrep}\\s+(?:the\\s+)?(\\p{Lu}[\\p{L}'’.-]*(?:\\s+\\p{Lu}[\\p{L}'’.-]*){0,3})`, 'u').exec(rest);
+        // ("born in Ulm, Germany": the place, then the country the claim names)
+        const then = m ? wordsAt(rest.slice(m.index + m[0].length, m.index + m[0].length + 40)).slice(0, 4) : [];
+        if (m && !tokenize(m[1]).map(fold).some((w) => tokenize(parts.ofWhat).map(fold).includes(w)) && !tokenize(parts.ofWhat).map(fold).every((w) => then.includes(w))) {
           // ("the Canadian province of Ontario": the place is Ontario)
           const more = /^\s+[\p{L} ]{0,30}?\bof\s+(?:the\s+)?(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,3})/u.exec(rest.slice(m.index + m[0].length));
           return { stance: 'differs', sentence, other: more ? more[1] : m[1] };
@@ -442,7 +515,7 @@ function judgeCore(parts, sentence) {
         at = i;
       }
       // (with "is", "serves as" or an appositive between: "Kyoto capital of Japan, was the phrase" isn't a statement)
-      const linked = hits && (ws.slice(last + 1, hits[0]).some((w) => BE_WORD.test(w) || w === 'as' || w === 'been') || /^\s*[,(]/.test(sentence.slice(orig[last].at + orig[last].w.length)));
+      const linked = hits && (ws.slice(last + 1, hits[0]).some((w) => BE_WORD.test(w) || /^(?:as|been|lies|lie|sits|stands|located|situated|found)$/.test(w)) || /^\s*[,(]/.test(sentence.slice(orig[last].at + orig[last].w.length)));
       if (linked && ids[hits.at(-1)] === ids[p] && hits[0] - last <= 14 && hits.at(-1) - hits[0] <= 2 * obj.length + 3 && !otherSubjectBetween(last, hits.at(-1))) return settle(p, hits[0]);
       // (b) object … is … subject
       at = p;
@@ -523,7 +596,8 @@ function judgeCore(parts, sentence) {
   if (subjectNear) {
     // The thing comes after the verb, in its clause, with no other doer's verb in between
     // ("Shakespeare wrote Hamlet around the time Cervantes wrote Don Quixote").
-    const objAt = objHitsAll.find((i) => i > verbAt && ids[i] === ids[verbAt] && i - verbAt <= 2 * obj.length + 4);
+    // (the verb's own object: not "the assembly line for the automobile", "the thermoscope and improved the telescope")
+    const objAt = objHitsAll.find((i) => i > verbAt && ids[i] === ids[verbAt] && i - verbAt <= 2 * obj.length + 4 && !ws.slice(verbAt + 1, i).some((w) => /^(?:for|of|to|with|from|about|into|than|on)$/.test(w) || (/(?:ed|en)$/.test(w) && w.length > 4 && !relWords.some((n) => matches(n, w)))));
     if (relWords.length) {
       if (objAt == null) return loose();
       const v2 = verbHits.filter((v) => v > verbAt && v < objAt).pop();
@@ -542,7 +616,9 @@ const RANK = { supports: 3, differs: 2, mentions: 1 };
 /** The best sentence from one source's text: the strongest stance, then the most claim words. */
 export function judgeText(parts, text) {
   let best = null;
-  for (const raw of String(text || '').split(SENTENCE)) {
+  // Markdown links and footnote marks read as their words ("343 [m/s](./Metre per second)" is "343 m/s").
+  const plain = String(text || '').replace(/\[([^\]]{1,80})\]\([^)]{0,300}\)/g, '$1').replace(/\[(\d{1,3}|[a-z])\]/g, '').replace(/\[([^\]]{1,40})\]/g, '$1');
+  for (const raw of plain.split(SENTENCE)) {
     const s = raw.replace(/\s+/g, ' ').trim();
     if (s.length < 20 || s.length > 400) continue;
     // A question asks, it doesn't say ("Did Thomas Edison invent the telephone?").

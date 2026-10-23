@@ -488,7 +488,10 @@ const JOURNAL_ARTICLE = [
   [/(?:^|\.)thelancet\.com$/, /^\/journals\/[^/]+\/article\//],
   [/(?:^|\.)bmj\.com$/, /^\/content\/\d/],
   [/(?:^|\.)ncbi\.nlm\.nih\.gov$/, /^\/pmc\/articles\//],
+  [/^pmc\.ncbi\.nlm\.nih\.gov$/, /^\/articles\//],
 ];
+// Repositories on government hosts publish other people's papers: not the government speaking.
+const GOV_REPOSITORY = /(?:^|\.)(?:ncbi\.nlm\.nih\.gov|osti\.gov|eric\.ed\.gov|ntrs\.nasa\.gov|biorxiv\.org)$/;
 // Anyone can publish here: a package page, a preprint. Labelled for what they are, not as authority.
 const PACKAGES = /(?:^|\.)(?:npmjs\.com|pypi\.org|crates\.io|rubygems\.org|pkg\.go\.dev|packagist\.org|nuget\.org)$/;
 const PREPRINTS = /(?:^|\.)(?:arxiv\.org|biorxiv\.org|medrxiv\.org|ssrn\.com|osf\.io)$/;
@@ -515,6 +518,7 @@ export function sourceKind(url, query = '') {
   if (JOURNAL_ARTICLE.some(([host, p]) => host.test(h) && p.test(pathname))) return 'primary';
   if (PACKAGES.test(h)) return 'package';
   if (PREPRINTS.test(h)) return 'preprint';
+  if (GOV_REPOSITORY.test(h)) return null;
   if (OFFICIAL.test(h)) return 'official';
   // "Nvidia drivers" → nvidia.com is the company's own site. Only <name>.com (paypal.co and
   // nvidia.io are someone else's), and only when the question is about the company
@@ -739,6 +743,13 @@ export function unitOf(word) {
     if (table[singular] != null) return { kind, factor: table[singular], name: singular };
   }
   if (TEMP[w]) return { kind: 'temp', scale: TEMP[w], name: w };
+  // "meters per second", "feet/second", "km/s": a length over a time is a speed (in km/h).
+  const per = /^(.+?)\s*(?:\/|\bper\b|\ban\b|\ba\b)\s*(seconds?|secs?|s|minutes?|mins?|hours?|hrs?|h)$/.exec(w);
+  if (per) {
+    const len = UNITS.length[per[1].trim()] ?? UNITS.length[per[1].trim().replace(/s$/, '')];
+    const t = /^s/.test(per[2]) ? 1 : /^m/.test(per[2]) ? 60 : 3600;
+    if (len != null) return { kind: 'speed', factor: (len / t) * 3.6, name: w };
+  }
   return null;
 }
 

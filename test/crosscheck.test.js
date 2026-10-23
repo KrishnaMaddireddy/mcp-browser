@@ -118,3 +118,42 @@ test('echoes, empty replies and uncited server text never back a claim', () => {
   assert.equal(sourceKey('kids.britannica.com'), sourceKey('www.britannica.com'));
   assert.equal(sourceKey('news.bbc.co.uk'), 'bbc.co.uk');
 });
+
+test('review 2: numbered names, reported speech, wrong clauses and rival names', () => {
+  const never = [
+    ['Windows 11 was released in 2015', 'Windows 11 was released in October 2021 by Microsoft.'],
+    ['The iPhone 15 was released in 2020', 'The iPhone 15 was released in September 2023.'],
+    ['Apollo 11 landed on the Moon in 1970', 'Apollo 11 landed on the Moon on July 20, 1969.'],
+    ['The F-35 was developed by Boeing', 'The F-35 was developed by Lockheed Martin after it beat Boeing in the competition.'],
+    ['The Earth is flat', 'Flat Earth proponents say the Earth is flat.'],
+    ['The Moon landing was faked', 'Conspiracy theorists say the Moon landing was faked.'],
+    ['Barack Obama was born in Kenya', 'Donald Trump said Barack Obama was born in Kenya.'],
+    ['Humans use 10 percent of their brains', 'In the film Lucy, humans use 10 percent of their brains.'],
+    ['Lincoln was assassinated in 1863', 'Lincoln delivered the Gettysburg Address in 1863 and was assassinated in 1865.'],
+    ['Lincoln was assassinated in 1863', 'Lincoln, who issued the Emancipation Proclamation in 1863, was assassinated in 1865.'],
+    ['Henry Ford invented the automobile', 'Henry Ford invented the assembly line for the automobile industry.'],
+    ['Galileo invented the telescope', 'Galileo invented the thermoscope and improved the telescope.'],
+    ['Mount Everest is 9,000 metres tall', 'Mount Everest is nearly 9,000 metres tall.'],
+    ['Humans have 46 chromosome pairs', 'Humans have 46 chromosomes, arranged in 23 pairs.'],
+    ['Shakespeare wrote Don Quixote', 'Shakespeare may have written a lost play, Cardenio, based on Don Quixote.'],
+    ['Einstein was born in Austria', 'Einstein was born in Germany, near the border with Austria.'],
+    ['Kyoto is the capital of Japan', 'Kyōto is historically significant as the national capital of Japan from 794 to 1868.'],
+    ['Kyoto is the capital of Japan', 'Kyoto, officially Kyoto City, is the capital city of Kyoto Prefecture in Japan.'],
+    ['Mars has five moons', 'Mars has two small moons, Phobos and Deimos.'],
+  ];
+  for (const [c, s] of never) assert.notEqual(stance(c, s), 'supports', `${c} ← ${s}`);
+  const backed = [
+    ['Windows 11 was released in 2021', 'Windows 11 was released in October 2021 by Microsoft.'],
+    ['Lincoln was assassinated in 1865', 'Lincoln was assassinated by John Wilkes Booth at Ford’s Theatre in 1865.'],
+    ['The Earth orbits the Sun', 'Earth orbits the Sun once a year.'],
+    ['Brasilia is the capital of Brazil', 'Brasília is the capital of Brazil and the seat of the federal government.'],
+    ['Mars has two moons', 'Mars has two small moons, Phobos and Deimos.'],
+    ['Einstein was born in Germany', 'Albert Einstein was born in Ulm, Germany, in 1879.'],
+    ['Water boils at 100 degrees Celsius at sea level', 'At sea level, water boils at 212 degrees Fahrenheit (212°F) or 100 degrees Celsius.'],
+    ['The speed of sound in air is about 343 meters per second', 'The speed of sound in air is approximately 331.5 m/s at 0 °C or around 1200 km per hour.'],
+  ];
+  for (const [c, s] of backed) assert.equal(stance(c, s), 'supports', `${c} ← ${s}`);
+  // a name elsewhere in the sentence isn't someone else's claim
+  for (const s of ['The Eiffel Tower was completed in 1889 for the World Fair in Paris.', 'Neil Armstrong and Buzz Aldrin became the first men to walk on the Moon.']) assert.notEqual(stance(s.includes('Eiffel') ? 'Paris is the capital of France' : 'Neil Armstrong was the first person to walk on the Moon', s), 'differs', s);
+  assert.deepEqual(figuresOf('Windows 11, COVID-19, 5G, the S&P 500 and 14:00').length, 0);
+});
