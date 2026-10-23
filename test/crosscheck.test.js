@@ -183,3 +183,11 @@ test('fakes, the tighter of two runs, dates before the verb, a described doer', 
   assert.equal(stance('Amazon was founded by Jeff Bezos', 'On July 5, 1994, Amazon was officially founded under the name Cadabra by young Princeton graduate Jeff Bezos in his garage.'), 'supports');
   assert.equal(stance('Tesla was founded by Elon Musk', 'Tesla was founded in 2003 by Martin Eberhard and Marc Tarpenning; Elon Musk joined as chairman in 2004.'), 'differs');
 });
+
+test('what a figure counts: the next word, a whole name, no compounds or conditionals', () => {
+  assert.notEqual(stance('Marie Curie won four Nobel Prizes', 'All four Curies earned Nobel prizes for their work.'), 'supports');
+  assert.notEqual(stance('The human heart has six chambers', 'Two cases of six-chambered hearts were reported in the journal last year.'), 'supports');
+  assert.notEqual(stance('A spider has six legs', 'If a creature has six legs, it is classified as an insect rather than a spider.'), 'supports');
+  assert.equal(stance('A spider has eight legs', 'Spiders normally have eight walking legs, arranged as four pairs.'), 'supports');
+  assert.equal(stance('The human heart has four chambers', 'The human heart has four chambers: two atria and two ventricles.'), 'supports');
+});

@@ -221,7 +221,7 @@ export function claimParts(claim) {
 
 /** How one sentence bears on the claim: { stance, sentence, figure?, other? } or null when it's off the point. */
 // Hearsay, quizzes and stories report a claim, they don't make it ("many people assume Toronto is …").
-const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out|conceiv\w*|imagin\w*|envision\w*)\b)/iu;
+const HEDGE = /\b(?:assume[sd]?|believe[sd]?|think|thought|claim(?:s|ed)?|rumou?r|legend|puzzle|quiz|trivia|confusion|confused|supposedly|allegedly|purported(?:ly)?|reportedly|is it true|true or false|fact or fiction|notion|contention|suggest(?:s|ed|ing)?|fear(?:s|ed)?|the idea that|the belief that|popular(?:ly)? (?:belief|believed|held)|widely (?:believed|held|repeated|cited|thought)|(?:often|commonly|frequently|sometimes) (?:said|cited|claimed|repeated|stated|heard)|it is said|said to (?:be|have)|thought to (?:be|have)|expression|saying|phrase|plays? on|according to (?:legend|folklore|popular)|old wives|in (?:the|a|an) [\p{L}-]+ (?:model|view|theory|worldview|story|game|film|movie|novel|series|episode)|in the (?:film|movie|novel|book|show|series)\b|\b(?:says?|said|insists?|insisted|argues?|argued|maintains?|maintained|contends?|alleges?|alleged|worr(?:y|ies|ied)|repeat(?:s|ed|ing)?|keeps? (?:saying|repeating)|famously|credited with|conspirac(?:y|ies)|conspiracy theor\w*|theorists?|proponents?|creationists?|birthers?|believers?|poll|survey|perception|conception|may have|might have|could have|would have|beliefs?|assertion|asserts|denotes|seems? to|appears? to|portray\w*|depict\w*|mytholog\w*|cosmolog\w*|possibility|possibly|ruled out|conceiv\w*|imagin\w*|envision\w*|if|unless|whether)\b)/iu;
 // A source that calls it a myth or false is saying no.
 const MYTH = /\b(?:myths?|misconceptions?|misconceived|debunk\w*|urban legend|not true|untrue|(?:is|are|was|were) false|no (?:scientific )?evidence|falsely|wrongly|mistakenly|erroneous(?:ly)?|fallacy|contrary to|disproven|discredited|pseudoscien\w*|hoax|archaic|baseless|unfounded)\b/i;
 const QUIZ = /\b(?:true or false|fact or (?:myth|fiction)|myth or (?:fact|truth)|quiz|trivia)\b/i;
@@ -282,7 +282,14 @@ function judgeCore(parts, sentence) {
     };
     const kindOf = (f) => (f.unit ? unitOf(f.unit)?.kind || f.unit : '');
     // "206 bones" isn't "206 muscles": a counted thing has to be named right after the figure.
-    const after = (g) => wordsAt(sentence.slice(g.end, g.end + 60)).slice(0, 3);
+    // (the thing counted is the next word, or the one after a plain adjective: "4 chambers",
+    // "two small moons"; not "four Curies earned Nobel prizes"; "six-chambered" describes)
+    const after = (g) => {
+      if (/^[-‑]/.test(sentence.slice(g.end, g.end + 1))) return [];
+      const ow = wordsOrig(sentence.slice(g.end, g.end + 60)).slice(0, 2);
+      const w = wordsAt(sentence.slice(g.end, g.end + 60)).slice(0, 2);
+      return ow[0] && /^\p{Ll}/u.test(ow[0].w) && !/(?:ed|s)$/.test(w[0]) ? w : w.slice(0, 1);
+    };
     const comparable = (g) => parts.figures.some((f) => (g.word && !f.noun ? false : kindOf(f) ? kindOf(f) === kindOf(g) : f.noun ? !g.unit && after(g).some((w) => matches(f.noun, w)) && (!f.noun2 || after(g).some((w) => matches(f.noun2, w))) : !g.unit || sameFigure(f, g, tol)));
     // The figure has to be in a clause about the subject ("…, while Germany has 84 million"
     // is Germany's figure, not France's).
@@ -292,7 +299,8 @@ function judgeCore(parts, sentence) {
     const inClause = (cl, need) => need.filter((n) => ws.some((w, i) => ids[i] === cl && matches(n, w))).length;
     const aboutIt = (g) => {
       const cl = clauseAtChar(orig, ids, g.at);
-      if (key.length) return inClause(cl, key) >= 1;
+      // (all of a name: "the Curie family" isn't "Marie Curie")
+      if (key.length) return inClause(cl, key) >= 1 && (!parts.subjectWords.length || inClause(cl, parts.subjectWords) >= Math.ceil(parts.subjectWords.length * 0.6));
       return parts.subjectWords.length || parts.entity ? inClause(cl, anchorWords) >= 1 : inClause(cl, parts.words) >= Math.ceil(parts.words.length * 0.5);
     };
     figs = figs.filter((g) => comparable(g) && aboutIt(g));
