@@ -781,9 +781,10 @@ export async function crossCheck(agent, claim, { emit = () => {}, signal } = {})
     const dim = { tall: 'height', high: 'height', long: 'length', wide: 'width', deep: 'depth', old: 'age', heavy: 'weight' }[(/\b(tall|high|long|wide|deep|old|heavy)\b/i.exec(parts.text) || [])[1]?.toLowerCase()];
     queries.push(`${parts.subject.replace(/^the\s+/i, '')} ${dim || parts.objectWords.slice(0, 3).join(' ')}`.trim());
   }
-  for (const q of queries) {
-    if (seenQ.has(q.toLowerCase())) continue;
-    seenQ.add(q.toLowerCase());
+  const unique = queries.filter((q) => !seenQ.has(q.toLowerCase()) && seenQ.add(q.toLowerCase()));
+  // (asked side by side, so the second question costs no extra time)
+  await Promise.all(unique.map((q) => runQuery(q)));
+  async function runQuery(q) {
     await agent.search(q, {
       signal,
       direct: true,
