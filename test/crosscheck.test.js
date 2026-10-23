@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { claimParts, judgeSentence, verdictOf, sourceKey, evidenceFrom, figuresOf, judgeWithModel, sentencesOf, claimsIn } = await import('../src/crosscheck.js');
+const { claimParts, judgeSentence, verdictOf, sourceKey, evidenceFrom, figuresOf, judgeWithModel, sentencesOf, claimsIn, judgeText } = await import('../src/crosscheck.js');
 const stance = (claim, sentence) => judgeSentence(claimParts(claim), sentence)?.stance || null;
 
 test('figures: same, converted, different, and the one nearest the subject', () => {
@@ -328,4 +328,12 @@ test('a backfill when one search engine answers; a place claim and the next tabl
   const st = (c, s) => judgeSentence(claimParts(c), s)?.stance;
   assert.notEqual(st('Mount Kilimanjaro is in Tanzania', 'Volcanic Region Kenyan Rift | Kilimanjaro Country Tanzania | Volcanic Region Kenyan Rift Volcanic Province | Landform Volc Type Composite Stratovolcano'), 'differs');
   assert.equal(st('Mombasa is the capital of Kenya', 'Kenya facts. Capital: Nairobi. Population: 55 million.'), 'differs');
+});
+
+test('a fact sheet about the place: the title names it, the labelled line names the subject', () => {
+  const sheet = 'Portugal | European Union. Overview Capital: Lisbon Official EU language(s): Portuguese EU Member State: since 1 January 1986 Currency: euro (€)';
+  assert.deepEqual(judgeText(claimParts('Lisbon is the capital of Portugal'), sheet), { stance: 'supports', sentence: 'Portugal | European Union: Capital: Lisbon' });
+  assert.equal(judgeText(claimParts('Porto is the capital of Portugal'), sheet).stance, 'differs');
+  // (a sheet about another country says nothing about Spain)
+  assert.notEqual(judgeText(claimParts('Lisbon is the capital of Spain'), sheet).stance, 'supports');
 });

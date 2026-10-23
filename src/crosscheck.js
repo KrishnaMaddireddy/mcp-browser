@@ -783,6 +783,25 @@ export function judgeText(parts, text) {
     const score = RANK[j.stance] * 10 + tokenize(s).filter((w) => parts.words.includes(w)).length;
     if (!best || score > best.score) best = { ...j, score };
   }
+  // A fact sheet about the place ("Portugal | European Union … Capital: Lisbon"): the title names
+  // the "of" part, the labelled line names the subject. Only for a few labels a fact sheet uses.
+  if ((!best || best.stance === 'mentions') && parts.be && /^(?:capital|currency)$/.test(parts.ofHead) && parts.ofWhat && !parts.negated) {
+    const title = plain.slice(0, Math.max(0, plain.indexOf('. ')) || 120).slice(0, 160);
+    const subject = parts.subject.replace(/^the\s+/i, '');
+    const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`\\b${esc(parts.ofWhat)}\\b`, 'i').test(title) && subject) {
+      const m = new RegExp(`\\b(${parts.ofHead}(?: city)?)\\s*:\\s*(\\p{Lu}[\\p{L}'’. -]{1,40}?)(?=[,;(]|\\s{2}|\\s+\\p{Lu}[\\p{L}]+\\s*:|\\.\\s|$)`, 'iu').exec(plain.slice(0, 20000));
+      if (m) {
+        const said = m[2].trim();
+        // (fact sheets run labels together: "Capital: Lisbon Official EU language(s): …")
+        const own = new RegExp(`^${esc(subject)}\\b`, 'i').test(said);
+        const shown = own ? said.slice(0, subject.length) : said.split(/\s+/).length === 2 ? said : said.split(/\s+/)[0];
+        const sentence = `${title.trim()}: ${m[1]}: ${shown}`.slice(0, 300);
+        if (own) return { stance: 'supports', sentence };
+        if (!tokenize(said).some((w) => parts.subjectWords.includes(w))) return { stance: 'differs', sentence, other: shown };
+      }
+    }
+  }
   return best;
 }
 
