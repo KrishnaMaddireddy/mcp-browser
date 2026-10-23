@@ -1,0 +1,91 @@
+name: MCP Browser dependency check
+description: 'Checks a lockfile or manifest against two OSV.dev services side by side, and posts the table on the pull request.'
+author: Krishna Maddireddy
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  path:
+    description: 'A lockfile or manifest, or a folder (its lockfile is used first). Default is the repository root.'
+    default: .
+  fail-on:
+    description: 'Fail the job when a package has a known vulnerability at this level or worse (any, low, moderate, high, critical, or never).'
+    default: never
+  comment:
+    description: Post (and keep updating) one comment with the report on the pull request.
+    default: 'true'
+  github-token:
+    description: Token for the pull request comment.
+    default: ${{ github.token }}
+
+outputs:
+  report:
+    description: Path to the Markdown report.
+    value: ${{ steps.check.outputs.report }}
+  vulnerable:
+    description: How many packages have known vulnerabilities.
+    value: ${{ steps.check.outputs.vulnerable }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install MCP Browser
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      # (only what the checks need: no desktop app, no on-device model, no install scripts)
+      run: npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund --loglevel=error
+
+    - name: Check dependencies
+      id: check
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        MCPB_DATA_DIR: ${{ runner.temp }}/mcp-browser
+        MCPB_LOG: silent
+        MCPB_SEMANTIC: 'off'
+      run: |
+        report="$RUNNER_TEMP/mcp-browser-deps.md"
+        json="$RUNNER_TEMP/mcp-browser-deps.json"
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/cli.js" deps "$INPUT_PATH" --format md --output "$report" --json "$json" --fail-on "$INPUT_FAIL_ON" > /dev/null
+        code=$?
+        set -e
+        if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; fi
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        echo "vulnerable=$(node -e 'try{console.log(require(process.argv[1]).summary?.vulnerable ?? 0)}catch{console.log(0)}' "$json")" >> "$GITHUB_OUTPUT"
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event_name == 'pull_request' && steps.check.outputs.report != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPORT: ${{ steps.check.outputs.report }}
+        PR: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      # (one comment per pull request, updated on each push; a fork's read-only token just skips it)
+      run: |
+        [ -f "$REPORT" ] || exit 0
+        body="$(printf '<!-- mcp-browser-deps -->\n%s' "$(cat "$REPORT")")"
+        id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- mcp-browser-deps -->")) | .id' 2>/dev/null | head -1 || true)"
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null || echo "::warning::Couldn't update the report comment"
+        else
+          gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null || echo "::warning::Couldn't post the report comment"
+        fi
+
+    - name: Result
+      shell: bash
+      env:
+        CODE: ${{ steps.check.outputs.code }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        if [ "$CODE" = "1" ]; then echo "::error::Known vulnerabilities at or above '$FAIL_ON' (see the report)"; exit 1; fi
+        if [ "$CODE" = "2" ]; then echo "::warning::The dependency check couldn't run fully (see the log)"; fi
+        exit 0

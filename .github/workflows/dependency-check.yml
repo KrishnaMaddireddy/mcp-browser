@@ -1,0 +1,20 @@
+# This repo checks its own dependencies with its own Action (see action.yml).
+name: Dependency check
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths: [package-lock.json, package.json, action.yml, bin/checks.js, src/deps.js, src/reports.js]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          path: package-lock.json
+          fail-on: critical

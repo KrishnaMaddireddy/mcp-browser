@@ -8,6 +8,8 @@ export const DEP_SERVERS = {
   audit: 'com.datakoot/cve-vulnerability-lookup', // OSV.dev via another publisher: counts per package
   health: 'com.datakoot/npm-pypi-crates-packages', // npm / PyPI registries and deps.dev: latest, deprecated, maintained
 };
+// (names to show when the registry isn't on this computer, as in CI)
+export const DEP_TITLES = { [DEP_SERVERS.osv]: 'OSV Advisory MCP Server', [DEP_SERVERS.audit]: 'Security Intel MCP', [DEP_SERVERS.health]: 'Package Intel MCP' };
 const MAX_PACKAGES = 150;
 const HEALTH_LIMIT = 40;
 

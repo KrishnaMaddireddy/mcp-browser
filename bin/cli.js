@@ -3,6 +3,11 @@
 import { createEngine } from '../src/app.js';
 
 const args = process.argv.slice(2);
+// mcpb deps … / mcpb check …: the checks, for the terminal and CI (bin/checks.js)
+if (args[0] === 'deps' || args[0] === 'check') {
+  const { main } = await import('./checks.js');
+  process.exit(await main(args));
+}
 const flag = (f) => args.includes(f);
 const value = (f) => {
   const i = args.indexOf(f);
@@ -14,6 +19,9 @@ if (flag('--help') || (!positional.length && !flag('--sync') && !flag('--full-sy
   console.log(`MCP Browser CLI
 
   mcpb "question"            search (writes the answer to stdout)
+  mcpb deps [path|GitHub link] [--fail-on high] [--format md|json|text]
+                             check dependencies for known vulnerabilities
+  mcpb check "a claim"       cross-check a claim (--file F: each fact in a text)
   mcpb --use exa,deepwiki "q" only use these server ids
   mcpb --free "question"     skip the AI model, show raw server results
   mcpb --sync                update the local copy of the MCP Registry
