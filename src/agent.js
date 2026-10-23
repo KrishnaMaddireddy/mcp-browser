@@ -513,6 +513,7 @@ export class SearchAgent {
       let forms = ENTITY_PARAM.test(p.param) && ent ? [ent, ...[query, ...retries].filter((f) => f !== ent)] : [query, ...retries];
       if (qt) forms = [quoteTicker];
       if (pick.place) forms = [pick.place, ...forms.filter((f) => f !== pick.place)].slice(0, 2);
+      if (pick.value) forms = [pick.value]; // a link from the question
       if (fx) forms = [fx.value];
       if (chain) forms = [chain.name];
       // A ticker-only tool gets a ticker or a company name, never a sentence.
@@ -540,7 +541,7 @@ export class SearchAgent {
       // takes coordinates and fits the question ("weather … this weekend" → forecast).
       // The reply came from a call with inputs derived from the question (a ticker, a currency
       // pair, a resolved ID, coordinates): it needn't repeat the question's words.
-      let derived = Boolean(qt || fx || chain || pick.place);
+      let derived = Boolean(qt || fx || chain || pick.place || pick.value);
       // Resolve-then-query: the first call found the ID; ask the second tool with it.
       if (chain && got?.quality.kind === 'ok' && !signal?.aborted && deadline - Date.now() > 1500) {
         const id = chain.idFrom(got.full);
@@ -857,7 +858,34 @@ export function quoteTool(tools) {
   return best;
 }
 
+/** A link in the question: a full URL, or a bare domain ("linear.app/pricing") made https. */
+export function urlOf(query) {
+  const full = /https?:\/\/[^\s"'<>)\]]+/i.exec(query)?.[0];
+  if (full) return full.replace(/[.,;:!?]+$/, '');
+  const bareDom = /(?:^|[\s(])((?:[a-z0-9-]+\.)+(?:com|org|net|io|ai|app|dev|co|edu|gov|so|xyz|me|info|tech|us|uk|de|fr|jp|in|ca|au|nl|es|it|ch|se)(?:\/[^\s"'<>)]*)?)(?=$|[\s),.;:!?])/i.exec(query)?.[1];
+  return bareDom && !/^\d+\.\d+/.test(bareDom) ? `https://${bareDom.replace(/[.,;:!?]+$/, '')}` : null;
+}
+const URL_PARAM = /^(?:url|uri|link|page_?url|website(?:_?url)?|site(?:_?url)?|target_?url|domain|hostname|host)$/i;
+
 export function pickQueryTool(tools, query) {
+  // A question with a link: a tool whose one input is that link ("scrape linear.app/pricing").
+  const link = urlOf(query);
+  if (link) {
+    let hit = null;
+    for (const t of tools) {
+      const props = t.inputSchema?.properties || {};
+      const req = Array.isArray(t.inputSchema?.required) ? t.inputSchema.required : [];
+      const param = Object.keys(props).find((k) => URL_PARAM.test(k) && (!props[k]?.type || props[k].type === 'string'));
+      if (!param || req.some((k) => k !== param)) continue;
+      const n = splitIdentifier(t.name).toLowerCase();
+      const score = (/scrape|fetch|read|extract|crawl|analy[sz]e|check|audit|inspect|summar|get page|page|content|seo|lookup|whois|dns|ssl/.test(n) ? 2 : 0) + (req.includes(param) ? 1 : 0) - (/delete|submit|post|send/.test(n) ? 5 : 0);
+      if (!hit || score > hit.score) hit = { tool: t, param, score };
+    }
+    if (hit && hit.score > 0) {
+      const value = /^(?:domain|hostname|host)$/i.test(hit.param) ? new URL(link).hostname : link;
+      return { tool: hit.tool, param: hit.param, extra: {}, value };
+    }
+  }
   // Weather questions: a weather/forecast tool that takes a place, given the place.
   if (WEATHER_INTENT.test(query)) {
     const loc = (t) => Object.keys(t.inputSchema?.properties || {}).find((k) => /^(?:location|city|place|town|q)$/i.test(k));

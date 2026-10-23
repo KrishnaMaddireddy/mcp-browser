@@ -360,6 +360,8 @@ export function explainFailure(log) {
   const env = /\b([A-Z][A-Z0-9_]{2,60})\b[^\n]{0,40}(?:environment variable )?(?:is )?(?:not set|missing|required|must be set)/.exec(t) || /(?:set|missing|requires?) (?:the )?([A-Z][A-Z0-9_]{2,60}) (?:environment variable|env var)/.exec(t);
   if (env && /KEY|TOKEN|SECRET|PASSWORD|URL|HOST|DSN|ID\b/.test(env[1])) return { kind: 'needs-key', hint: `it needs ${env[1]}, which the registry doesn’t list` };
   if (/\b(?:api key|access token|personal access token|credentials?) (?:is |are )?(?:not set|missing|required|not configured)|no api key configured/i.test(t)) return { kind: 'needs-key', hint: 'it needs an API key or token the registry doesn’t list' };
+  const missingArg = /a value is required for '([^']+)'|(?:missing|required) (?:required )?(?:argument|option)s?:?\s*['"`]?(--?[\w-]+)|the following arguments are required:\s*([^\n]{1,80})/i.exec(t);
+  if (missingArg) return { kind: 'needs-args', hint: `it needs a startup argument the registry doesn’t list: ${(missingArg[1] || missingArg[2] || missingArg[3]).trim()}` };
   const usage = /\bUsage:\s*([^\n]{0,120})/i.exec(t);
   if (usage && /<[^>]+>|--[\w-]+ \S|required/i.test(usage[1] + t.slice(usage.index, usage.index + 400))) return { kind: 'needs-args', hint: `it needs startup arguments the registry doesn’t list: ${usage[1].trim()}` };
   const node = /requires Node\.?js ([\d.]+)/i.exec(t);
