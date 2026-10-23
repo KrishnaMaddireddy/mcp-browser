@@ -1,13 +1,20 @@
 name: Mac app
 
 # A tag like v0.3.0 builds the Mac app (Apple silicon) and attaches the .dmg and .zip to a
-# GitHub release. A change to this file on main builds it without releasing (a test run).
+# GitHub release. So does running this workflow by hand with "release" ticked: the release
+# is tagged v<version in package.json> at that commit. A change to this file on main, or a
+# run by hand without "release", builds it without releasing (a test run).
 on:
   push:
     tags: ['v*']
     branches: [main]
     paths: ['.github/workflows/release-mac.yml']
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a release tagged v<version in package.json>
+        type: boolean
+        default: false
 
 # (the build reads only; the release job, which installs nothing, is the one that can write)
 permissions:
@@ -21,6 +28,8 @@ jobs:
   build:
     runs-on: macos-14
     timeout-minutes: 45
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +50,10 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: npm version --no-git-tag-version --allow-same-version "${TAG#v}"
+
+      - name: Release tag
+        id: tag
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Build
         env:
@@ -82,7 +95,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
     runs-on: ubuntu-latest
     permissions:
       contents: write # (to create the release; nothing else)
@@ -95,7 +108,7 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           cat > notes.md <<'EOF'
           **Mac (Apple silicon, M1 and later):** download the `.dmg`, open it and drag MCP Browser to Applications.
@@ -107,5 +120,5 @@ jobs:
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt --clobber -R "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt -R "$GITHUB_REPOSITORY" --title "MCP Browser ${TAG#v}" --notes-file notes.md --generate-notes
+            gh release create "$TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt  -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MCP Browser ${TAG#v}" --notes-file notes.md --generate-notes
           fi

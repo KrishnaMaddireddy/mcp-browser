@@ -73,8 +73,9 @@ It isn't notarized by Apple (there's no paid Developer ID behind it), so macOS b
 the first time: open it once, then go to **System Settings → Privacy & Security** and press
 **Open Anyway** next to "MCP Browser was blocked". (Or in Terminal:
 `xattr -dr com.apple.quarantine "/Applications/MCP Browser.app"`.) Each release lists the
-SHA-256 of its files in `SHA256SUMS.txt`. A tag like `v0.3.0` builds and publishes a new
-one ([.github/workflows/release-mac.yml](.github/workflows/release-mac.yml)).
+SHA-256 of its files in `SHA256SUMS.txt`. To publish a new one, bump `version` in
+package.json, then on GitHub go to **Actions → Mac app → Run workflow** and tick **release**
+(or push a tag like `v0.3.0`); see [.github/workflows/release-mac.yml](.github/workflows/release-mac.yml).
 
 Or build it yourself on your Mac, in this folder:
 
