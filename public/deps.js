@@ -1,0 +1,140 @@
+// mcp://deps — paste a package.json, requirements.txt or a list of packages; two OSV servers
+// say which versions have known vulnerabilities (side by side), a registry server says what's
+// latest and whether it's still maintained. Streams from POST /api/deps.
+(function () {
+  'use strict';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const EXAMPLE_NPM = JSON.stringify({ dependencies: { lodash: '^4.17.15', express: '4.17.1', axios: '~0.21.0', react: '18.2.0', request: '2.88.2' }, devDependencies: { jest: '^29.0.0' } }, null, 2);
+  const EXAMPLE_PY = 'requests==2.19.0\ndjango==3.2.0\nflask==2.3.2\nnumpy==1.26.4\npyyaml==5.3';
+  const SEV_LABEL = { CRITICAL: 'Critical', HIGH: 'High', MODERATE: 'Moderate', MEDIUM: 'Medium', LOW: 'Low' };
+  const KEY = 'mcpb.deps.last';
+
+  function mount(el, hooks = {}) {
+    const $ = (s) => el.querySelector(s);
+    const ta = $('[data-dp-text]');
+    const out = $('[data-dp-out]');
+    let ac = null;
+    let runId = 0;
+    try {
+      ta.value = localStorage.getItem(KEY) || '';
+    } catch {}
+
+    async function run(text) {
+      ac?.abort();
+      ac = new AbortController();
+      const my = ++runId;
+      try {
+        localStorage.setItem(KEY, text.slice(0, 20000));
+      } catch {}
+      const rows = [];
+      const servers = {};
+      let start = null;
+      let done = null;
+      let error = null;
+      const render = () => {
+        if (my !== runId) return;
+        if (error) return void (out.innerHTML = `<p class="lr-fail">${esc(error)}</p>`);
+        const srv = Object.values(servers);
+        const srvLine = srv.length
+          ? `<p class="dp-servers">${srv.map((s) => `<span class="dp-srv" data-ok="${s.ok}">${esc(s.title)}${s.ok ? ` · ${(s.ms / 1000).toFixed(1)} s` : ` · ${esc(s.error || 'no answer')}`}</span>`).join('')}</p>`
+          : '';
+        let head = '';
+        if (done) {
+          const s = done.summary;
+          const both = done.sources.osv && done.sources.audit;
+          const agreeLine = both && s.agreed + s.disagreed > 0 ? (s.disagreed ? `The two OSV servers disagree on ${s.disagreed} package${s.disagreed === 1 ? '' : 's'}: both counts are shown.` : `Two OSV servers from different publishers agree on ${s.agreed === s.checked ? `all ${s.agreed}` : `${s.agreed} of ${s.checked}`}.`) : 'Only one OSV server had answers, so nothing was double-checked.';
+          head = `<div class="ck-verdict" data-v="${s.vulnerable ? (s.high ? 'contradicted' : 'disputed') : 'supported'}"><b>${s.vulnerable ? `${s.vulnerable} of ${s.checked} package${s.checked === 1 ? ' has' : 's have'} known vulnerabilities${s.high ? `, ${s.high} with high or critical ones` : ''}` : `No known vulnerabilities in ${s.checked} package${s.checked === 1 ? '' : 's'}`}${s.deprecated ? `; ${s.deprecated} deprecated` : ''}</b><p>${agreeLine} Known means published in OSV.dev; a clean result isn’t proof of safety.</p></div>`;
+        } else head = `<p class="ck-wait">Asking two OSV servers and a package registry about ${start ? `${start.pinned} package${start.pinned === 1 ? '' : 's'}` : 'your packages'}…</p>`;
+        const unpinned = start?.unpinned?.length ? `<p class="hint">No version given for ${start.unpinned.map(esc).join(', ')}: only its latest version and upkeep are shown.</p>` : '';
+        const ranged = rows.some((r) => /^[\^~>]/.test(r.range || '')) ? '<p class="hint">For ranges like ^4.17.15 the lowest version the range allows is checked; your lockfile may have a newer one.</p>' : '';
+        const body = rows
+          .map((r, i) => {
+            const n = r.partial ? r.counts.osv : r.vulns.length || r.counts.audit || 0;
+            const counts = r.counts.comparable && r.counts.osv != null && r.counts.audit != null && r.counts.osv !== r.counts.audit ? ` <span class="dp-dis" title="The two servers give different counts">${r.counts.osv} / ${r.counts.audit}</span>` : '';
+            const label = `${n} known${r.worst ? ` <span class="dp-sev" data-sev="${esc(r.worst)}">${esc(SEV_LABEL[r.worst] || r.worst)}</span>` : ''}`;
+            const vul = !r.version ? '<span class="dp-muted">no version</span>' : n ? `${r.vulns.length ? `<button type="button" class="link-btn dp-open" data-dp-i="${i}" aria-expanded="false">${label}</button>` : `<span>${label}</span> <a class="dp-muted" href="https://osv.dev/list?ecosystem=${r.ecosystem === 'pypi' ? 'PyPI' : r.ecosystem === 'cargo' ? 'crates.io' : 'npm'}&q=${encodeURIComponent(r.name)}" target="_blank" rel="noopener noreferrer">list on osv.dev</a>`}${counts}` : '<span class="dp-ok">None known</span>';
+            const fix = r.unfixed ? '<span class="dp-bad">No fixed version</span>' : r.fix ? esc(r.fix) : '';
+            const notes = [r.deprecated ? '<span class="dp-bad">Deprecated</span>' : '', r.maintained === false && !r.deprecated ? '<span class="dp-bad">Not maintained</span>' : '', r.dev ? '<span class="dp-muted">dev</span>' : '', r.notFound ? '<span class="dp-muted">not found</span>' : ''].filter(Boolean).join(' ');
+            const adv = r.vulns.length
+              ? `<tr class="dp-adv" data-dp-adv="${i}" hidden><td colspan="6"><ul>${r.vulns
+                  .map(
+                    (v) =>
+                      `<li><span class="dp-sev" data-sev="${esc(v.severity)}">${esc(SEV_LABEL[v.severity] || v.severity || '?')}</span> ${esc(v.summary || v.id)} <span class="dp-ids"><a href="https://osv.dev/vulnerability/${encodeURIComponent(v.id)}" target="_blank" rel="noopener noreferrer">${esc(v.id)}</a>${v.aliases.map((a) => ` <button type="button" class="link-btn" data-dp-cve="${esc(a)}">${esc(a)}</button>`).join('')}${v.fixedVersions.length ? ` · fixed in ${esc(v.fixedVersions.join(', '))}` : ''}</span></li>`
+                  )
+                  .join('')}</ul></td></tr>`
+              : '';
+            return `<tr><td><b>${esc(r.name)}</b> <span class="dp-muted">${esc(r.ecosystem)}</span></td><td>${esc(r.version || r.range || '—')}</td><td>${vul}</td><td>${fix}</td><td>${esc(r.latest || '')}</td><td>${notes}</td></tr>${adv}`;
+          })
+          .join('');
+        out.innerHTML = head + srvLine + unpinned + ranged + (rows.length ? `<div class="dp-wrap"><table class="dp-table"><thead><tr><th>Package</th><th>Version</th><th>Known vulnerabilities</th><th>Fixed in</th><th>Latest</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '');
+      };
+      out.innerHTML = '<p class="ck-wait">Reading your packages…</p>';
+      let res;
+      try {
+        res = await fetch('/api/deps', { method: 'POST', headers: { 'content-type': 'application/json', 'x-mcpb': '1' }, body: JSON.stringify({ text }), signal: ac.signal });
+      } catch (e) {
+        if (my === runId && e.name !== 'AbortError') out.innerHTML = `<p class="lr-fail">${esc(e.message)}</p>`;
+        return;
+      }
+      if (!res.ok || !/event-stream/.test(res.headers.get('content-type') || '')) {
+        let msg = `The check failed (${res.status}).`;
+        try {
+          msg = (await res.json()).error || msg;
+        } catch {}
+        if (my === runId) out.innerHTML = `<p class="lr-fail">${esc(msg)}</p>`;
+        return;
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done: end } = await reader.read().catch(() => ({ done: true }));
+        if (end) break;
+        buf += dec.decode(value, { stream: true });
+        let k;
+        while ((k = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, k);
+          buf = buf.slice(k + 2);
+          const type = /^event: (.*)$/m.exec(block)?.[1];
+          const raw = /^data: (.*)$/m.exec(block)?.[1];
+          if (!type || !raw) continue;
+          const d = JSON.parse(raw);
+          if (type === 'deps_start') start = d;
+          else if (type === 'deps_server') servers[d.key] = d;
+          else if (type === 'deps_row') rows.push(d);
+          else if (type === 'deps_done') done = d;
+          else if (type === 'error') error = d.message;
+          render();
+        }
+      }
+      render();
+    }
+
+    $('[data-dp-form]').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const t = ta.value.trim();
+      if (t) run(t);
+    });
+    el.addEventListener('click', (e) => {
+      const ex = e.target.closest('[data-dp-ex]');
+      if (ex) {
+        ta.value = ex.dataset.dpEx === 'py' ? EXAMPLE_PY : EXAMPLE_NPM;
+        return run(ta.value);
+      }
+      const o = e.target.closest('[data-dp-i]');
+      if (o) {
+        const row = el.querySelector(`[data-dp-adv="${o.dataset.dpI}"]`);
+        if (row) {
+          row.hidden = !row.hidden;
+          o.setAttribute('aria-expanded', String(!row.hidden));
+        }
+        return;
+      }
+      const cve = e.target.closest('[data-dp-cve]');
+      if (cve) hooks.search?.(cve.dataset.dpCve);
+    });
+    setTimeout(() => ta.focus(), 0);
+  }
+
+  window.MCPDeps = { mount };
+})();

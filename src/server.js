@@ -22,6 +22,7 @@ import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck } from './crosscheck.js';
 import { detectEntity, detectPair, runCard } from './cards.js';
 import { parseTrack, figureIn, thresholdMet } from './track.js';
+import { parseManifest, runDeps } from './deps.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
 import { pickQueryTool } from './agent.js';
 import { langOf } from './quality.js';
@@ -642,6 +643,39 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       } finally {
         emit('done', { ms: Date.now() - t0 });
         clearInterval(ping);
+        res.end();
+      }
+    },
+    // Dependency check: a pasted manifest, two OSV servers side by side and a registry server
+    // (SSE: deps_start, deps_server…, deps_row…, deps_done). A server switched off is skipped.
+    'POST /api/deps': async (req, res) => {
+      const b = await readJson(req);
+      let pkgs;
+      try {
+        pkgs = parseManifest(String(b.text || '').slice(0, 200_000));
+      } catch (e) {
+        return json(res, 400, { error: errMsg(e) });
+      }
+      if (!pkgs.length) return json(res, 400, { error: 'No packages found. Paste a package.json, a requirements.txt, or one package per line like lodash@4.17.15.' });
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+      const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      const c = loadCatalog();
+      const off = engine.settings.serverOverrides || {};
+      const callTool = async (id, tool, args) => {
+        if (off[id] === false) throw new Error('switched off in Settings');
+        const server = engine.catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
+        if (!server) throw new Error('not in the catalog');
+        const r = await engine.pool.callTool(server, tool, args, { timeoutMs: 30000, signal: ac.signal });
+        if (r?.isError) throw new Error(String(r.content?.[0]?.text || 'the server returned an error').slice(0, 200));
+        return r;
+      };
+      try {
+        await runDeps(pkgs, { callTool, titleOf, emit });
+      } catch (e) {
+        if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
+      } finally {
         res.end();
       }
     },

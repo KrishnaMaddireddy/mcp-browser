@@ -203,6 +203,12 @@
         });
         return el;
       }
+      case 'deps': {
+        entry.title = 'Dependency check';
+        const el = $('#tpl-deps').content.firstElementChild.cloneNode(true);
+        window.MCPDeps?.mount(el, { search: (q) => newTab({ kind: 'search', query: q }) });
+        return el;
+      }
       case 'pipelines': {
         entry.title = 'Pipelines';
         const el = $('#tpl-pipelines').content.firstElementChild.cloneNode(true);
@@ -342,6 +348,7 @@
     if (/^mcp:\/\/webmcp/i.test(s)) return navigate(tab, { kind: 'webmcp' });
     if (/^mcp:\/\/pipelines/i.test(s)) return navigate(tab, { kind: 'pipelines' });
     if (/^mcp:\/\/check/i.test(s)) return navigate(tab, { kind: 'check' });
+    if (/^mcp:\/\/deps/i.test(s)) return navigate(tab, { kind: 'deps' });
     // "tell me when …", "notify me if NVDA drops below 200", "tell me about new recalls …" → set up a watch.
     // ("tell me about the French Revolution" and "tell me if I need a visa" are questions: they search.)
     const lead = /^(?:please\s+)?(?:(?:tell|notify|alert|ping)\s+me|let me know)\s+/i.exec(s);
