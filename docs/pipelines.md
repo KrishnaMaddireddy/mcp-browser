@@ -96,16 +96,22 @@ You can build pipelines around servers of your own: one you added (Servers → A
 you gave a key (Add key on it), one you signed in to, or a package server you approved to run on
 your computer. Put its id in a step's **Servers** box, then **save** the pipeline.
 
-Only your saved copy runs with them. When you save, the card says which of your servers the
-pipeline uses. The same pipeline run any other way doesn't reach them, and the step says why:
+The first time you save a pipeline that uses one of your servers, MCP Browser shows each step
+that would, with any tool it calls and the arguments it sends, and asks you to **Save and
+allow**. After that, the card says which of your servers it uses.
 
-- a pipeline from the library, or one someone sent you, until you save it as your own
-  (**Change it**, then **Save**);
+Only your saved copy runs with them. Run any other way, a pipeline uses only hosted servers
+that need no key or sign-in, both the servers its steps name and the ones MCP Browser picks
+when a step names none:
+
+- a pipeline from the library, or one someone sent you;
 - a saved pipeline that was changed somewhere else and not saved again.
 
 That way a pipeline someone else wrote can't use your keys or read your private servers and
-pass what they return on to another server. A schedule made from your saved copy keeps
-using your servers.
+pass what they return on to another server. Before you save one that came from someone else,
+read its steps in **Change it**: tool calls and their arguments are shown there too. A schedule
+made from your saved copy uses your servers only while that copy is unchanged; change or delete
+it and the schedule runs by the stricter rule.
 
 
 ## A three-step example

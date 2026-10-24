@@ -205,7 +205,7 @@ test('pipeline tool calls: refused for a switched-off server before connecting, 
   const engine = createEngine({ providerOverride: null, extraServers: [{ id: 'test/off', title: 'Off', url }, { id: 'test/mine', title: 'Mine', url: url + '2' }], allowPrivate: () => true });
   engine.updateSettings({ serverOverrides: { 'test/off': false } });
   await assert.rejects(engine.callReadOnlyTool('test/off', 'search', { q: 'x' }), /switched off in Settings/);
-  await assert.rejects(engine.callReadOnlyTool('test/mine', 'search', { q: 'x' }), /can't be called from a pipeline/);
+  await assert.rejects(engine.callReadOnlyTool('test/mine', 'search', { q: 'x' }), /can't be called from this pipeline/);
   assert.equal(hits.length, 0);
   await engine.close();
   srv.close();
@@ -229,7 +229,7 @@ test('a key or sign-in you saved for a public server keeps it out of pipelines',
   assert.equal(engine.pipelineServerAllowed(id), true);
   engine.updateSettings({ serverAuth: { [id]: { header: 'X-Api-Key', value: 'USER-SECRET' } } });
   assert.equal(engine.pipelineServerAllowed(id), false);
-  await assert.rejects(engine.callReadOnlyTool(id, 'fetch_page', { url: 'https://example.com/robots.txt' }), /can't be called from a pipeline/);
+  await assert.rejects(engine.callReadOnlyTool(id, 'fetch_page', { url: 'https://example.com/robots.txt' }), /can't be called from this pipeline/);
   engine.updateSettings({ serverAuth: { [id]: null } });
   assert.equal(engine.pipelineServerAllowed(id), true);
   engine.updateSettings({ serverOverrides: { [id]: false } });

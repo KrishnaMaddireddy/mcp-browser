@@ -227,12 +227,14 @@ export class WatchStore {
  * and the first run after adding all go through one queue.
  */
 export class WatchScheduler {
-  constructor({ store, agent, callTool = null, pipelineTool = null, pipelineServerAllowed = null, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
+  constructor({ store, agent, callTool = null, pipelineTool = null, pipelineServerAllowed = null, pipelineServerFits = null, intervalMs = 60_000, runTimeoutMs = 5 * 60_000 }) {
     this.store = store;
     this.agent = agent;
     this.callTool = callTool;
     this.pipelineTool = pipelineTool;
     this.pipelineServerAllowed = pipelineServerAllowed;
+    this.pipelineServerFits = pipelineServerFits;
+    this.ownCheck = null;
     this.intervalMs = intervalMs;
     this.runTimeoutMs = runTimeoutMs;
     this.timer = null;
@@ -365,8 +367,11 @@ export class WatchScheduler {
         return this.store.record(id, { mode: 'llm', answer: text, results: [], sources });
       }
       if (w.pipeline) {
+        // (your own servers only while the pipeline is still your saved copy: changed or deleted, it
+        // runs by the strict rule)
+        const own = w.ownPipeline === true && typeof this.ownCheck === 'function' && this.ownCheck(w.pipeline) === true;
         const resolveServers = (ids) => ({ servers: ids, adhoc: (w.pipeAdhoc || []).filter((a) => ids.includes(a.id)) });
-        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers, callTool: this.pipelineTool && ((sid, tool, args, o = {}) => this.pipelineTool(sid, tool, args, { ...o, own: w.ownPipeline === true })), allowServer: this.pipelineServerAllowed && ((sid) => this.pipelineServerAllowed(sid, { own: w.ownPipeline === true })), own: w.ownPipeline === true }), timeout]);
+        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers, callTool: this.pipelineTool && ((sid, tool, args, o = {}) => this.pipelineTool(sid, tool, args, { ...o, own })), allowServer: this.pipelineServerAllowed && ((sid) => this.pipelineServerAllowed(sid, { own })), allowRouted: this.pipelineServerFits && ((sv) => this.pipelineServerFits(sv, { own })), own }), timeout]);
         const text = pipelineText(r);
         const sources = r.steps.flatMap((s) => s.runs.flatMap((x) => x.sources));
         const rec = this.store.record(id, { mode: 'llm', answer: text, results: [], sources });

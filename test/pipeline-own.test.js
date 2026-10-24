@@ -44,10 +44,17 @@ const VAULT = {
   input: { label: 'What', example: 'passwords' },
   steps: [{ kind: 'call', ask: 'Search my vault', call: { server: 'locked', tool: 'search_vault', args: [{ query: '{input}' }] } }],
 };
+// (any call to your keyed server by a pipeline that isn't yours fails the test outright)
 const vaultCalls = () => mock.calls.filter((c) => c.server === 'locked' && c.tool === 'search_vault');
 
-test('a pipeline you saved can call your keyed server; saving says it uses your own servers', async () => {
-  const r = await (await post('/api/pipelines/save', { pipeline: VAULT })).json();
+test('a pipeline you saved can call your keyed server, once you saw what it sends and allowed it', async () => {
+  // (first save: asked, with the step's tool and arguments shown; nothing saved yet)
+  const ask = await post('/api/pipelines/save', { pipeline: VAULT });
+  assert.equal(ask.status, 409);
+  const q = await ask.json();
+  assert.deepEqual(q.uses, [{ step: 1, id: 'locked', title: 'Vault', ask: 'Search my vault', tool: 'search_vault', args: [{ query: '{input}' }] }]);
+  assert.equal((await (await fetch(`${base}/api/pipelines`)).json()).mine.length, 0);
+  const r = await (await post('/api/pipelines/save', { pipeline: VAULT, allowOwn: true })).json();
   assert.deepEqual(r.ownOnly.map((x) => x.id), ['locked']);
   const listed = await (await fetch(`${base}/api/pipelines`)).json();
   assert.deepEqual(listed.mine.find((p) => p.id === r.pipeline.id).ownOnly, ['Vault']);
@@ -65,10 +72,15 @@ test('the same pipeline changed and not saved, or never saved, can\'t reach it',
   const changed = { ...saved, steps: [{ ...saved.steps[0], call: { ...saved.steps[0].call, args: [{ query: 'everything' }] } }] };
   const ev = await run(changed);
   assert.deepEqual(ev.find(([t]) => t === 'pipe_trust')[1], { own: false });
-  assert.ok(ev.some(([t, d]) => t === 'pipe_result' && /can't be called from a pipeline/.test(d.note || '')), JSON.stringify(ev));
+  assert.ok(ev.some(([t, d]) => t === 'pipe_result' && /can't be called from this pipeline/.test(d.note || '')), JSON.stringify(ev));
   // (never saved: no id of yours)
   const ev2 = await run({ ...VAULT, id: 'someone-elses' });
-  assert.ok(ev2.some(([t, d]) => t === 'pipe_result' && /can't be called from a pipeline/.test(d.note || '')));
+  assert.ok(ev2.some(([t, d]) => t === 'pipe_result' && /can't be called from this pipeline/.test(d.note || '')));
+  // (a step that names no servers: MCP Browser's own pick leaves out your servers too)
+  await run({ id: 'someone-elses', title: 'y', steps: [{ ask: 'search the private vault for {input}' }] });
+  // (saving it again after a change, with the same servers as before, isn't asked again)
+  const again = await post('/api/pipelines/save', { pipeline: { ...saved, title: 'Vault check' } });
+  assert.equal(again.status, 200);
   // (a servers list in a plain step is held to the same rule)
   const ev3 = await run({ title: 'x', steps: [{ ask: 'vault {input}', servers: ['locked'] }] });
   assert.ok(ev3.some(([t, d]) => t === 'pipe_result' && /Not asked: locked can't be used from this pipeline/.test(d.note || '')), JSON.stringify(ev3));
@@ -97,4 +109,24 @@ test('a schedule made from your saved copy keeps its trust; one from a changed c
   // (a request can't claim it)
   const c = await (await post('/api/pipelines/watch', { pipeline: { ...VAULT, id: 'x' }, input: 'p', every: 'daily', ownPipeline: true })).json();
   assert.equal(engine.watches.get(c.watch.id).ownPipeline, undefined);
+  // (it runs with your server while the saved copy is unchanged…)
+  let n = vaultCalls().length;
+  await engine.scheduler.run(a.watch.id);
+  assert.equal(vaultCalls().length, n + 1);
+  // (…and not once the saved copy is deleted)
+  await post('/api/pipelines/delete', { id: saved.id });
+  n = vaultCalls().length;
+  await engine.scheduler.run(a.watch.id);
+  assert.equal(vaultCalls().length, n);
+});
+
+test('a library pipeline\'s id stays the library\'s: a copy saved with it gets its own', async () => {
+  const r = await (await post('/api/pipelines/save', { pipeline: { id: 'stock-snapshot', title: 'Mine', steps: [{ ask: '{input} price' }] } })).json();
+  assert.notEqual(r.pipeline.id, 'stock-snapshot');
+});
+
+test('in your own pipeline, a server id MCP Browser doesn\'t know is said so', async () => {
+  const r = await (await post('/api/pipelines/save', { pipeline: { title: 'Typo', steps: [{ ask: 'vault {input}', servers: ['lockd'] }] } })).json();
+  const ev = await run(r.pipeline);
+  assert.ok(ev.some(([t, d]) => t === 'pipe_result' && /isn't a server MCP Browser knows/.test(d.note || '')), JSON.stringify(ev));
 });

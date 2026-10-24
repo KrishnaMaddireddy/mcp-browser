@@ -49,6 +49,7 @@
       <label>Step ${i + 1}: ask <input type="text" data-ed-ask value="${esc(s.ask)}" placeholder="e.g. latest news about {input}"></label>
       ${i ? `<label class="lr-check"><input type="checkbox" data-ed-each ${s.each ? 'checked' : ''}> once for each result of the step before (use {title}, {url})</label>` : ''}
       <label>Servers <input type="text" data-ed-servers value="${esc((s.servers || []).join(', '))}" placeholder="server ids, or empty to let MCP Browser choose"></label>
+      ${s.call?.server ? `<p class="hint">Also calls <b>${esc(s.call.server)}</b>, tool <code>${esc(s.call.tool)}</code>, with <code>${esc(JSON.stringify(s.call.args))}</code> (set in the pipeline's JSON).</p>` : ''}${s.kind === 'research' && s.queries?.length ? `<p class="hint">Searches: ${s.queries.map((q) => `<code>${esc(q)}</code>`).join(' ')}</p>` : ''}${s.kind === 'fetch' ? `<p class="hint">Reads <code>${esc(`{domain}${s.path || '/robots.txt'}`)}</code> from the site named.</p>` : ''}
       <button type="button" class="link-btn" data-ed-rm>Remove step</button></li>`;
   function editorHtml(p) {
     const st = stepEdHtml;
@@ -59,6 +60,7 @@
       <label>Example <input type="text" data-ed-example value="${esc(p.input?.example || '')}"></label>
       <ol class="pl-ed-steps">${(p.steps || [{ ask: '' }]).map((s, i) => st(s, i)).join('')}</ol>
       <p class="hint">In a question: <code>{input}</code> what you typed · <code>{answer}</code> the step before’s answer · <code>{titles}</code> its results · in a “for each” step <code>{title}</code> <code>{url}</code> <code>{host}</code> of one result. Server ids are in the Server catalog (e.g. <code>keenable</code>, <code>exa</code>, <code>wikexa</code>, <code>context7</code>, <code>marketcrew</code>, <code>weather-worldwide</code>).</p>
+      <div class="pl-ed-own" data-ed-own hidden></div>
       <div class="lr-acts"><button type="button" class="link-btn" data-ed-add>Add a step</button><button type="submit" class="st-dl-btn">Save</button><button type="button" class="link-btn" data-ed-cancel>Cancel</button><span class="hint" data-ed-msg></span></div>
     </form>`;
   }
@@ -217,8 +219,19 @@
       });
       f.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const r = await post('/api/pipelines/save', { pipeline: readEditor(f, p) }).then((x) => x.json());
+        const allowOwn = e.submitter?.hasAttribute('data-ed-allow') === true;
+        const r = await post('/api/pipelines/save', { pipeline: readEditor(f, p), allowOwn }).then((x) => x.json());
         if (r.error) return (f.querySelector('[data-ed-msg]').textContent = r.error);
+        // (saving would let it use your own servers with your keys: each step that would, shown first)
+        if (r.confirm) {
+          const box = f.querySelector('[data-ed-own]');
+          box.hidden = false;
+          box.innerHTML = `<p><b>Saving lets this pipeline use your own servers, with the keys or sign-ins you added.</b> Check what each step sends:</p><ul>${r.uses
+            .map((u) => `<li>Step ${u.step}: <b>${esc(u.title)}</b>${u.tool ? `, tool <code>${esc(u.tool)}</code> with <code>${esc(JSON.stringify(u.args))}</code>` : `, asked <q>${esc(u.ask)}</q>`}</li>`)
+            .join('')}</ul><button type="submit" class="st-dl-btn" data-ed-allow>Save and allow</button>`;
+          box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
         host.innerHTML = '';
         await load();
         $(`[data-pl="${CSS.escape(r.pipeline.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });

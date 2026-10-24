@@ -70,7 +70,7 @@ export class SearchAgent {
    * @param {string} query
    * @param {{emit?: Function, signal?: AbortSignal, history?: {q:string,a:string}[], servers?: string[]}} opts
    */
-  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc, reason = 'chosen by you', route } = {}) {
+  async search(query, { emit = () => {}, signal, history = [], servers: forcedIds, discovery, direct = false, wide = false, adhoc, reason = 'chosen by you', route, allow = null } = {}) {
     const t0 = Date.now();
     // A template may turn on discovery for this one search; "Search wider" also
     // casts a bigger net (more servers, more time) just this once.
@@ -138,6 +138,15 @@ export class SearchAgent {
         if (known && !routed.some((r) => r.server.id === known.id)) routed.splice(Math.max(0, routed.length - 1), 0, { server: known, score: 0, terms: [], reason: tick ? 'has a stock quote tool' : 'has an exchange-rate tool' });
       }
     }
+    // allow(server): only these may be asked (a pipeline someone else wrote: not your own servers,
+    // keyed ones or ones you signed in to), whether named or picked by routing
+    if (allow) {
+      const out = routed.filter((r) => !allow(r.server));
+      if (out.length) {
+        routed = routed.filter((r) => allow(r.server));
+        emit('skipped', { servers: out.map((r) => r.server.id), reason: 'not usable from this pipeline' });
+      }
+    }
     emit('route', { signIn: signInHints(this.catalog, topic), servers: routed.map((r) => ({ id: r.server.id, title: r.server.title, trust: r.server.trust, source: r.server.source, reason: r.reason, rank: this.catalog.rankScores?.get(r.server.id) ?? null })) });
     if (!routed.length) {
       emit('error', { message: 'No enabled MCP server matches this query. Turn on discovery or enable more servers.' });
@@ -161,7 +170,7 @@ export class SearchAgent {
     const book = new SourceBook();
     book.query = topic;
     // (a backup web engine may step in when the routed one fails; not when you picked the servers)
-    const session = provider ? null : this._directSession({ query: topic, settings, emit, signal, book, deadline, backup: !forcedIds?.length, exclude: new Set(routed.map((r) => r.server.id)) });
+    const session = provider ? null : this._directSession({ query: topic, settings, emit, signal, book, deadline, backup: !forcedIds?.length, exclude: new Set(routed.map((r) => r.server.id)), allow });
     const asking = [];
     const ready = [];
     await mapLimit(routed, CONNECT_CONCURRENCY, async (r) => {
@@ -423,7 +432,7 @@ export class SearchAgent {
    * (search() calls it the moment each server connects, so one slow connection
    * never holds up the others); finish() adds the quick answer.
    */
-  _directSession({ query, settings, emit, signal, book, deadline = Infinity, backup = false, exclude = new Set() }) {
+  _directSession({ query, settings, emit, signal, book, deadline = Infinity, backup = false, exclude = new Set(), allow = null }) {
     let planned = 0;
     let backupUsed = !backup;
     // Enough is enough: with 3 useful results in and 4 s gone, servers still
@@ -450,7 +459,7 @@ export class SearchAgent {
     const failOver = async (failed) => {
       if (backupUsed || isStopped || signal?.aborted || deadline - Date.now() < 2500) return;
       const next = (this.catalog.all?.() || []).find(
-        (s) => s.general && s.id !== failed.id && !exclude.has(s.id) && this.catalog.isEnabled?.(s) !== false && (this.health?.isAvailable?.(s.id) ?? true)
+        (s) => s.general && s.id !== failed.id && !exclude.has(s.id) && this.catalog.isEnabled?.(s) !== false && (this.health?.isAvailable?.(s.id) ?? true) && (!allow || allow(s))
       );
       if (!next) return;
       backupUsed = true;

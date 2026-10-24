@@ -578,8 +578,23 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
   const pipelineTools = (own) => ({
     callTool: (id, tool, args, o = {}) => engine.callReadOnlyTool(id, tool, args, { ...o, own }),
     allowServer: (id) => engine.pipelineServerAllowed(id, { own }),
+    allowRouted: (sv) => engine.pipelineServerFits(sv, { own }),
     own,
   });
+  engine.setPipelineOwnCheck?.((p) => {
+    try {
+      return isOwn(cleanPipeline(p));
+    } catch {
+      return false;
+    }
+  });
+  // (what each step does with one of your own servers, shown before saving gives it your keys)
+  function ownUses(p, ids) {
+    return p.steps.flatMap((st, k) => {
+      const named = [...(st.servers || []), ...(st.call?.server ? [st.call.server] : [])].filter((id) => ids.includes(id));
+      return named.map((id) => ({ step: k + 1, id, title: titleOf(id), ask: st.ask, ...(st.call?.server === id ? { tool: st.call.tool, args: st.call.args } : {}) }));
+    });
+  }
   const titleOf = (id) => engine.catalog.get(id)?.title || (loadCatalog()?.byName.get(id)?.[loadCatalog().F.title]) || id;
 
   const routes = {
@@ -593,8 +608,17 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     },
     'POST /api/pipelines/save': async (req, res) => {
       try {
-        const saved = pipes().put((await readJson(req)).pipeline);
-        // (which of its servers only your own copy can use: said when you save it)
+        const b = await readJson(req);
+        const p = cleanPipeline(b.pipeline);
+        // Saving makes a pipeline yours, so it may use your own servers with your keys. When that's
+        // new for it (a server it didn't use as you last saved it), you're shown each step that does,
+        // with any tool call and its arguments, and asked first.
+        const want = engine.ownOnlyServers(p);
+        const before = pipes().list.find((x) => x.id === p.id);
+        const had = before ? engine.ownOnlyServers(before) : [];
+        const fresh = want.filter((id) => !had.includes(id));
+        if (fresh.length && b.allowOwn !== true) return json(res, 409, { confirm: true, uses: ownUses(p, fresh) });
+        const saved = pipes().put(p);
         json(res, 200, { pipeline: saved, ownOnly: engine.ownOnlyServers(saved).map((id) => ({ id, title: titleOf(id) })) });
       } catch (e) {
         json(res, 400, { error: errMsg(e) });

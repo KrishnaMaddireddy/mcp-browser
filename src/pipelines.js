@@ -208,8 +208,9 @@ const textOf = (r) => (r?.content || []).filter((c) => c?.type === 'text').map((
  * calls one read-only tool of one server (for call, generate and fetch steps). allowServer(id):
  * may a step name this server (a pipeline file can come from anyone, so not one on this computer,
  * one you added, or one with your key or sign-in); servers it refuses are skipped and said so.
+ * allowRouted(server): the same rule for servers MCP Browser picks when a step names none.
  */
-export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null, allowServer = null, own = false } = {}) {
+export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null, allowServer = null, allowRouted = null, own = false } = {}) {
   const t0 = Date.now();
   const out = [];
   let items = [];
@@ -420,8 +421,8 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
     const refused = named.filter((id) => !usable.includes(id));
     if (named.length && !usable.length) {
       const note = own
-        ? `Not asked: ${refused.join(', ')} ${refused.length === 1 ? 'is' : 'are'} switched off, or ${refused.length === 1 ? 'needs' : 'need'} a key or sign-in you haven't added.`
-        : `Not asked: ${refused.join(', ')} can't be used from this pipeline. A library pipeline, or one you haven't saved, uses only hosted servers that need no key or sign-in: save it as your own (Change it, then Save) to use your servers.`;
+        ? `Not asked: ${refused.join(', ')} ${refused.length === 1 ? "isn't a server MCP Browser knows, is" : "aren't servers MCP Browser knows, are"} switched off, or ${refused.length === 1 ? 'needs' : 'need'} a key or sign-in you haven't added.`
+        : `Not asked: ${refused.join(', ')} can't be used from this pipeline. A library pipeline, or one someone else wrote, uses only hosted servers that need no key or sign-in; only pipelines you build and save yourself can use your own servers.`;
       emit('pipe_result', { i, j: 0, q: st.ask, item: null, answer: '', sources: [], servers: [], note });
       out.push({ i, kind, runs: [{ q: st.ask, item: null, answer: '', sources: [], servers: [], note }] });
       items = [];
@@ -459,7 +460,7 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
       try {
         // (with no AI model, tools are asked the step's subject, not its instruction words:
         // "Write 10 ad headlines for a {input}" asks about "{input}")
-        r = await agent.search(q, { emit: sub, signal, ...(WRITES.test(q) ? { route: stripInstruction(q) } : {}), ...(usable.length ? resolveServers(usable) : {}) });
+        r = await agent.search(q, { emit: sub, signal, ...(WRITES.test(q) ? { route: stripInstruction(q) } : {}), ...(usable.length ? resolveServers(usable) : {}), ...(allowRouted ? { allow: allowRouted } : {}) });
       } catch (e) {
         if (signal?.aborted) throw e;
       }
@@ -702,7 +703,8 @@ export class PipelineStore {
   }
   put(p) {
     const c = cleanPipeline(p);
-    if (STARTERS.some((s) => s.id === c.id)) c.id = crypto.randomBytes(5).toString('hex');
+    // (a starter's or library pipeline's id stays theirs: a saved copy gets its own)
+    if (STARTERS.some((s) => s.id === c.id) || loadLibrary().some((s) => s.id === c.id)) c.id = crypto.randomBytes(5).toString('hex');
     this.list = [...this.list.filter((x) => x.id !== c.id), c].slice(-50);
     this.save();
     return c;

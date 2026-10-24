@@ -94,7 +94,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     // curated list or the registry, over HTTPS, that needs no key or sign-in: never a server on this
     // computer, one you added, or one that would act as you.
     // A pipeline you saved yourself may use your own servers too: you chose them.
-    if (!(own ? ownServerOk(server) : pipelineServerOk(server))) throw new Error(`${id} can't be called from a pipeline: only hosted servers that need no key or sign-in can${own ? '' : ' (save the pipeline as your own to use your servers)'}`);
+    if (!(own ? ownServerOk(server) : pipelineServerOk(server))) throw new Error(own ? `${id} needs a key or sign-in you haven't added` : `${id} can't be called from this pipeline: only hosted servers that need no key or sign-in can (only pipelines you build and save yourself can use your own servers)`);
     const { tools } = await pool.get(server);
     const t = (tools || []).find((x) => x.name === tool);
     if (!t) throw new Error(`${id} has no tool called ${tool}`);
@@ -131,13 +131,18 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     const server = serverById(id);
     return Boolean(server) && (own ? ownServerOk(server) : pipelineServerOk(server));
   }
+  /** The same rule for a server object (for routing, where servers are picked, not named). */
+  function pipelineServerFits(server, { own = false } = {}) {
+    if (!server || settings.serverOverrides?.[server.id] === false) return false;
+    return own ? ownServerOk(server) : pipelineServerOk(server);
+  }
   /** The servers a pipeline names that only your own saved copy may use (keys, sign-ins, yours). */
   function ownOnlyServers(p) {
     const ids = [...new Set((p?.steps || []).flatMap((st) => [...(st.servers || []), ...(st.call?.server ? [st.call.server] : [])]))];
     return ids.filter((id) => !pipelineServerAllowed(id) && pipelineServerAllowed(id, { own: true }));
   }
   const watches = new WatchStore();
-  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool, pipelineServerAllowed });
+  const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool, pipelineServerAllowed, pipelineServerFits: (sv, o) => pipelineServerFits(sv, o) });
   const sync = { running: false, progress: null, error: null, last: null };
   const rank = { running: false, category: null, progress: null, error: null };
   const stars = new StarsStore();
@@ -157,7 +162,12 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     callCatalogTool,
     callReadOnlyTool,
     pipelineServerAllowed,
+    pipelineServerFits,
     ownOnlyServers,
+    /** How a schedule checks, each run, that its pipeline is still your saved copy (set by the app server). */
+    setPipelineOwnCheck(fn) {
+      scheduler.ownCheck = fn;
+    },
     oauth,
     stars,
     /** GitHub stars for a server: { repo, url, stars, pushedAt, archived, fork, sharedWith } or null. */

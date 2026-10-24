@@ -988,6 +988,10 @@ button.cat-tag { border: 0; font-size: 12.5px; cursor: pointer; }
 .pl-editor label { display: grid; gap: 4px; font-size: 13.5px; }
 .pl-ed-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .pl-ed-step { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.pl-ed-own { padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--warn); background: var(--warn-soft); border-radius: 8px; display: grid; gap: 6px; }
+.pl-ed-own ul { margin: 0; padding-left: 18px; }
+.pl-ed-own code { word-break: break-all; }
+.pl-ed-own [data-ed-allow] { justify-self: start; }
 .watch-met { margin: 4px 0; padding: 6px 10px; border-radius: 8px; background: var(--signal-soft); font-size: 14px; overflow-wrap: anywhere; }
 .deeper { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 16px 0 0; font-size: 13px; }
 .deeper > span { color: var(--muted); font-weight: 600; margin-right: 4px; }
