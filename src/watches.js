@@ -85,7 +85,7 @@ export class WatchStore {
     return this.list.find((w) => w.id === id);
   }
 
-  add({ query, every = 'daily', discovery = false, label = '', route = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, when, untilAbout, deps, page, repo }) {
+  add({ query, every = 'daily', discovery = false, label = '', route = '', servers, adhoc, group = '', pipeline, input = '', until = '', pipeAdhoc, ownPipeline = false, when, untilAbout, deps, page, repo }) {
     // A public GitHub repo: its lockfile is read again each time, so a bump shows too.
     const repoInfo = repo ? repoOf(String(repo)) : null;
     if (repo && !repoInfo) throw new Error('only a public GitHub repo link can be watched');
@@ -127,7 +127,8 @@ export class WatchStore {
       // Watches made from one workflow share a group (its title).
       ...(group ? { group: String(group).trim().slice(0, 120) } : {}),
       // A pipeline on a schedule (pipelines.js); "until": stop once its result says this.
-      ...(pipeline ? { pipeline, input: String(input || '').slice(0, 200), ...(pipeAdhoc && Array.isArray(pipeAdhoc) ? { pipeAdhoc: cleanAdhoc(pipeAdhoc, pipeAdhoc.map((a) => a?.id)) } : {}) } : {}),
+      // (ownPipeline: set by the app when the pipeline is your own saved copy, never by a request)
+      ...(pipeline ? { pipeline, input: String(input || '').slice(0, 200), ...(ownPipeline === true ? { ownPipeline: true } : {}), ...(pipeAdhoc && Array.isArray(pipeAdhoc) ? { pipeAdhoc: cleanAdhoc(pipeAdhoc, pipeAdhoc.map((a) => a?.id)) } : {}) } : {}),
       ...(String(until || '').trim() ? { until: String(until).trim().slice(0, 120) } : {}),
       // "Tell me when it happened": the words that say so (built from the word, never sent in),
       // in a sentence naming the thing (plain words only).
@@ -365,7 +366,7 @@ export class WatchScheduler {
       }
       if (w.pipeline) {
         const resolveServers = (ids) => ({ servers: ids, adhoc: (w.pipeAdhoc || []).filter((a) => ids.includes(a.id)) });
-        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers, callTool: this.pipelineTool, allowServer: this.pipelineServerAllowed }), timeout]);
+        const r = await Promise.race([runPipeline(this.agent, w.pipeline, { input: w.input || '', signal: ac.signal, resolveServers, callTool: this.pipelineTool && ((sid, tool, args, o = {}) => this.pipelineTool(sid, tool, args, { ...o, own: w.ownPipeline === true })), allowServer: this.pipelineServerAllowed && ((sid) => this.pipelineServerAllowed(sid, { own: w.ownPipeline === true })), own: w.ownPipeline === true }), timeout]);
         const text = pipelineText(r);
         const sources = r.steps.flatMap((s) => s.runs.flatMap((x) => x.sources));
         const rec = this.store.record(id, { mode: 'llm', answer: text, results: [], sources });

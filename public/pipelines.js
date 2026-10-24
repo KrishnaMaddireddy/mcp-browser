@@ -34,6 +34,7 @@
       <div class="pl-head"><h3>${esc(p.title)}</h3>${mine ? '<button type="button" class="link-btn" data-pl-del>Delete</button>' : p.tested?.on ? `<span class="pl-tested" title="Every step returned results when we ran it with the example">Tested ${esc(niceDay(p.tested.on))}</span>` : ''}</div>
       ${p.description ? `<p class="pl-desc">${esc(p.description)}</p>` : ''}
       ${stepsHtml(p)}
+      ${mine && p.ownOnly?.length ? `<p class="hint pl-own">Uses your own servers: <b>${esc(p.ownOnly.join(', '))}</b>, with the keys or sign-ins you added. Only this saved copy runs with them: the same pipeline shared with someone, or changed and not saved, skips them.</p>` : ''}
       <form class="pl-run" data-pl-run><label><span>${esc(p.input?.label || 'Input')}</span><input type="text" value="${esc(p.input?.example || '')}" data-pl-input></label><button type="submit" class="st-dl-btn">Run</button><button type="button" class="link-btn" data-pl-edit>Change it</button><button type="button" class="link-btn" data-pl-sched>On a schedule</button><button type="button" class="link-btn" data-pl-tab title="Run it in a tab of its own (Ctrl- or ⌘-click Run does the same)">Open in new tab</button></form>
       <div class="pl-sched" data-pl-schedbox hidden>
         <label>Run it <select data-pl-every><option value="hourly">every hour</option><option value="daily" selected>every day</option><option value="weekly">every week</option></select></label>

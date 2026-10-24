@@ -209,7 +209,7 @@ const textOf = (r) => (r?.content || []).filter((c) => c?.type === 'text').map((
  * may a step name this server (a pipeline file can come from anyone, so not one on this computer,
  * one you added, or one with your key or sign-in); servers it refuses are skipped and said so.
  */
-export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null, allowServer = null } = {}) {
+export async function runPipeline(agent, p, { input = '', emit = () => {}, signal, resolveServers = (ids) => ({ servers: ids }), callTool = null, allowServer = null, own = false } = {}) {
   const t0 = Date.now();
   const out = [];
   let items = [];
@@ -419,7 +419,9 @@ export async function runPipeline(agent, p, { input = '', emit = () => {}, signa
     const usable = allowServer ? named.filter((id) => allowServer(id)) : named;
     const refused = named.filter((id) => !usable.includes(id));
     if (named.length && !usable.length) {
-      const note = `Not asked: ${refused.join(', ')} can't be used from a pipeline (only hosted servers that need no key or sign-in, and aren't switched off, can).`;
+      const note = own
+        ? `Not asked: ${refused.join(', ')} ${refused.length === 1 ? 'is' : 'are'} switched off, or ${refused.length === 1 ? 'needs' : 'need'} a key or sign-in you haven't added.`
+        : `Not asked: ${refused.join(', ')} can't be used from this pipeline. A library pipeline, or one you haven't saved, uses only hosted servers that need no key or sign-in: save it as your own (Change it, then Save) to use your servers.`;
       emit('pipe_result', { i, j: 0, q: st.ask, item: null, answer: '', sources: [], servers: [], note });
       out.push({ i, kind, runs: [{ q: st.ask, item: null, answer: '', sources: [], servers: [], note }] });
       items = [];

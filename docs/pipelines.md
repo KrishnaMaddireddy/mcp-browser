@@ -90,6 +90,24 @@ A server you've switched off in Settings stays off, even when a pipeline names i
 only use tools that read: a server's tools that change things (send, delete, book) are never
 offered, here or anywhere else in MCP Browser.
 
+### Your own servers, with keys
+
+You can build pipelines around servers of your own: one you added (Servers → Add a server), one
+you gave a key (Add key on it), one you signed in to, or a package server you approved to run on
+your computer. Put its id in a step's **Servers** box, then **save** the pipeline.
+
+Only your saved copy runs with them. When you save, the card says which of your servers the
+pipeline uses. The same pipeline run any other way doesn't reach them, and the step says why:
+
+- a pipeline from the library, or one someone sent you, until you save it as your own
+  (**Change it**, then **Save**);
+- a saved pipeline that was changed somewhere else and not saved again.
+
+That way a pipeline someone else wrote can't use your keys or read your private servers and
+pass what they return on to another server. A schedule made from your saved copy keeps
+using your servers.
+
+
 ## A three-step example
 
 "A new release, then the problems people hit": what changed in a new version of a tool,

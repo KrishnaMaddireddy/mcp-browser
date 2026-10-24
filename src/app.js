@@ -81,9 +81,10 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
   }
   /**
    * The same, for a pipeline step that names a server and a tool: only a tool that reads (the
-   * same rule that hides write tools from the AI model), never one you switched off.
+   * same rule that hides write tools from the AI model), never one you switched off. own: the
+   * pipeline is one you saved yourself, so it may use any server you set up (see pipelineServerAllowed).
    */
-  async function callReadOnlyTool(id, tool, args, opts = {}) {
+  async function callReadOnlyTool(id, tool, args, { own = false, ...opts } = {}) {
     // (switched off: refused before anything connects to it)
     if (settings.serverOverrides?.[id] === false) throw new Error('switched off in Settings');
     const c = loadCatalog();
@@ -92,7 +93,8 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     // A pipeline file can come from anyone, so its steps may only call a hosted server from the
     // curated list or the registry, over HTTPS, that needs no key or sign-in: never a server on this
     // computer, one you added, or one that would act as you.
-    if (!pipelineServerOk(server)) throw new Error(`${id} can't be called from a pipeline: only hosted servers that need no key or sign-in can`);
+    // A pipeline you saved yourself may use your own servers too: you chose them.
+    if (!(own ? ownServerOk(server) : pipelineServerOk(server))) throw new Error(`${id} can't be called from a pipeline: only hosted servers that need no key or sign-in can${own ? '' : ' (save the pipeline as your own to use your servers)'}`);
     const { tools } = await pool.get(server);
     const t = (tools || []).find((x) => x.name === tool);
     if (!t) throw new Error(`${id} has no tool called ${tool}`);
@@ -112,12 +114,27 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     !settings.serverAuth?.[s.id] &&
     !catalog.hasAuth(s) &&
     oauth.status(s) !== 'signed-in';
-  /** May a pipeline step (from a file anyone could have written) use this server, by id? */
-  function pipelineServerAllowed(id) {
-    if (settings.serverOverrides?.[id] === false) return false;
+  // (in a pipeline you saved: any server you set up that's usable — a key it needs added, a sign-in
+  // it needs made; package servers are in the catalog only once you approved running them)
+  const ownServerOk = (s) => (!s.needsAuth || catalog.hasAuth(s)) && (!s.signIn || oauth.status(s) === 'signed-in');
+  const serverById = (id) => {
     const c = loadCatalog();
-    const server = catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
-    return Boolean(server) && pipelineServerOk(server);
+    return catalog.get(id) || (c?.byName.get(id) ? adhocFor(c.byName.get(id)) : null);
+  };
+  /**
+   * May a pipeline step use this server, by id? A pipeline anyone could have written (the library,
+   * one not saved): only hosted servers that need no key or sign-in. One you saved yourself
+   * ({ own: true }): any server you set up. Never one you switched off.
+   */
+  function pipelineServerAllowed(id, { own = false } = {}) {
+    if (settings.serverOverrides?.[id] === false) return false;
+    const server = serverById(id);
+    return Boolean(server) && (own ? ownServerOk(server) : pipelineServerOk(server));
+  }
+  /** The servers a pipeline names that only your own saved copy may use (keys, sign-ins, yours). */
+  function ownOnlyServers(p) {
+    const ids = [...new Set((p?.steps || []).flatMap((st) => [...(st.servers || []), ...(st.call?.server ? [st.call.server] : [])]))];
+    return ids.filter((id) => !pipelineServerAllowed(id) && pipelineServerAllowed(id, { own: true }));
   }
   const watches = new WatchStore();
   const scheduler = new WatchScheduler({ store: watches, agent, callTool: callCatalogTool, pipelineTool: callReadOnlyTool, pipelineServerAllowed });
@@ -140,6 +157,7 @@ export function createEngine({ providerOverride, curated, extraServers = [], all
     callCatalogTool,
     callReadOnlyTool,
     pipelineServerAllowed,
+    ownOnlyServers,
     oauth,
     stars,
     /** GitHub stars for a server: { repo, url, stars, pushedAt, archived, fork, sharedWith } or null. */

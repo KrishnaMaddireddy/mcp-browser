@@ -217,7 +217,7 @@ test('a step\'s servers list is held to the same rule as a tool call: refused se
   const agent = agentListing([{ title: 'vault passwords', url: 'https://v.example', text: '' }]);
   const p = cleanPipeline({ steps: [{ ask: 'vault {input}', servers: ['locked'] }, { ask: 'more on {answer}', servers: ['locked', 'keenable'] }] });
   const r = await runPipeline(agent, p, { input: 'passwords', allowServer: (id) => id !== 'locked' });
-  assert.match(r.steps[0].runs[0].note, /Not asked: locked can't be used from a pipeline/);
+  assert.match(r.steps[0].runs[0].note, /Not asked: locked can't be used from this pipeline/);
   // (one usable server left: only that one is asked)
   assert.equal(agent.log.length, 1);
 });

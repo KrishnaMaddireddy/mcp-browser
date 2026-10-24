@@ -562,6 +562,24 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
     const adhoc = ids.filter((id) => !engine.catalog.get(id)).map((id) => c?.byName.get(id)).filter(Boolean).map(adhocFor).filter(Boolean);
     return { servers: ids, adhoc };
   }
+  // Is this the pipeline exactly as you saved it? Only then may it use your own servers (keys,
+  // sign-ins, ones you added): a pipeline anyone could have written — the library, a link, one
+  // not saved — may not.
+  const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function isOwn(p) {
+    const saved = pipes().list.find((x) => x.id === p.id);
+    if (!saved) return false;
+    try {
+      return sameJson(cleanPipeline(saved), p);
+    } catch {
+      return false;
+    }
+  }
+  const pipelineTools = (own) => ({
+    callTool: (id, tool, args, o = {}) => engine.callReadOnlyTool(id, tool, args, { ...o, own }),
+    allowServer: (id) => engine.pipelineServerAllowed(id, { own }),
+    own,
+  });
   const titleOf = (id) => engine.catalog.get(id)?.title || (loadCatalog()?.byName.get(id)?.[loadCatalog().F.title]) || id;
 
   const routes = {
@@ -571,11 +589,13 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const c = loadCatalog();
       const title = (id) => known.get(id) || c?.byName.get(id)?.[c.F.title] || id;
       const withTitles = (p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, serverTitles: (s.call?.server ? [s.call.server] : s.servers || []).map(title) })) });
-      json(res, 200, { starters: STARTERS.map(withTitles), library: loadLibrary().map(withTitles), topics: TOPICS, mine: pipes().list.map(withTitles) });
+      json(res, 200, { starters: STARTERS.map(withTitles), library: loadLibrary().map(withTitles), topics: TOPICS, mine: pipes().list.map((p) => ({ ...withTitles(p), ownOnly: engine.ownOnlyServers(p).map(title) })) });
     },
     'POST /api/pipelines/save': async (req, res) => {
       try {
-        json(res, 200, { pipeline: pipes().put((await readJson(req)).pipeline) });
+        const saved = pipes().put((await readJson(req)).pipeline);
+        // (which of its servers only your own copy can use: said when you save it)
+        json(res, 200, { pipeline: saved, ownOnly: engine.ownOnlyServers(saved).map((id) => ({ id, title: titleOf(id) })) });
       } catch (e) {
         json(res, 400, { error: errMsg(e) });
       }
@@ -590,7 +610,7 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       try {
         const p = cleanPipeline(b.pipeline);
         const ids = [...new Set(p.steps.flatMap((s) => s.servers || []))];
-        const w = engine.watches.add({ query: `${p.title}: ${String(b.input || '').slice(0, 200)}`, every: b.every, label: p.title, pipeline: p, input: b.input, until: b.until, pipeAdhoc: resolveServers(ids).adhoc });
+        const w = engine.watches.add({ query: `${p.title}: ${String(b.input || '').slice(0, 200)}`, every: b.every, label: p.title, pipeline: p, input: b.input, until: b.until, pipeAdhoc: resolveServers(ids).adhoc, ownPipeline: isOwn(p) });
         json(res, 200, { watch: { id: w.id } });
       } catch (e) {
         json(res, 400, { error: errMsg(e) });
@@ -612,7 +632,9 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
       const ping = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), 15000);
       try {
         emit('provider', engine.providerInfo());
-        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers, callTool: engine.callReadOnlyTool, allowServer: engine.pipelineServerAllowed });
+        const own = isOwn(p);
+        emit('pipe_trust', { own });
+        await runPipeline(engine.agent, p, { input: String(b.input || '').slice(0, 200), emit, signal: ac.signal, resolveServers, ...pipelineTools(own) });
       } catch (e) {
         if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
       } finally {
