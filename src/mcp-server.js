@@ -40,7 +40,11 @@ export function readDependencyFile(file) {
   }
 }
 
-const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
+// Every tool declares all four hints. None changes anything, so asking twice has no further
+// effect (idempotent). Open world: the tool reaches other servers or the web; the catalog tools
+// read only the catalog on this computer.
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+const LOCAL_READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 
 /**
  * Error text from remote servers is written by strangers. Claude only ever sees
@@ -326,7 +330,7 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
       title: 'Find servers',
       description: 'Search the catalog (curated servers + the official MCP Registry) by topic. Shows whether each server is enabled, needs a key, or failed recently.',
       inputSchema: { topic: z.string().min(1).max(300), limit: z.number().int().min(1).max(25).optional() },
-      annotations: READ_ONLY,
+      annotations: LOCAL_READ,
     },
     async ({ topic, limit = 10 }) => {
       const rows = engine.catalog
@@ -365,7 +369,7 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
         runs_now_only: z.boolean().optional().describe('Only servers MCP Browser can call right now (hosted, no key).'),
         limit: z.number().int().min(1).max(20).optional(),
       },
-      annotations: READ_ONLY,
+      annotations: LOCAL_READ,
     },
     async ({ task, runs_now_only = false, limit = 8 }) => {
       if (!loadCatalog()) return noCatalog();
@@ -384,7 +388,7 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
         server_ids: z.array(z.string().min(1).max(200)).min(1).max(8).describe('Ids from find_server_for_task (e.g. "io.github.getsentry/sentry-mcp").'),
         client: z.enum(['code', 'desktop', 'cursor', 'vscode', 'all']).optional().describe('Claude Code, Claude Desktop, Cursor, VS Code, or all (default).'),
       },
-      annotations: READ_ONLY,
+      annotations: LOCAL_READ,
     },
     async ({ server_ids, client = 'all' }) => {
       const c = loadCatalog();
