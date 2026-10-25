@@ -1,6 +1,6 @@
 # MCP Browser
 
-[![M8ven Score](https://m8ven.ai/badge/mcp/krishnamaddireddy/mcp-browser)](https://m8ven.ai/mcp/krishnamaddireddy/mcp-browser?s=readme)
+[![M8ven Score](https://m8ven.ai/badge/mcp/krishnamaddireddy-mcp-browser-19ox6t?v=9eaf35179dee9cd59dc01ae0a2d2ad0d)](https://m8ven.ai/mcp/krishnamaddireddy-mcp-browser-19ox6t?s=readme)
 
 An AI search browser that answers questions by routing them to the right
 **MCP servers** — picked from a curated set plus the 27,000+ keyless servers in
