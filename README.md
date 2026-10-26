@@ -151,6 +151,8 @@ The same config works in Cursor and VS Code. Claude (or any MCP client) then get
 | `call_tool` | calls one read-only tool (results wrapped as untrusted, with sources) |
 | `find_servers` | searches the curated list + registry by topic |
 | `find_server_for_task`, `try_server`, `get_server_setup` | finds a registry server for a job, tries it live, gives its install config |
+| `store_policies` | asks an online store itself about returns, shipping or how to reach it (Shopify stores answer at their own address) |
+| `find_site_tools` | websites whose pages offer AI agents a tool for a task, from the webmcp.com directory (searched on your computer) |
 
 Try asking Claude Code "check the dependencies in this repo with mcp-browser" or "fact-check
 your last answer with check_paragraph". `check_dependencies` reads only dependency files by
@@ -358,6 +360,13 @@ A question that is just one company, city, website, CVE or piece of software ("N
 "Lisbon", "is example.com safe", "log4j vulnerabilities", "Nvidia vs AMD") also asks a few
 vetted specialist servers at once and shows one card, each part labelled with its server.
 Servers you switched off are skipped; turn cards off under Settings → Routing.
+
+**Store policies, from the store.** A question about one store's returns, shipping or contact
+details ("allbirds return policy", "does gymshark ship to Canada") is asked of that store
+itself: Shopify stores (about 2.4 million, per webmcp.com) answer at their own address with
+their FAQ answers and written policies, linked. Only the question goes, to that store alone (a
+store's name is tried as name.com); a site that isn't such a store shows no card. The answers
+are the storefront's at that address, and a store's site for another country can differ.
 
 ## Dependency check (`mcp://deps`)
 

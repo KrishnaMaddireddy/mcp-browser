@@ -16,6 +16,8 @@ import { TEMPLATES, fillTemplate } from './templates.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEP_TITLES } from './deps.js';
+import { WebMcpDirectory } from './webmcp-dir.js';
+import { storeFor, askStore } from './store-policies.js';
 import { checkClaim, claimMarkdown, checkParagraph, paragraphMarkdown, checkDependencies, depsMarkdown } from './reports.js';
 
 // Files check_dependencies may read from disk by path: dependency files only, so a mistyped
@@ -426,6 +428,59 @@ export function createMcpServer({ engine = createEngine({ providerOverride: null
         return fail(`${safeLabel({ id: server_id, title: row?.[c.F.title] || server_id })} returned nothing useful for that question (${why}). Try one of its sample prompts, or another server.`);
       }
       return text(useful.map((r) => wrapUntrusted(safeLabel({ id: r.serverId, title: r.serverTitle }), r.tool, digest(r), r.flags || [])).join('\n\n'));
+    }
+  );
+
+  // ---------- stores and websites that answer for themselves ----------
+  server.registerTool(
+    'store_policies',
+    {
+      title: 'Ask a store about its policies',
+      description:
+        "Ask an online store itself about its return, refund, shipping, contact or privacy policy (\"does gymshark ship to Canada?\", \"allbirds return window\"). Works for Shopify stores, which answer at their own address: the store's FAQ answers and its written policies with links. Only the question is sent, to that store alone. A store's answer covers the storefront at that address; another country's site can differ.",
+      inputSchema: {
+        store: z.string().min(2).max(100).describe('The store\'s web address (allbirds.com) or its name (Allbirds, tried as allbirds.com).'),
+        question: z.string().min(2).max(200).describe('What to ask, without the store\'s name: "return policy", "ship to Canada", "customer service phone number".'),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ store, question }) => {
+      const s = storeFor(store, question);
+      if (!s) return fail('Give the store\'s web address, such as allbirds.com.');
+      const got = await askStore(engine.pool, s);
+      if (!got) return fail(`${s.value} didn't answer as a store (only Shopify stores answer this way), or had nothing on that. Search its site instead.`);
+      const lines = [
+        ...got.faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`),
+        ...got.policies.map((p) => `${p.title}${p.url ? ` (${p.url})` : ''}: ${p.summary}`),
+        `(From the storefront at ${got.host}; another country's site can differ.)`,
+      ];
+      return text(wrapUntrusted(`${got.host} (the store itself)`, 'search_shop_policies_and_faqs', lines.join('\n\n'), []));
+    }
+  );
+
+  let sites = null;
+  server.registerTool(
+    'find_site_tools',
+    {
+      title: 'Find websites with tools for a task',
+      description:
+        'Search the webmcp.com directory (about 6,500 websites, 39,000 tools) for websites whose pages offer AI agents a tool for a task ("search flights", "convert a PDF to a quiz", "check a domain"). Returns the site, the tool, what it does and whether it only reads (answer), changes something (act) or spends money or commits you (transact). These tools run inside the site\'s own page, in a browser that supports WebMCP, such as the MCP Browser desktop app. The directory is downloaded once a day; searching it sends nothing.',
+      inputSchema: {
+        task: z.string().min(2).max(200).describe('What you want a website to do, in plain words.'),
+        kind: z.enum(['answer', 'act', 'transact']).optional().describe('Only tools that read (answer), change something (act), or spend money or commit you (transact).'),
+        limit: z.number().int().min(1).max(25).optional(),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ task, kind, limit = 10 }) => {
+      sites ||= new WebMcpDirectory();
+      await sites.ready();
+      if (!sites.data) return fail(`The webmcp.com directory couldn't be downloaded${sites.error ? ` (${sites.error})` : ''}. Try again in a minute.`);
+      const hits = sites.findTools(task, { kind, limit });
+      if (!hits.length) return fail(`No website in the directory (${sites.info().sites} sites) offers a tool for that. Try other words.`);
+      const KIND = { answer: 'reads only', act: 'changes something', transact: 'spends money or commits you' };
+      const body = hits.map((h) => `${h.host} — ${h.name} (${KIND[h.kind] || h.kind}${h.type === 'demo' ? ', a demo' : ''}): ${h.description}\n${(() => { try { return new URL(h.page || '/', h.url).href; } catch { return h.url; } })()}`).join('\n\n');
+      return text(wrapUntrusted('webmcp.com directory (written by site owners)', 'find_site_tools', body, []));
     }
   );
 

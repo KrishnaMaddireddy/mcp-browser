@@ -48,7 +48,7 @@ const call = async (name, args) => {
 
 test('advertises read-only tools and instructions', async () => {
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['call_tool', 'check_dependencies', 'check_paragraph', 'cross_check', 'find_server_for_task', 'find_servers', 'get_server_setup', 'quick_search', 'route', 'try_server']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['call_tool', 'check_dependencies', 'check_paragraph', 'cross_check', 'find_server_for_task', 'find_servers', 'find_site_tools', 'get_server_setup', 'quick_search', 'route', 'store_policies', 'try_server']);
   assert.ok(tools.every((t) => t.annotations?.readOnlyHint === true));
   // (all four hints, each an explicit true or false, on every tool: some directories reject a tool missing one)
   for (const t of tools) for (const h of ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']) assert.equal(typeof t.annotations?.[h], 'boolean', `${t.name} ${h}`);

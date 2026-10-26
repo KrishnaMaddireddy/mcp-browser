@@ -645,7 +645,7 @@
           sides[i].order = ['time', ...d.sections.map((x) => x.key)].filter((x) => x !== 'time' || d.type === 'place');
           box.dataset.type = d.type;
           sides[i].subtitle = d.subtitle;
-          const head = `<header><h3>${esc(d.title)}</h3><span data-ac-sub>${esc(d.subtitle)} · asking ${d.sections.length} servers at once</span></header><div class="ac-grid" data-ac-grid="${i}"></div>`;
+          const head = `<header><h3>${esc(d.title)}</h3><span data-ac-sub>${esc(d.subtitle)} · ${d.asking ? esc(d.asking) : `asking ${d.sections.length} servers at once`}</span></header><div class="ac-grid" data-ac-grid="${i}"></div>`;
           const host = d.side != null ? box.querySelector(`[data-side="${i}"]`) : box;
           host.innerHTML = head;
           box.hidden = false;
@@ -671,7 +671,7 @@
             // (what it says it's from: the servers whose answers are on it, not the ones asked)
             const used = new Set([...sides[j].sections.values()].filter((y) => !y.empty).flatMap((y) => y.servers || []).filter((x) => x !== 'MCP Browser'));
             const sub = (d.all || box.classList.contains('ac-pair') ? box.querySelector(`[data-side="${j}"]`) : box)?.querySelector('[data-ac-sub]');
-            if (sub) sub.textContent = used.size ? `${sides[j].subtitle} · from ${used.size} server${used.size === 1 ? '' : 's'}` : sides[j].subtitle;
+            if (sub) sub.textContent = box.dataset.type === 'store' && used.size ? `${sides[j].subtitle} · from ${[...used][0]}` : used.size ? `${sides[j].subtitle} · from ${used.size} server${used.size === 1 ? '' : 's'}` : sides[j].subtitle;
           }
           const any = sides.some((x) => [...x.sections.values()].some((y) => !y.empty));
           if (!any) box.hidden = true;

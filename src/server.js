@@ -21,6 +21,7 @@ import { packageInfo, runtimes, sandboxStatus, healLaunch, explainFailure } from
 import { WebMcpDirectory } from './webmcp-dir.js';
 import { crossCheck, claimsIn } from './crosscheck.js';
 import { detectEntity, detectPair, runCard } from './cards.js';
+import { detectStore, runStoreCard } from './store-policies.js';
 import { parseTrack, figureIn, thresholdMet } from './track.js';
 import { parseManifest, runDeps, repoOf, fetchRepoDeps } from './deps.js';
 import { STARTERS, TOPICS, loadLibrary, PipelineStore, cleanPipeline, runPipeline } from './pipelines.js';
@@ -792,7 +793,9 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
         return { ...r, reason: 'answer card' };
       };
       const pair = settings.answerCards === false ? null : detectPair(q);
-      const entity = pair || settings.answerCards === false ? null : detectEntity(q);
+      // (a store's policies, asked of the store itself: "allbirds return policy")
+      const store = pair || settings.answerCards === false ? null : detectStore(q);
+      const entity = pair || store || settings.answerCards === false ? null : detectEntity(q);
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
       const emit = (type, data) => !res.writableEnded && res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
       if (pair) {
@@ -805,6 +808,18 @@ export function createServer({ engine = createEngine(), port = 7777 } = {}) {
           if (!ac.signal.aborted) emit('error', { message: errMsg(e) });
         } finally {
           emit('card_done', { all: true });
+          res.end();
+        }
+        return;
+      }
+      if (store) {
+        const ac = new AbortController();
+        res.on('close', () => ac.abort());
+        try {
+          await runStoreCard(engine.pool, store, { emit, signal: ac.signal });
+        } catch (e) {
+          if (!ac.signal.aborted) emit('card_none', {});
+        } finally {
           res.end();
         }
         return;

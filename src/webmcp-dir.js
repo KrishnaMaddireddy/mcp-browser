@@ -144,6 +144,36 @@ export class WebMcpDirectory {
     return { total: out.length, sites: out.slice(offset, offset + Math.min(100, limit)), categories };
   }
 
+  /**
+   * Tools across the directory that fit a task, best first: { host, url, site, name, kind,
+   * description, page }. Scored on the task's words in the tool's name and description (and a
+   * little for the site's), live sites before demos, tools that only read before ones that act.
+   */
+  findTools(task, { kind = '', limit = 10 } = {}) {
+    const d = this.data;
+    if (!d) return [];
+    const STOP = new Set('a an the and or of for to in on with by from my me i that this which can could would tool tools site sites website websites web page pages find look up get do does use using want need'.split(' '));
+    const words = [...new Set(String(task).toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])].filter((w) => w.length > 1 && !STOP.has(w)).slice(0, 10);
+    if (!words.length) return [];
+    const stem = (w) => (w.length > 5 ? w.slice(0, -2) : w);
+    const out = [];
+    for (const s of d.sites) {
+      const siteHay = `${s.host} ${s.desc} ${s.category}`.toLowerCase();
+      for (const t of s.tools) {
+        if (kind && t.kind !== kind) continue;
+        const hay = `${t.name.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')} ${t.description}`.toLowerCase();
+        // (most of the task's words in the tool itself: "search flights" isn't "book a flight")
+        const inTool = words.filter((w) => hay.includes(stem(w))).length;
+        if (inTool < Math.max(1, Math.ceil(words.length * 0.6))) continue;
+        let score = inTool * 2;
+        for (const w of words) if (!hay.includes(stem(w)) && siteHay.includes(stem(w))) score += 0.5;
+        score += (s.type === 'live' ? 1 : 0) + (t.kind === 'answer' ? 0.5 : t.kind === 'act' ? 0.2 : 0);
+        out.push({ score, host: s.host, url: s.url, site: s.desc, type: s.type, name: t.name, kind: t.kind, description: t.description, page: t.page });
+      }
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, Math.min(25, limit)).map(({ score, ...x }) => x);
+  }
+
   /** One site with tool inputs (asks webmcp.com about this one host; cached an hour). */
   async site(host) {
     host = String(host || '').toLowerCase().replace(/^www\./, '');
